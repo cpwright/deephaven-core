@@ -1,5 +1,8 @@
 package io.deephaven.api;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.immutables.value.Value.Check;
 import org.immutables.value.Value.Immutable;
@@ -10,9 +13,15 @@ public abstract class ColumnName
     implements JoinMatch, JoinAddition, Selectable, Expression, Filter {
 
     private final static Pattern COLUMN_NAME_PATTERN = Pattern.compile("[a-zA-Z0-9_]+");
+    private final static Set<String> RESERVED;
+    static {
+        final Set<String> reserved = new HashSet<>();
+        reserved.add("i"); // todo, add others
+        RESERVED = Collections.unmodifiableSet(reserved);
+    }
 
     public static boolean isValidColumnName(String name) {
-        return COLUMN_NAME_PATTERN.matcher(name).matches();
+        return !RESERVED.contains(name) && COLUMN_NAME_PATTERN.matcher(name).matches();
     }
 
     public static ColumnName of(String name) {

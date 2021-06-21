@@ -1,16 +1,16 @@
 package io.deephaven.client.impl;
 
 import io.deephaven.qst.manager.ExportedTable;
-import io.deephaven.client.impl.ExportManagerImpl.State;
+import io.deephaven.client.impl.ExportManagerClientImpl.State;
 import io.deephaven.qst.table.Table;
 import java.util.Objects;
 
 class ExportedTableImpl implements ExportedTable {
 
-    private final ExportManagerImpl.State state;
+    private final ExportManagerClientImpl.State state;
     private boolean released;
 
-    ExportedTableImpl(ExportManagerImpl.State state) {
+    ExportedTableImpl(ExportManagerClientImpl.State state) {
         this.state = Objects.requireNonNull(state);
         this.released = false;
     }

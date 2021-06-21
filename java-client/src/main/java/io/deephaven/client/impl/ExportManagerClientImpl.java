@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-abstract class ExportManagerImpl implements ExportManager {
+abstract class ExportManagerClientImpl implements ExportManager {
 
     class State {
 
@@ -37,8 +37,8 @@ abstract class ExportManagerImpl implements ExportManager {
             exports.put(table, this);
         }
 
-        ExportManagerImpl manager() {
-            return ExportManagerImpl.this;
+        ExportManagerClientImpl manager() {
+            return ExportManagerClientImpl.this;
         }
 
         Table table() {
@@ -80,7 +80,7 @@ abstract class ExportManagerImpl implements ExportManager {
     private final Map<Table, State> exports;
     private long nextTicket;
 
-    public ExportManagerImpl() {
+    public ExportManagerClientImpl() {
         this.exports = new HashMap<>();
         this.nextTicket = 1L;
     }

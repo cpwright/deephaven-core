@@ -53,4 +53,12 @@ public interface ExportManager {
 
     // TODO: support batch release in the future
     // void release(Collection<ExportedTable> exports);
+
+    default ExportedTable exportChain(Table table) {
+        return export(table); // todo
+    }
+
+    default ExportedTable exportChain(Table table, int maxDepth) {
+        return export(table); // todo
+    }
 }

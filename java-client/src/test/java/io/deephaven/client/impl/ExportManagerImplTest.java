@@ -176,7 +176,7 @@ public class ExportManagerImplTest {
         return ticket == byteStringToLong(ref.getTicket().getId());
     }
 
-    static class ExportManagerImplMock extends ExportManagerImpl {
+    static class ExportManagerImplMock extends ExportManagerClientImpl {
 
         final List<BatchTableRequest> batchTableRequests = new ArrayList<>();
         final List<Ticket> releasedTickets = new ArrayList<>();

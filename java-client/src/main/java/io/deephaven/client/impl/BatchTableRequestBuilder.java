@@ -24,7 +24,7 @@ import io.deephaven.api.agg.Sum;
 import io.deephaven.api.agg.Var;
 import io.deephaven.api.agg.WAvg;
 import io.deephaven.api.agg.WSum;
-import io.deephaven.client.impl.ExportManagerImpl.State;
+import io.deephaven.client.impl.ExportManagerClientImpl.State;
 import io.deephaven.proto.backplane.grpc.BatchTableRequest;
 import io.deephaven.proto.backplane.grpc.BatchTableRequest.Operation;
 import io.deephaven.proto.backplane.grpc.BatchTableRequest.Operation.Builder;
@@ -76,18 +76,18 @@ import java.util.stream.Collectors;
 
 class BatchTableRequestBuilder {
 
-    private static final Collector<ExportManagerImpl.State, ?, Map<Table, ExportManagerImpl.State>> TABLE_TO_EXPORT_COLLECTOR =
+    private static final Collector<ExportManagerClientImpl.State, ?, Map<Table, ExportManagerClientImpl.State>> TABLE_TO_EXPORT_COLLECTOR =
         Collectors.toMap(State::table, Function.identity());
 
-    static BatchTableRequest build(Map<Table, ExportManagerImpl.State> states,
-        Set<ExportManagerImpl.State> newStates) {
+    static BatchTableRequest build(Map<Table, ExportManagerClientImpl.State> states,
+        Set<ExportManagerClientImpl.State> newStates) {
         if (newStates.isEmpty()) {
             throw new IllegalArgumentException();
         }
 
         // this is a depth-first ordering without duplicates, ensuring we create the dependencies
         // in the preferred/resolvable order
-        final List<Table> tables = newStates.stream().map(ExportManagerImpl.State::table)
+        final List<Table> tables = newStates.stream().map(ExportManagerClientImpl.State::table)
             .flatMap(ParentsVisitor::getAncestorsAndSelf).distinct().collect(Collectors.toList());
 
         final Map<Table, Integer> indices = new HashMap<>(tables.size());
@@ -95,7 +95,7 @@ class BatchTableRequestBuilder {
         int ix = 0;
         for (Table next : tables) {
             final Ticket ticket;
-            final ExportManagerImpl.State state = states.get(next);
+            final ExportManagerClientImpl.State state = states.get(next);
             final boolean isExported = state != null;
             if (isExported) {
                 final boolean isNewExport = newStates.contains(state);
@@ -123,11 +123,11 @@ class BatchTableRequestBuilder {
     private static class OperationAdapter implements Table.Visitor {
         private final Ticket ticket;
         private final Map<Table, Integer> indices;
-        private final Map<Table, ExportManagerImpl.State> exports;
+        private final Map<Table, ExportManagerClientImpl.State> exports;
         private Operation out;
 
         OperationAdapter(Ticket ticket, Map<Table, Integer> indices,
-            Map<Table, ExportManagerImpl.State> exports) {
+            Map<Table, ExportManagerClientImpl.State> exports) {
             this.ticket = Objects.requireNonNull(ticket);
             this.indices = Objects.requireNonNull(indices);
             this.exports = Objects.requireNonNull(exports);

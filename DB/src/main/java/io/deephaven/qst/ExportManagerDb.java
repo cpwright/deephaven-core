@@ -41,6 +41,16 @@ public class ExportManagerDb implements ExportManager {
     }
 
     @Override
+    public synchronized final Export exportChain(Table table) {
+        return export(table); // todo
+    }
+
+    @Override
+    public synchronized final Export exportChain(Table table, int maxDepth) {
+        return export(table); // todo
+    }
+
+    @Override
     public synchronized final List<Export> export(Collection<Table> tables) {
         return tables.stream().map(this::export).collect(Collectors.toList());
     }
@@ -87,7 +97,7 @@ public class ExportManagerDb implements ExportManager {
              *
              * @return the query table
              */
-            public QueryTable getQueryTable() {
+            public final QueryTable queryTable() {
                 final QueryTable localRef = queryTable;
                 // not guarding getter w/ synchronize, but this should provide some level of safety
                 if (localRef == null) {
@@ -97,7 +107,7 @@ public class ExportManagerDb implements ExportManager {
             }
 
             @Override
-            protected void releaseImpl() {
+            protected final void releaseImpl() {
                 synchronized (ExportManagerDb.this) {
                     queryTable.close();
                     queryTable = null;
@@ -106,7 +116,7 @@ public class ExportManagerDb implements ExportManager {
             }
 
             @Override
-            protected Export newRefImpl() {
+            protected final Export newRefImpl() {
                 return State.this.newRef();
             }
         }
