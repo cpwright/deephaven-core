@@ -4,6 +4,8 @@ import static io.deephaven.client.impl.BatchTableRequestBuilder.byteStringToLong
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
+import io.deephaven.proto.backplane.grpc.ExportedTableUpdateMessage;
+import io.deephaven.proto.backplane.grpc.ExportedTableUpdatesRequest;
 import io.deephaven.qst.manager.ExportedTable;
 import io.deephaven.proto.backplane.grpc.BatchTableRequest;
 import io.deephaven.proto.backplane.grpc.BatchTableRequest.Operation;
@@ -12,6 +14,7 @@ import io.deephaven.proto.backplane.grpc.Ticket;
 import io.deephaven.qst.table.EmptyTable;
 import io.deephaven.qst.table.HeadTable;
 import io.deephaven.qst.table.Table;
+import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,8 +51,8 @@ public class ExportManagerImplTest {
     @Test
     void sameTicketOnSameExportedTable() {
         final EmptyTable empty42 = Table.empty(42L);
-        try (final ExportedTableImpl ref1 = (ExportedTableImpl) impl.export(empty42);
-            final ExportedTableImpl ref2 = (ExportedTableImpl) impl.export(empty42)) {
+        try (final Export ref1 = (Export) impl.export(empty42);
+            final Export ref2 = (Export) impl.export(empty42)) {
             assertThat(ref1.ticket()).isEqualTo(ref2.ticket());
         }
     }
@@ -58,10 +61,10 @@ public class ExportManagerImplTest {
     void twoRefsForSameTable() {
         final EmptyTable empty42 = Table.empty(42L);
 
-        final List<ExportedTable> refs = impl.export(Arrays.asList(empty42, empty42));
+        final List<Export> refs = impl.export(Arrays.asList(empty42, empty42));
         assertThat(refs).hasSize(2);
 
-        try (final ExportedTable ref1 = refs.get(0); final ExportedTable ref2 = refs.get(1)) {
+        try (final Export ref1 = refs.get(0); final ExportedTable ref2 = refs.get(1)) {
             assertThat(ref1).isNotEqualTo(ref2);
         }
     }
@@ -70,10 +73,10 @@ public class ExportManagerImplTest {
     void newTicketAfterRelease() {
         final EmptyTable empty42 = Table.empty(42L);
         final long ticket;
-        try (final ExportedTableImpl ref = (ExportedTableImpl) impl.export(empty42)) {
+        try (final Export ref = impl.export(empty42)) {
             ticket = ref.ticket();
         }
-        try (final ExportedTableImpl ref = (ExportedTableImpl) impl.export(empty42)) {
+        try (final Export ref = impl.export(empty42)) {
             assertThat(ref.ticket()).isNotEqualTo(ticket);
         }
     }
@@ -81,9 +84,9 @@ public class ExportManagerImplTest {
     @Test
     void newRefCanOutliveOriginal() {
         final EmptyTable empty42 = Table.empty(42L);
-        final ExportedTableImpl newRef;
-        try (final ExportedTableImpl ref = (ExportedTableImpl) impl.export(empty42)) {
-            newRef = (ExportedTableImpl) ref.newRef();
+        final Export newRef;
+        try (final Export ref = impl.export(empty42)) {
+            newRef = (Export) ref.newRef();
         }
         assertThat(newRef.isReleased()).isFalse();
         newRef.release();
@@ -138,8 +141,8 @@ public class ExportManagerImplTest {
     void reusePreviousExports() {
         final EmptyTable empty42 = Table.empty(42L);
         final HeadTable empty42head6 = empty42.head(6);
-        try (final ExportedTableImpl e1 = (ExportedTableImpl) impl.export(empty42);
-            final ExportedTableImpl e2 = (ExportedTableImpl) impl.export(empty42head6)) {
+        try (final Export e1 = (Export) impl.export(empty42);
+            final Export e2 = (Export) impl.export(empty42head6)) {
 
             assertThat(impl.batchTableRequests).hasSize(2);
             // Check that we are re-using the ticket from e1
@@ -153,10 +156,10 @@ public class ExportManagerImplTest {
     void mustReexportIfPreviousHasBeenReleased() {
         final EmptyTable empty42 = Table.empty(42L);
         final HeadTable empty42head6 = empty42.head(6);
-        try (final ExportedTableImpl e1 = (ExportedTableImpl) impl.export(empty42)) {
+        try (final Export e1 = (Export) impl.export(empty42)) {
             // ignore
         }
-        try (final ExportedTableImpl e2 = (ExportedTableImpl) impl.export(empty42head6)) {
+        try (final Export e2 = (Export) impl.export(empty42head6)) {
             assertThat(impl.batchTableRequests).hasSize(2);
             // Check that we aren't reusing the ticket from e1
             assertThat(impl.batchTableRequests.get(1).getOpsList()).hasSize(2);
@@ -176,7 +179,7 @@ public class ExportManagerImplTest {
         return ticket == byteStringToLong(ref.getTicket().getId());
     }
 
-    static class ExportManagerImplMock extends ExportManagerClientImpl {
+    static class ExportManagerImplMock extends ExportManagerClientBase {
 
         final List<BatchTableRequest> batchTableRequests = new ArrayList<>();
         final List<Ticket> releasedTickets = new ArrayList<>();
@@ -189,6 +192,12 @@ public class ExportManagerImplTest {
         @Override
         protected void executeRelease(Ticket ticket) {
             releasedTickets.add(ticket);
+        }
+
+        @Override
+        protected void execute(ExportedTableUpdatesRequest request,
+            StreamObserver<ExportedTableUpdateMessage> observer) {
+            throw new UnsupportedOperationException("TODO");
         }
     }
 }

@@ -63,6 +63,7 @@ public class ExportManagerDb implements ExportManager {
             super(0);
             this.table = Objects.requireNonNull(table);
             this.canonicalTable = Objects.requireNonNull(canonicalTable);
+            System.out.println("New state " + table.hashCode());
         }
 
         Export newRef() {
@@ -74,6 +75,7 @@ public class ExportManagerDb implements ExportManager {
 
         @Override
         protected void onReferenceCountAtZero() {
+            System.out.println("Released " + table.hashCode());
             canonicalTable.close();
             canonicalTable = null;
             exports.remove(table, this);
@@ -104,6 +106,10 @@ public class ExportManagerDb implements ExportManager {
                     throw new IllegalStateException("Table has already been released");
                 }
                 return localRef;
+            }
+
+            public final long size() {
+                return queryTable().size();
             }
 
             @Override
