@@ -126,6 +126,7 @@ JPy_JType* JType_GetType(JNIEnv* jenv, jclass classRef, jboolean resolve);
 
 PyObject* JType_ConvertJavaToPythonObject(JNIEnv* jenv, JPy_JType* type, jobject objectRef);
 int       JType_ConvertPythonToJavaObject(JNIEnv* jenv, JPy_JType* type, PyObject* arg, jobject* objectRef, jboolean allowObjectWrapping);
+int       JType_ConvertPythonToJavaObject6(JNIEnv* jenv, JPy_JType* type, PyObject* arg, jobject* objectRef, jboolean allowObjectWrapping, jboolean decref);
 
 PyObject* JType_GetOverloadedMethod(JNIEnv* jenv, JPy_JType* type, PyObject* methodName, jboolean useSuperClass);
 

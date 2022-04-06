@@ -47,8 +47,8 @@ JPy_JMethod* JMethod_New(JPy_JType* declaringClass,
     method->isVarArgs = isVarArgs;
     method->mid = mid;
 
-    Py_INCREF(declaringClass);
-    Py_INCREF(method->name);
+    JPY_INCREF(declaringClass);
+    JPY_INCREF(method->name);
 
     return method;
 }
@@ -61,16 +61,16 @@ void JMethod_dealloc(JPy_JMethod* self)
 {
     JNIEnv* jenv;
 
-    Py_DECREF(self->declaringClass);
-    Py_DECREF(self->name);
+    JPY_DECREF(self->declaringClass);
+    JPY_DECREF(self->name);
 
     jenv = JPy_GetJNIEnv();
     if (jenv != NULL) {
         int i;
         for (i = 0; i < self->paramCount; i++) {
-            Py_DECREF((self->paramDescriptors + i)->type);
+            JPY_DECREF((self->paramDescriptors + i)->type);
         }
-        Py_DECREF((self->returnDescriptor + i)->type);
+        JPY_DECREF((self->returnDescriptor + i)->type);
     }
 
     PyMem_Del(self->paramDescriptors);
@@ -231,7 +231,7 @@ PyObject* JMethod_FromJObject(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyArg
         //printf("JMethod_FromJObject: paramIndex=%d, jArg=%p, isNone=%d\n", paramIndex, jArg, pyReturnArg == Py_None);
         if ((JObj_Check(pyReturnArg) || PyObject_CheckBuffer(pyReturnArg))
             && (*jenv)->IsSameObject(jenv, jReturnValue, jArg)) {
-             Py_INCREF(pyReturnArg);
+             JPY_INCREF(pyReturnArg);
              return pyReturnArg;
         }
     }
@@ -252,9 +252,11 @@ PyObject* JMethod_InvokeMethod(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyAr
     jclass classRef;
 
     //printf("JMethod_InvokeMethod 1: typeCode=%c\n", typeCode);
+    JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
     if (JMethod_CreateJArgs(jenv, method, pyArgs, &jArgs, &argDisposers, isVarArgsArray) < 0) {
         return NULL;
     }
+    JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 
     //printf("JMethod_InvokeMethod 2: typeCode=%c\n", typeCode);
 
@@ -268,52 +270,77 @@ PyObject* JMethod_InvokeMethod(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyAr
         JPy_DIAG_PRINT(JPy_DIAG_F_EXEC, "JMethod_InvokeMethod: calling static Java method %s#%s\n", declaringClass->javaName, JPy_AS_UTF8(method->name));
 
         if (returnType == JPy_JVoid) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             (*jenv)->CallStaticVoidMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JVOID();
         } else if (returnType == JPy_JBoolean) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jboolean v = (*jenv)->CallStaticBooleanMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JBOOLEAN(v);
         } else if (returnType == JPy_JChar) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jchar v = (*jenv)->CallStaticCharMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JCHAR(v);
         } else if (returnType == JPy_JByte) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jbyte v = (*jenv)->CallStaticByteMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JBYTE(v);
         } else if (returnType == JPy_JShort) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jshort v = (*jenv)->CallStaticShortMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JSHORT(v);
         } else if (returnType == JPy_JInt) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jint v = (*jenv)->CallStaticIntMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JINT(v);
         } else if (returnType == JPy_JLong) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jlong v = (*jenv)->CallStaticLongMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JLONG(v);
         } else if (returnType == JPy_JFloat) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jfloat v = (*jenv)->CallStaticFloatMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JFLOAT(v);
         } else if (returnType == JPy_JDouble) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jdouble v = (*jenv)->CallStaticDoubleMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FROM_JDOUBLE(v);
         } else if (returnType == JPy_JString) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jstring v = (*jenv)->CallStaticObjectMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
             returnValue = JPy_FromJString(jenv, v);
             JPy_DELETE_LOCAL_REF(v);
         } else {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jobject v = (*jenv)->CallStaticObjectMethodA(jenv, classRef, method->mid, jArgs);
             JPy_ON_JAVA_EXCEPTION_GOTO(error);
+
             returnValue = JMethod_FromJObject(jenv, method, pyArgs, jArgs, 0, returnType, v);
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
             JPy_DELETE_LOCAL_REF(v);
         }
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 
     } else {
         jobject objectRef;
@@ -376,7 +403,9 @@ PyObject* JMethod_InvokeMethod(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyAr
 
 error:
     if (jArgs != NULL) {
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d disposing args\n", __FUNCTION__, __FILE__, __LINE__);
         JMethod_DisposeJArgs(jenv, method->paramCount, jArgs, argDisposers);
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d disposed args\n", __FUNCTION__, __FILE__, __LINE__);
     }
 
     return returnValue;
@@ -393,6 +422,8 @@ int JMethod_CreateJArgs(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyArgs, jva
     JPy_ArgDisposer* argDisposer;
     JPy_ArgDisposer* argDisposers;
 
+    JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d paramCount %d\n", __FUNCTION__, __FILE__, __LINE__, method->paramCount);
+
     if (method->paramCount == 0) {
         *argValuesRet = NULL;
         *argDisposersRet = NULL;
@@ -400,6 +431,7 @@ int JMethod_CreateJArgs(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyArgs, jva
     }
 
     argCount = PyTuple_Size(pyArgs);
+    JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d pyArgs %p refCount %d\n", __FUNCTION__, __FILE__, __LINE__, pyArgs, pyArgs->ob_refcnt);
 
     if (method->isVarArgs) {
         // need to know if we expect a self parameter
@@ -435,27 +467,36 @@ int JMethod_CreateJArgs(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyArgs, jva
         jValue->l = 0;
         argDisposer->data = NULL;
         argDisposer->DisposeArg = NULL;
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d arg %d pyArg %p refcnt %d\n", __FUNCTION__, __FILE__, __LINE__, i, pyArg, pyArg->ob_refcnt);
         if (paramDescriptor->ConvertPyArg(jenv, paramDescriptor, pyArg, jValue, argDisposer) < 0) {
             PyMem_Del(jValues);
             PyMem_Del(argDisposers);
             return -1;
         }
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d arg %d converted pyArg %p refcnt %d (%s)\n", __FUNCTION__, __FILE__, __LINE__, i, pyArg, pyArg->ob_refcnt);
         paramDescriptor++;
         jValue++;
         argDisposer++;
     }
     if (method->isVarArgs) {
+        JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
         if (isVarArgsArray) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
             pyArg = PyTuple_GetItem(pyArgs, i);
             jValue->l = 0;
             argDisposer->data = NULL;
             argDisposer->DisposeArg = NULL;
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d must convert %p refCnt = %d\n", __FUNCTION__, __FILE__, __LINE__, pyArg, pyArg->ob_refcnt);
             if (paramDescriptor->ConvertPyArg(jenv, paramDescriptor, pyArg, jValue, argDisposer) < 0) {
                 PyMem_Del(jValues);
                 PyMem_Del(argDisposers);
                 return -1;
             }
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         } else {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
             jValue->l = 0;
             argDisposer->data = NULL;
             argDisposer->DisposeArg = NULL;
@@ -464,6 +505,7 @@ int JMethod_CreateJArgs(JNIEnv* jenv, JPy_JMethod* method, PyObject* pyArgs, jva
                 PyMem_Del(argDisposers);
                 return -1;
             }
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         }
     }
 
@@ -483,6 +525,7 @@ void JMethod_DisposeJArgs(JNIEnv* jenv, int paramCount, jvalue* jArgs, JPy_ArgDi
 
     for (index = 0; index < paramCount; index++) {
         if (argDisposer->DisposeArg != NULL) {
+            JPy_DiagPrint(JPy_DIAG_F_METH, "%s %s:%d disposing index %d\n", __FUNCTION__, __FILE__, __LINE__, index);
             argDisposer->DisposeArg(jenv, jArg, argDisposer->data);
         }
         jArg++;
@@ -507,7 +550,7 @@ PyObject* JMethod_repr(JPy_JMethod* self)
 
 PyObject* JMethod_str(JPy_JMethod* self)
 {
-    Py_INCREF(self->name);
+    JPY_INCREF(self->name);
     return self->name;
 }
 
@@ -536,7 +579,7 @@ PyObject* JMethod_get_param_type(JPy_JMethod* self, PyObject* args)
     }
     JMethod_CHECK_PARAMETER_INDEX(self, index);
     type = (PyObject*) self->paramDescriptors[index].type;
-    Py_INCREF(type);
+    JPY_INCREF(type);
     return type;
 }
 
@@ -868,9 +911,9 @@ JPy_JOverloadedMethod* JOverloadedMethod_New(JPy_JType* declaringClass, PyObject
     overloadedMethod->name = name;
     overloadedMethod->methodList = PyList_New(0);
 
-    Py_INCREF((PyObject*) overloadedMethod->declaringClass);
-    Py_INCREF((PyObject*) overloadedMethod->name);
-    Py_INCREF((PyObject*) overloadedMethod);
+    JPY_INCREF((PyObject*) overloadedMethod->declaringClass);
+    JPY_INCREF((PyObject*) overloadedMethod->name);
+    JPY_INCREF((PyObject*) overloadedMethod);
 
     JOverloadedMethod_AddMethod(overloadedMethod, method);
 
@@ -907,9 +950,9 @@ int JOverloadedMethod_AddMethod(JPy_JOverloadedMethod* overloadedMethod, JPy_JMe
  */
 void JOverloadedMethod_dealloc(JPy_JOverloadedMethod* self)
 {
-    Py_DECREF((PyObject*) self->declaringClass);
-    Py_DECREF((PyObject*) self->name);
-    Py_DECREF((PyObject*) self->methodList);
+    JPY_DECREF((PyObject*) self->declaringClass);
+    JPY_DECREF((PyObject*) self->name);
+    JPY_DECREF((PyObject*) self->methodList);
     Py_TYPE(self)->tp_free((PyObject*) self);
 }
 
@@ -962,7 +1005,7 @@ static PyMemberDef JOverloadedMethod_members[] =
  */
 PyObject* JOverloadedMethod_str(JPy_JOverloadedMethod* self)
 {
-    Py_INCREF(self->name);
+    JPY_INCREF(self->name);
     return self->name;
 }
 

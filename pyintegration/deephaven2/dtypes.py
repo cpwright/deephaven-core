@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Sequence, Callable, Dict, Type
 
 import jpy
+import time
 import numpy as np
 
 from deephaven2 import DHError
@@ -102,6 +103,7 @@ def array(dtype: DType, seq: Sequence, remap: Callable[[Any], Any] = None) -> jp
         DHError
     """
     try:
+        print("In dtypes.array " + repr(dtype), flush=True)
         if remap:
             if not callable(remap):
                 raise ValueError("Not a callable")
@@ -110,7 +112,11 @@ def array(dtype: DType, seq: Sequence, remap: Callable[[Any], Any] = None) -> jp
             if isinstance(seq, str) and dtype == char:
                 return array(char, seq, remap=ord)
 
-        return jpy.array(dtype.j_type, seq)
+        time.sleep(1)
+        print("Calling jpy.array with seq", flush=True)
+        res = jpy.array(dtype.j_type, seq)
+        print("Result is " + repr(res) + ", " + str(res), flush=True)
+        return res
     except Exception as e:
         raise DHError(e, f"failed to create a Java {dtype.j_name} array.") from e
 

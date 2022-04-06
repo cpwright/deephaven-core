@@ -318,7 +318,7 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     if (PyType_Ready(&JType_Type) < 0) {
         JPY_RETURN(NULL);
     }
-    Py_INCREF(&JType_Type);
+    JPY_INCREF(&JType_Type);
     PyModule_AddObject(JPy_Module, "JType", (PyObject*) &JType_Type);
 
     /////////////////////////////////////////////////////////////////////////
@@ -326,7 +326,7 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     if (PyType_Ready(&JMethod_Type) < 0) {
         JPY_RETURN(NULL);
     }
-    Py_INCREF(&JMethod_Type);
+    JPY_INCREF(&JMethod_Type);
     PyModule_AddObject(JPy_Module, "JMethod", (PyObject*) &JMethod_Type);
 
     /////////////////////////////////////////////////////////////////////////
@@ -334,7 +334,7 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     if (PyType_Ready(&JOverloadedMethod_Type) < 0) {
         JPY_RETURN(NULL);
     }
-    Py_INCREF(&JOverloadedMethod_Type);
+    JPY_INCREF(&JOverloadedMethod_Type);
     PyModule_AddObject(JPy_Module, "JOverloadedMethod", (PyObject*) &JOverloadedMethod_Type);
 
     /////////////////////////////////////////////////////////////////////////
@@ -342,31 +342,31 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     if (PyType_Ready(&JField_Type) < 0) {
         JPY_RETURN(NULL);
     }
-    Py_INCREF(&JField_Type);
+    JPY_INCREF(&JField_Type);
     PyModule_AddObject(JPy_Module, "JField", (PyObject*) &JField_Type);
 
     /////////////////////////////////////////////////////////////////////////
 
     JException_Type = PyErr_NewException("jpy.JException", NULL, NULL);
-    Py_INCREF(JException_Type);
+    JPY_INCREF(JException_Type);
     PyModule_AddObject(JPy_Module, "JException", JException_Type);
 
     /////////////////////////////////////////////////////////////////////////
 
     JPy_Types = PyDict_New();
-    Py_INCREF(JPy_Types);
+    JPY_INCREF(JPy_Types);
     PyModule_AddObject(JPy_Module, JPy_MODULE_ATTR_NAME_TYPES, JPy_Types);
 
     /////////////////////////////////////////////////////////////////////////
 
     JPy_Type_Callbacks = PyDict_New();
-    Py_INCREF(JPy_Type_Callbacks);
+    JPY_INCREF(JPy_Type_Callbacks);
     PyModule_AddObject(JPy_Module, JPy_MODULE_ATTR_NAME_TYPE_CALLBACKS, JPy_Type_Callbacks);
 
     /////////////////////////////////////////////////////////////////////////
 
     JPy_Type_Translations = PyDict_New();
-    Py_INCREF(JPy_Type_Translations);
+    JPY_INCREF(JPy_Type_Translations);
     PyModule_AddObject(JPy_Module, JPy_MODULE_ATTR_NAME_TYPE_TRANSLATIONS, JPy_Type_Translations);
 
     /////////////////////////////////////////////////////////////////////////
@@ -374,10 +374,10 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     if (PyType_Ready(&Diag_Type) < 0) {
         JPY_RETURN(NULL);
     }
-    //Py_INCREF(&DiagFlags_Type);
+    //JPY_INCREF(&DiagFlags_Type);
     {
         PyObject* pyDiag = Diag_New();
-        Py_INCREF(pyDiag);
+        JPY_INCREF(pyDiag);
         PyModule_AddObject(JPy_Module, "diag", pyDiag);
     }
 
@@ -386,7 +386,7 @@ PyMODINIT_FUNC JPY_MODULE_INIT_FUNC(void)
     }
     {
         PyObject* pyVerboseExceptions = VerboseExceptions_New();
-        Py_INCREF(pyVerboseExceptions);
+        JPY_INCREF(pyVerboseExceptions);
         PyModule_AddObject(JPy_Module, "VerboseExceptions", pyVerboseExceptions);
     }
 
@@ -437,7 +437,7 @@ PyObject* JPy_create_jvm(PyObject* self, PyObject* args, PyObject* kwds)
 
     if (JPy_JVM != NULL) {
         JPy_DIAG_PRINT(JPy_DIAG_F_JVM + JPy_DIAG_F_ERR, "JPy_create_jvm: WARNING: Java VM is already running.\n");
-        Py_DECREF(options);
+        JPY_DECREF(options);
         return Py_BuildValue("");
     }
 
@@ -470,7 +470,7 @@ PyObject* JPy_create_jvm(PyObject* self, PyObject* args, PyObject* kwds)
             PyMem_Del(jvmOptions);
             return NULL;
         }
-        Py_DECREF(option);
+        JPY_DECREF(option);
     }
 
     jvmInitArgs.version = JPY_JNI_VERSION;
@@ -588,11 +588,15 @@ PyObject* JPy_array_internal(JNIEnv* jenv, PyObject* self, PyObject* args)
     PyObject* objType;
     PyObject* objInit;
 
+    JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+
     if (!PyArg_ParseTuple(args, "OO:array", &objType, &objInit)) {
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         return NULL;
     }
 
     if (JPy_IS_STR(objType)) {
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         const char* typeName;
         typeName = JPy_AS_UTF8(objType);
         componentType = JType_GetTypeForName(jenv, typeName, JNI_FALSE);
@@ -600,16 +604,21 @@ PyObject* JPy_array_internal(JNIEnv* jenv, PyObject* self, PyObject* args)
             return NULL;
         }
     } else if (JType_Check(objType)) {
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         componentType = (JPy_JType*) objType;
     } else {
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         PyErr_SetString(PyExc_ValueError, "array: argument 1 (type) must be a type name or Java type object");
         return NULL;
     }
 
+    JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
     if (componentType == JPy_JVoid) {
         PyErr_SetString(PyExc_ValueError, "array: argument 1 (type) must not be 'void'");
         return NULL;
     }
+
+    JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 
     if (JPy_IS_CLONG(objInit)) {
         jint length = JPy_AS_CLONG(objInit);
@@ -617,6 +626,8 @@ PyObject* JPy_array_internal(JNIEnv* jenv, PyObject* self, PyObject* args)
             PyErr_SetString(PyExc_ValueError, "array: argument 2 (init) must be either an integer array length or any sequence");
             return NULL;
         }
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d length %d\n", __FUNCTION__, __FILE__, __LINE__, length);
+
         if (componentType == JPy_JBoolean) {
             arrayRef = (*jenv)->NewBooleanArray(jenv, length);
         } else if (componentType == JPy_JChar) {
@@ -639,13 +650,20 @@ PyObject* JPy_array_internal(JNIEnv* jenv, PyObject* self, PyObject* args)
         if (arrayRef == NULL) {
             return PyErr_NoMemory();
         }
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         return JObj_New(jenv, arrayRef);
     } else if (PySequence_Check(objInit)) {
+        PyObject *result;
+
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d objInit %p objInit refCnt %d\n", __FUNCTION__, __FILE__, __LINE__, objInit, objInit->ob_refcnt);
         if (JType_CreateJavaArray(jenv, componentType, objInit, &arrayRef, JNI_FALSE) < 0) {
             return NULL;
         }
-        return JObj_New(jenv, arrayRef);
+        result = JObj_New(jenv, arrayRef);
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d objInit %p objInit refCnt %d result %p refCnt %d\n", __FUNCTION__, __FILE__, __LINE__, objInit, objInit->ob_refcnt, result, result->ob_refcnt);
+        return result;
     } else {
+        JPy_DiagPrint(JPy_DIAG_F_MEM, "%s %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
         PyErr_SetString(PyExc_ValueError, "array: argument 2 (init) must be either an integer array length or any sequence");
         return NULL;
     }
@@ -685,7 +703,7 @@ JPy_JType* JPy_GetNonObjectJType(JNIEnv* jenv, jclass classRef)
     }
 
     type->isResolved = JNI_TRUE; // Primitive types are always resolved.
-    Py_INCREF((PyObject*) type);
+    JPY_INCREF((PyObject*) type);
 
     return type;
 }
@@ -1045,25 +1063,25 @@ void JPy_ClearGlobalVars(JNIEnv* jenv)
     JPy_PyObject_GetPointer_MID = NULL;
     JPy_PyObject_UnwrapProxy_SMID = NULL;
 
-    Py_XDECREF(JPy_JBoolean);
-    Py_XDECREF(JPy_JChar);
-    Py_XDECREF(JPy_JByte);
-    Py_XDECREF(JPy_JShort);
-    Py_XDECREF(JPy_JInt);
-    Py_XDECREF(JPy_JLong);
-    Py_XDECREF(JPy_JFloat);
-    Py_XDECREF(JPy_JDouble);
-    Py_XDECREF(JPy_JVoid);
-    Py_XDECREF(JPy_JBooleanObj);
-    Py_XDECREF(JPy_JCharacterObj);
-    Py_XDECREF(JPy_JByteObj);
-    Py_XDECREF(JPy_JShortObj);
-    Py_XDECREF(JPy_JIntegerObj);
-    Py_XDECREF(JPy_JLongObj);
-    Py_XDECREF(JPy_JFloatObj);
-    Py_XDECREF(JPy_JDoubleObj);
-    Py_XDECREF(JPy_JPyObject);
-    Py_XDECREF(JPy_JPyModule);
+    JPY_XDECREF(JPy_JBoolean);
+    JPY_XDECREF(JPy_JChar);
+    JPY_XDECREF(JPy_JByte);
+    JPY_XDECREF(JPy_JShort);
+    JPY_XDECREF(JPy_JInt);
+    JPY_XDECREF(JPy_JLong);
+    JPY_XDECREF(JPy_JFloat);
+    JPY_XDECREF(JPy_JDouble);
+    JPY_XDECREF(JPy_JVoid);
+    JPY_XDECREF(JPy_JBooleanObj);
+    JPY_XDECREF(JPy_JCharacterObj);
+    JPY_XDECREF(JPy_JByteObj);
+    JPY_XDECREF(JPy_JShortObj);
+    JPY_XDECREF(JPy_JIntegerObj);
+    JPY_XDECREF(JPy_JLongObj);
+    JPY_XDECREF(JPy_JFloatObj);
+    JPY_XDECREF(JPy_JDoubleObj);
+    JPY_XDECREF(JPy_JPyObject);
+    JPY_XDECREF(JPy_JPyModule);
 
     JPy_JBoolean = NULL;
     JPy_JChar = NULL;

@@ -79,6 +79,8 @@ PyObject* JObj_FromType(JNIEnv* jenv, JPy_JType* type, jobject objectRef)
         }
     }
 
+    JPy_DIAG_PRINT(JPy_DIAG_F_MEM, "%s %s:%d: new instance %p of %s, objectRef=%p\n",  __FUNCTION__, __FILE__, __LINE__, obj, Py_TYPE(obj)->tp_name, objectRef);
+
     return (PyObject *)obj;
 }
 
@@ -150,7 +152,7 @@ int JObj_init_internal(JNIEnv* jenv, JPy_JObj* self, PyObject* args, PyObject* k
 
     self->objectRef = globalObjectRef;
 
-    JPy_DIAG_PRINT(JPy_DIAG_F_MEM, "JObj_init: self->objectRef=%p\n", self->objectRef);
+    JPy_DIAG_PRINT(JPy_DIAG_F_MEM, "JObj_init: %p self->objectRef=%p\n", self, self->objectRef);
 
     return 0;
 }
@@ -171,7 +173,7 @@ void JObj_dealloc(JPy_JObj* self)
     JNIEnv* jenv;
     JPy_JType* jtype;
 
-    JPy_DIAG_PRINT(JPy_DIAG_F_MEM, "JObj_dealloc: releasing instance of %s, self->objectRef=%p\n", Py_TYPE(self)->tp_name, self->objectRef);
+    JPy_DIAG_PRINT(JPy_DIAG_F_MEM, "%s %s:%d: releasing %p instance of %s, self->objectRef=%p\n",  __FUNCTION__, __FILE__, __LINE__, self, Py_TYPE(self)->tp_name, self->objectRef);
 
     jtype = (JPy_JType *)Py_TYPE(self);
     if (jtype->componentType != NULL && jtype->componentType->isPrimitive) {
@@ -719,7 +721,7 @@ int JType_InitSlots(JPy_JType* type)
     // todo: The following lines are actually correct, but setting Py_TYPE(type) = &JType_Type results in an interpreter crash. Why?
     // This is still a problem because all the JType slots are actually never called (especially JType_getattro is
     // needed to resolve unresolved JTypes and to recognize static field and methods access)
-    //Py_INCREF(&JType_Type);
+    //JPY_INCREF(&JType_Type);
     //Py_TYPE(type) = &JType_Type;
     //Py_SIZE(type) = sizeof (JPy_JType);
 

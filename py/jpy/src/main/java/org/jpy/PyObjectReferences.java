@@ -6,6 +6,7 @@ import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.lang.Thread;
 
 /**
  * Allows for proper cleanup of PyObjects outside of the {@link Object#finalize()} method.
@@ -81,6 +82,7 @@ class PyObjectReferences {
     }
 
     private int cleanupOnlyUseFromGIL(long[] buffer) {
+	System.err.println("Starting cleanup processing.");
         if (!PyLib.hasGil()) {
             throw new IllegalStateException(
                 "We should only be calling PyObjectReferences.cleanupOnlyUseFromGIL if we have the GIL!");
@@ -94,9 +96,13 @@ class PyObjectReferences {
             }
             index = appendIfNotClosed(buffer, index, reference);
         }
+
+	System.err.println("Must decref " + index + " objects.");
+
         if (index == 0) {
             return 0;
         }
+
 
         // We really really really want to make sure we *already* have the GIL lock at this point in
         // time. Otherwise, we block here until the GIL is available for us, and stall all cleanup

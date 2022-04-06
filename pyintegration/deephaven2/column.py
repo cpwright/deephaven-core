@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Sequence
 
 import jpy
+import time
 
 import deephaven2.dtypes as dtypes
 from deephaven2 import DHError
@@ -62,7 +63,12 @@ class InputColumn(Column):
                 if self.data_type.is_primitive:
                     self.j_column = _JColumn.ofUnsafe(self.name, dtypes.array(self.data_type, self.input_data))
                 else:
-                    self.j_column = _JColumn.of(self.j_column_header, dtypes.array(self.data_type, self.input_data))
+                    print("Computing arr", flush=True)
+                    time.sleep(60)
+                    arr = dtypes.array(self.data_type, self.input_data)
+                    print("Computing jcolumn arr=" + repr(arr) + ", " + str(arr), flush=True)
+                    self.j_column = _JColumn.of(self.j_column_header, arr)
+                    print("Computed jcolumn" + repr(self.j_column) + ", " + str(self.j_column), flush=True)
         except Exception as e:
             raise DHError(e, "failed to create an InputColumn.") from e
 

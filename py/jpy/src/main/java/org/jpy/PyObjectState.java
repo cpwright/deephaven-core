@@ -20,6 +20,9 @@ final class PyObjectState implements AutoCloseable {
             throw new IllegalArgumentException("pointer == 0");
         }
         this.pointer = pointer;
+	System.err.flush();
+	System.err.println("Created PyObjectState " + System.identityHashCode(this) + " pointer=0x" + String.format("%08x", pointer));
+	System.err.flush();
     }
 
     public final long borrowPointer() {
@@ -38,6 +41,7 @@ final class PyObjectState implements AutoCloseable {
      */
     final long takePointer() {
         final long localPointer = updater.get(this); // TODO: how does this differ from just a volatile read against pointer?
+	System.err.println("PyObjectState takePointer " + System.identityHashCode(this) + " localPointer=0x" + String.format("%08x", localPointer));
         if (localPointer == 0) {
             // It's already been taken
             return 0;
