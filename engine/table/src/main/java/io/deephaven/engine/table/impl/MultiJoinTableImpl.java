@@ -4,11 +4,10 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import io.deephaven.api.ColumnName;
 import io.deephaven.api.JoinAddition;
 import io.deephaven.api.JoinMatch;
+import io.deephaven.chunk.ObjectChunk;
+import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.context.ExecutionContext;
-import io.deephaven.engine.rowset.RowSetBuilderRandom;
-import io.deephaven.engine.rowset.RowSetFactory;
-import io.deephaven.engine.rowset.RowSetShiftData;
-import io.deephaven.engine.rowset.WritableRowSet;
+import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.by.BitmapRandomBuilder;
 import io.deephaven.engine.table.impl.by.typed.TypedHasherFactory;
@@ -170,6 +169,15 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         return of(new JoinControl(), multiJoinInputs);
     }
 
+    public static MultiJoinTableImpl of(@NotNull final Table sourceTable,
+                                        @NotNull final ColumnName colCol,
+                                        @NotNull final ColumnName constituentColumnName,
+                                        @NotNull final ColumnName valueCol,
+                                        @NotNull final ColumnName... rowColumns) {
+        return new MultiJoinTableImpl(new JoinControl(), sourceTable, colCol, constituentColumnName, valueCol,
+                rowColumns);
+    }
+
     /**
      * Get the output {@link Table table} from this multi-join table.
      *
@@ -191,6 +199,16 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         // Create the join input helpers we'll use during the join creation phase.
         final MultiJoinInputHelper[] joinInputHelpers =
                 Arrays.stream(multiJoinInputs).map(MultiJoinInputHelper::new).toArray(MultiJoinInputHelper[]::new);
+        checkHelpers(joinInputHelpers);
+
+        if (multiJoinInputs[0].columnsToMatch().length == 0) {
+            table = doMultiJoinZeroKey(joinInputHelpers);
+        } else {
+            table = bucketedMultiJoin(joinControl, joinInputHelpers);
+        }
+    }
+
+    private void checkHelpers(MultiJoinInputHelper[] joinInputHelpers) {
         final TObjectIntHashMap<String> usedColumns =
                 new TObjectIntHashMap<>(joinInputHelpers[0].columnsToAdd.length, 0.5f, -1);
 
@@ -217,12 +235,54 @@ public class MultiJoinTableImpl implements MultiJoinTable {
                 }
             }
         }
+    }
 
-        if (multiJoinInputs[0].columnsToMatch().length == 0) {
-            table = doMultiJoinZeroKey(joinInputHelpers);
-            return;
+    private MultiJoinTableImpl(@NotNull final JoinControl joinControl,
+                               @NotNull final Table sourceTable,
+                               @NotNull final ColumnName colCol,
+                               @NotNull final ColumnName constituentColumnName,
+                               @NotNull final ColumnName value,
+                               @NotNull final ColumnName... rowColumns) {
+        keyColumns = new ArrayList<>();
+
+        final int capacity = (int) Math.min(sourceTable.size(), 2048);
+
+        final MultiJoinInputHelper[] joinInputHelpers = new MultiJoinInputHelper[sourceTable.intSize()];
+
+        final JoinMatch[] rowMatches = Arrays.stream(rowColumns).map(x -> JoinMatch.of(x, x)).toArray(JoinMatch[]::new);
+
+        final ColumnSource<Table> constituentColumn =
+                sourceTable.getColumnSource(constituentColumnName.name(), Table.class);
+        final ColumnSource<String> colNameColumn = sourceTable.getColumnSource(colCol.name(), String.class);
+        try (final ChunkSource.GetContext tableContext =
+                constituentColumn.makeGetContext(capacity);
+                final ChunkSource.GetContext colNameContext =
+                        colNameColumn.makeGetContext(capacity);
+                final RowSequence.Iterator rsit = sourceTable.getRowSet().getRowSequenceIterator()) {
+            int off = 0;
+            while (rsit.hasMore()) {
+                final RowSequence chunkRs = rsit.getNextRowSequenceWithLength(capacity);
+
+                final ObjectChunk<Table, ? extends Values> constituents =
+                        constituentColumn.getChunk(tableContext, chunkRs).asObjectChunk();
+                final ObjectChunk<String, ? extends Values> names =
+                        colNameColumn.getChunk(colNameContext, chunkRs).asObjectChunk();
+
+                for (int ii = 0; ii < chunkRs.size(); ++ii) {
+                    joinInputHelpers[off] = new MultiJoinInputHelper(MultiJoinInput.of(constituents.get(ii), rowMatches,
+                            new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + off), value)}));
+                    off++;
+                }
+            }
         }
-        table = bucketedMultiJoin(joinControl, joinInputHelpers);
+
+        checkHelpers(joinInputHelpers);
+
+        if (rowMatches.length == 0) {
+            table = doMultiJoinZeroKey(joinInputHelpers);
+        } else {
+            table = bucketedMultiJoin(joinControl, joinInputHelpers);
+        }
     }
 
     private Table bucketedMultiJoin(@NotNull final JoinControl joinControl,
