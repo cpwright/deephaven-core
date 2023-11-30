@@ -13,9 +13,9 @@ import io.deephaven.engine.table.impl.by.BitmapRandomBuilder;
 import io.deephaven.engine.table.impl.by.typed.TypedHasherFactory;
 import io.deephaven.engine.table.impl.multijoin.IncrementalMultiJoinStateManagerTypedBase;
 import io.deephaven.engine.table.impl.multijoin.StaticMultiJoinStateManagerTypedBase;
+import io.deephaven.engine.table.impl.partitioned.PartitionedTableImpl;
 import io.deephaven.engine.table.impl.perf.QueryPerformanceRecorder;
-import io.deephaven.engine.table.impl.sources.RedirectedColumnSource;
-import io.deephaven.engine.table.impl.sources.ReinterpretUtils;
+import io.deephaven.engine.table.impl.sources.*;
 import io.deephaven.engine.table.impl.util.RowRedirection;
 import io.deephaven.engine.table.impl.util.SingleValueRowRedirection;
 import io.deephaven.engine.table.impl.util.WritableSingleValueRowRedirection;
@@ -169,13 +169,12 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         return of(new JoinControl(), multiJoinInputs);
     }
 
-    public static MultiJoinTableImpl of(@NotNull final Table sourceTable,
+    public static PartitionedTable of(@NotNull final Table sourceTable,
                                         @NotNull final ColumnName colCol,
                                         @NotNull final ColumnName constituentColumnName,
                                         @NotNull final ColumnName valueCol,
                                         @NotNull final ColumnName... rowColumns) {
-        return new MultiJoinTableImpl(new JoinControl(), sourceTable, colCol, constituentColumnName, valueCol,
-                rowColumns);
+        return pivot(new JoinControl(), sourceTable, colCol, constituentColumnName, valueCol, rowColumns);
     }
 
     /**
@@ -202,6 +201,18 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         checkHelpers(joinInputHelpers);
 
         if (multiJoinInputs[0].columnsToMatch().length == 0) {
+            table = doMultiJoinZeroKey(joinInputHelpers);
+        } else {
+            table = bucketedMultiJoin(joinControl, joinInputHelpers);
+        }
+    }
+
+    private MultiJoinTableImpl(@NotNull final JoinControl joinControl,
+            @NotNull final MultiJoinInputHelper... joinInputHelpers) {
+        keyColumns = new ArrayList<>();
+        checkHelpers(joinInputHelpers);
+
+        if (joinInputHelpers[0].keyColumnNames.length == 0) {
             table = doMultiJoinZeroKey(joinInputHelpers);
         } else {
             table = bucketedMultiJoin(joinControl, joinInputHelpers);
@@ -237,13 +248,12 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         }
     }
 
-    private MultiJoinTableImpl(@NotNull final JoinControl joinControl,
+    private static PartitionedTable pivot(@NotNull final JoinControl joinControl,
                                @NotNull final Table sourceTable,
                                @NotNull final ColumnName colCol,
                                @NotNull final ColumnName constituentColumnName,
                                @NotNull final ColumnName value,
                                @NotNull final ColumnName... rowColumns) {
-        keyColumns = new ArrayList<>();
 
         final int capacity = (int) Math.min(sourceTable.size(), 2048);
 
@@ -276,13 +286,18 @@ public class MultiJoinTableImpl implements MultiJoinTable {
             }
         }
 
-        checkHelpers(joinInputHelpers);
+        final MultiJoinTableImpl initialResult = new MultiJoinTableImpl(joinControl, joinInputHelpers);
+        final SingleValueColumnSource<Table> resultSource = new ObjectSingleValueSource<>(Table.class);
+        resultSource.startTrackingPrevValues();
+        final QueryTable oneAndOnlyPartition = new QueryTable(RowSetFactory.flat(1).toTracking(), Collections.singletonMap("__CONSTITUENT__", resultSource));
 
-        if (rowMatches.length == 0) {
-            table = doMultiJoinZeroKey(joinInputHelpers);
-        } else {
-            table = bucketedMultiJoin(joinControl, joinInputHelpers);
+        if (sourceTable.isRefreshing()) {
+            // TODO: we need to listen to the thing, and then generate new result tables from the partitioned table
+            oneAndOnlyPartition.addParentReference(sourceTable);
         }
+
+        // XXX: the definition here is very problematic, because it changes by necessity
+        return new PartitionedTableImpl(oneAndOnlyPartition, Collections.emptyList(), true, "__CONSTITUENT__", initialResult.table.getDefinition(), true, false);
     }
 
     private Table bucketedMultiJoin(@NotNull final JoinControl joinControl,
