@@ -4,6 +4,7 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import io.deephaven.api.ColumnName;
 import io.deephaven.api.JoinAddition;
 import io.deephaven.api.JoinMatch;
+import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.context.ExecutionContext;
@@ -16,6 +17,7 @@ import io.deephaven.engine.table.impl.multijoin.StaticMultiJoinStateManagerTyped
 import io.deephaven.engine.table.impl.partitioned.PartitionedTableImpl;
 import io.deephaven.engine.table.impl.perf.QueryPerformanceRecorder;
 import io.deephaven.engine.table.impl.sources.*;
+import io.deephaven.engine.table.impl.tostringkernel.ChunkToString;
 import io.deephaven.engine.table.impl.util.RowRedirection;
 import io.deephaven.engine.table.impl.util.SingleValueRowRedirection;
 import io.deephaven.engine.table.impl.util.WritableSingleValueRowRedirection;
@@ -169,12 +171,20 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         return of(new JoinControl(), multiJoinInputs);
     }
 
-    public static PartitionedTable of(@NotNull final Table sourceTable,
+    /**
+     * Produce a table with one cell, containing another table that is the current result of the MultiJoin.
+     *
+     * @param sourceTable the source table, which is a PartitionedTable containing
+     * @param colCol the column column
+     * @param valueCol the value to pivot
+     * @param rowColumns the columns that define our rows
+     * @return a table of a table
+     */
+    public static Table pivot(@NotNull final PartitionedTable sourceTable,
                                         @NotNull final ColumnName colCol,
-                                        @NotNull final ColumnName constituentColumnName,
                                         @NotNull final ColumnName valueCol,
                                         @NotNull final ColumnName... rowColumns) {
-        return pivot(new JoinControl(), sourceTable, colCol, constituentColumnName, valueCol, rowColumns);
+        return pivot(new JoinControl(), sourceTable, colCol, valueCol, rowColumns);
     }
 
     /**
@@ -248,12 +258,13 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         }
     }
 
-    private static PartitionedTable pivot(@NotNull final JoinControl joinControl,
-                               @NotNull final Table sourceTable,
+    private static Table pivot(@NotNull final JoinControl joinControl,
+                               @NotNull final PartitionedTable sourcePartitionedTable,
                                @NotNull final ColumnName colCol,
-                               @NotNull final ColumnName constituentColumnName,
                                @NotNull final ColumnName value,
                                @NotNull final ColumnName... rowColumns) {
+
+        final Table sourceTable = sourcePartitionedTable.table();
 
         final int capacity = (int) Math.min(sourceTable.size(), 2048);
 
@@ -261,43 +272,64 @@ public class MultiJoinTableImpl implements MultiJoinTable {
 
         final JoinMatch[] rowMatches = Arrays.stream(rowColumns).map(x -> JoinMatch.of(x, x)).toArray(JoinMatch[]::new);
 
+        final ObjectArraySource<String> resultNames = new ObjectArraySource<>(String.class);
+        resultNames.ensureCapacity(sourceTable.intSize());
+
         final ColumnSource<Table> constituentColumn =
-                sourceTable.getColumnSource(constituentColumnName.name(), Table.class);
-        final ColumnSource<String> colNameColumn = sourceTable.getColumnSource(colCol.name(), String.class);
+                sourceTable.getColumnSource(sourcePartitionedTable.constituentColumnName(), Table.class);
+        final ColumnSource<?> colNameColumn = sourceTable.getColumnSource(colCol.name());
+        int offset = 0;
         try (final ChunkSource.GetContext tableContext =
                 constituentColumn.makeGetContext(capacity);
-                final ChunkSource.GetContext colNameContext =
+             final ChunkSource.GetContext colNameContext =
                         colNameColumn.makeGetContext(capacity);
+             final ChunkToString.ToString chunkToString = ChunkToString.getToString(colNameColumn.getChunkType(), capacity);
                 final RowSequence.Iterator rsit = sourceTable.getRowSet().getRowSequenceIterator()) {
-            int off = 0;
             while (rsit.hasMore()) {
                 final RowSequence chunkRs = rsit.getNextRowSequenceWithLength(capacity);
 
                 final ObjectChunk<Table, ? extends Values> constituents =
                         constituentColumn.getChunk(tableContext, chunkRs).asObjectChunk();
-                final ObjectChunk<String, ? extends Values> names =
-                        colNameColumn.getChunk(colNameContext, chunkRs).asObjectChunk();
+                // we need to figure out how to give you the nameStrings back; so that you can map C_x to the display name in the UI
+                Chunk<? extends Values> nameChunk = colNameColumn.getChunk(colNameContext, chunkRs);
+                final ObjectChunk<String, ? extends Values> nameStrings = chunkToString.toString(nameChunk);
 
                 for (int ii = 0; ii < chunkRs.size(); ++ii) {
-                    joinInputHelpers[off] = new MultiJoinInputHelper(MultiJoinInput.of(constituents.get(ii), rowMatches,
-                            new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + off), value)}));
-                    off++;
+                    resultNames.set(offset, nameStrings.get(ii));
+                    joinInputHelpers[offset] = new MultiJoinInputHelper(MultiJoinInput.of(constituents.get(ii), rowMatches,
+                            new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + offset), value)}));
+                    offset++;
                 }
             }
         }
 
+        final QueryTable namesTable = new QueryTable(RowSetFactory.flat(offset).toTracking(), Collections.singletonMap("Name", resultNames));
+        namesTable.setFlat();
+        if (sourceTable.isRefreshing()) {
+            namesTable.setRefreshing(true);
+        }
+
         final MultiJoinTableImpl initialResult = new MultiJoinTableImpl(joinControl, joinInputHelpers);
-        final SingleValueColumnSource<Table> resultSource = new ObjectSingleValueSource<>(Table.class);
-        resultSource.startTrackingPrevValues();
-        final QueryTable oneAndOnlyPartition = new QueryTable(RowSetFactory.flat(1).toTracking(), Collections.singletonMap("__CONSTITUENT__", resultSource));
+        final SingleValueColumnSource<Table> pivotTableSource = new ObjectSingleValueSource<>(Table.class);
+        pivotTableSource.startTrackingPrevValues();
+        pivotTableSource.set(initialResult.table);
+
+        final SingleValueColumnSource<Table> namesTableSource = new ObjectSingleValueSource<>(Table.class);
+        namesTableSource.startTrackingPrevValues();
+        namesTableSource.set(namesTable);
+
+        final Map resultMap = new LinkedHashMap<>();
+        resultMap.put("__CONSTITUENT__", pivotTableSource);
+        resultMap.put("__NAMES__", namesTableSource);
+
+        final QueryTable oneAndOnlyPartition = new QueryTable(RowSetFactory.flat(1).toTracking(), resultMap);
 
         if (sourceTable.isRefreshing()) {
             // TODO: we need to listen to the thing, and then generate new result tables from the partitioned table
             oneAndOnlyPartition.addParentReference(sourceTable);
         }
 
-        // XXX: the definition here is very problematic, because it changes by necessity
-        return new PartitionedTableImpl(oneAndOnlyPartition, Collections.emptyList(), true, "__CONSTITUENT__", initialResult.table.getDefinition(), true, false);
+        return oneAndOnlyPartition;
     }
 
     private Table bucketedMultiJoin(@NotNull final JoinControl joinControl,
