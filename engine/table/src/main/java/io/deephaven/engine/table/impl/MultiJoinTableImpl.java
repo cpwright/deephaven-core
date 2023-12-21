@@ -8,6 +8,7 @@ import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.context.ExecutionContext;
+import io.deephaven.engine.liveness.LivenessReferent;
 import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.by.BitmapRandomBuilder;
@@ -25,10 +26,14 @@ import io.deephaven.engine.updategraph.NotificationQueue;
 import io.deephaven.engine.updategraph.UpdateGraph;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.annotations.VisibleForTesting;
+import org.apache.commons.lang3.mutable.MutableObject;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.deephaven.engine.rowset.RowSequence.NULL_ROW_KEY;
 import static io.deephaven.engine.table.impl.MultiJoinModifiedSlotTracker.*;
@@ -309,14 +314,17 @@ public class MultiJoinTableImpl implements MultiJoinTable {
             namesTable.setRefreshing(true);
         }
 
+        final MutableObject<Table> currentResult = new MutableObject<>();
+
         final MultiJoinTableImpl initialResult = new MultiJoinTableImpl(joinControl, joinInputHelpers);
         final SingleValueColumnSource<Table> pivotTableSource = new ObjectSingleValueSource<>(Table.class);
-        pivotTableSource.startTrackingPrevValues();
+        currentResult.setValue(initialResult.table);
         pivotTableSource.set(initialResult.table);
+        pivotTableSource.startTrackingPrevValues();
 
         final SingleValueColumnSource<Table> namesTableSource = new ObjectSingleValueSource<>(Table.class);
-        namesTableSource.startTrackingPrevValues();
         namesTableSource.set(namesTable);
+        namesTableSource.startTrackingPrevValues();
 
         final Map resultMap = new LinkedHashMap<>();
         resultMap.put("__CONSTITUENT__", pivotTableSource);
@@ -326,6 +334,40 @@ public class MultiJoinTableImpl implements MultiJoinTable {
 
         if (sourceTable.isRefreshing()) {
             // TODO: we need to listen to the thing, and then generate new result tables from the partitioned table
+            boolean fancy = false;
+
+            sourceTable.addUpdateListener(new InstrumentedTableUpdateListener("pivot listener") {
+                @Override
+                public void onUpdate(TableUpdate upstream) {
+                    if (fancy) {
+                        if (upstream.removed().isNonempty()) {
+                            // figure out which tables to remove
+                        }
+                        if (upstream.modified().isNonempty()) {
+                            // figure out what was really removed, and what was really modified!
+                        }
+                        if (upstream.added().isNonempty()) {
+                            // we get to add new tables to our result!
+                        }
+                        if (upstream.shifted().nonempty()) {
+                            // no one cares, the data is still the same
+                        }
+                    } else {
+                        // we can figure out the answer from scratch, and then stick that into our result columns
+                    }
+                }
+
+                @Override
+                protected void onFailureInternal(Throwable originalException, @Nullable Entry sourceEntry) {
+                    oneAndOnlyPartition.notifyListenersOnError(originalException, sourceEntry);
+                }
+
+                @Override
+                public boolean canExecute(long step) {
+                    return super.canExecute(step) && currentResult.getValue().satisfied(step);
+                }
+            });
+
             oneAndOnlyPartition.addParentReference(sourceTable);
         }
 
