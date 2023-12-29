@@ -4,18 +4,17 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import io.deephaven.api.ColumnName;
 import io.deephaven.api.JoinAddition;
 import io.deephaven.api.JoinMatch;
+import io.deephaven.base.verify.Assert;
 import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.context.ExecutionContext;
-import io.deephaven.engine.liveness.LivenessReferent;
 import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.by.BitmapRandomBuilder;
 import io.deephaven.engine.table.impl.by.typed.TypedHasherFactory;
 import io.deephaven.engine.table.impl.multijoin.IncrementalMultiJoinStateManagerTypedBase;
 import io.deephaven.engine.table.impl.multijoin.StaticMultiJoinStateManagerTypedBase;
-import io.deephaven.engine.table.impl.partitioned.PartitionedTableImpl;
 import io.deephaven.engine.table.impl.perf.QueryPerformanceRecorder;
 import io.deephaven.engine.table.impl.sources.*;
 import io.deephaven.engine.table.impl.tostringkernel.ChunkToString;
@@ -24,16 +23,16 @@ import io.deephaven.engine.table.impl.util.SingleValueRowRedirection;
 import io.deephaven.engine.table.impl.util.WritableSingleValueRowRedirection;
 import io.deephaven.engine.updategraph.NotificationQueue;
 import io.deephaven.engine.updategraph.UpdateGraph;
+import io.deephaven.engine.util.TableTools;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.annotations.VisibleForTesting;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.deephaven.engine.rowset.RowSequence.NULL_ROW_KEY;
 import static io.deephaven.engine.table.impl.MultiJoinModifiedSlotTracker.*;
@@ -41,6 +40,7 @@ import static io.deephaven.engine.table.impl.MultiJoinModifiedSlotTracker.*;
 public class MultiJoinTableImpl implements MultiJoinTable {
 
     private static final int KEY_COLUMN_SENTINEL = -2;
+    public static final String NAME_MAPPING_COLUMN_NAME = "Name";
     private final Table table;
 
     private final List<String> keyColumns;
@@ -186,9 +186,9 @@ public class MultiJoinTableImpl implements MultiJoinTable {
      * @return a table of a table
      */
     public static Table pivot(@NotNull final PartitionedTable sourceTable,
-                                        @NotNull final ColumnName colCol,
-                                        @NotNull final ColumnName valueCol,
-                                        @NotNull final ColumnName... rowColumns) {
+            @NotNull final ColumnName colCol,
+            @NotNull final ColumnName valueCol,
+            @NotNull final ColumnName... rowColumns) {
         return pivot(new JoinControl(), sourceTable, colCol, valueCol, rowColumns);
     }
 
@@ -264,10 +264,10 @@ public class MultiJoinTableImpl implements MultiJoinTable {
     }
 
     private static Table pivot(@NotNull final JoinControl joinControl,
-                               @NotNull final PartitionedTable sourcePartitionedTable,
-                               @NotNull final ColumnName colCol,
-                               @NotNull final ColumnName value,
-                               @NotNull final ColumnName... rowColumns) {
+            @NotNull final PartitionedTable sourcePartitionedTable,
+            @NotNull final ColumnName colCol,
+            @NotNull final ColumnName value,
+            @NotNull final ColumnName... rowColumns) {
 
         final Table sourceTable = sourcePartitionedTable.table();
 
@@ -286,29 +286,34 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         int offset = 0;
         try (final ChunkSource.GetContext tableContext =
                 constituentColumn.makeGetContext(capacity);
-             final ChunkSource.GetContext colNameContext =
+                final ChunkSource.GetContext colNameContext =
                         colNameColumn.makeGetContext(capacity);
-             final ChunkToString.ToString chunkToString = ChunkToString.getToString(colNameColumn.getChunkType(), capacity);
+                final ChunkToString.ToString chunkToString =
+                        ChunkToString.getToString(colNameColumn.getChunkType(), capacity);
                 final RowSequence.Iterator rsit = sourceTable.getRowSet().getRowSequenceIterator()) {
             while (rsit.hasMore()) {
                 final RowSequence chunkRs = rsit.getNextRowSequenceWithLength(capacity);
 
                 final ObjectChunk<Table, ? extends Values> constituents =
                         constituentColumn.getChunk(tableContext, chunkRs).asObjectChunk();
-                // we need to figure out how to give you the nameStrings back; so that you can map C_x to the display name in the UI
+                // we need to figure out how to give you the nameStrings back; so that you can map C_x to the display
+                // name in the UI
                 Chunk<? extends Values> nameChunk = colNameColumn.getChunk(colNameContext, chunkRs);
                 final ObjectChunk<String, ? extends Values> nameStrings = chunkToString.toString(nameChunk);
 
                 for (int ii = 0; ii < chunkRs.size(); ++ii) {
                     resultNames.set(offset, nameStrings.get(ii));
-                    joinInputHelpers[offset] = new MultiJoinInputHelper(MultiJoinInput.of(constituents.get(ii), rowMatches,
-                            new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + offset), value)}));
+                    joinInputHelpers[offset] =
+                            new MultiJoinInputHelper(MultiJoinInput.of(constituents.get(ii), rowMatches,
+                                    new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + offset), value)}));
                     offset++;
                 }
             }
         }
 
-        final QueryTable namesTable = new QueryTable(RowSetFactory.flat(offset).toTracking(), Collections.singletonMap("Name", resultNames));
+        final QueryTable namesTable =
+                new QueryTable(RowSetFactory.flat(offset).toTracking(),
+                        Collections.singletonMap(NAME_MAPPING_COLUMN_NAME, resultNames));
         namesTable.setFlat();
         if (sourceTable.isRefreshing()) {
             namesTable.setRefreshing(true);
@@ -316,10 +321,15 @@ public class MultiJoinTableImpl implements MultiJoinTable {
 
         final MutableObject<Table> currentResult = new MutableObject<>();
 
-        final MultiJoinTableImpl initialResult = new MultiJoinTableImpl(joinControl, joinInputHelpers);
+        if (joinInputHelpers.length > 0) {
+            final MultiJoinTableImpl initialResult = new MultiJoinTableImpl(joinControl, joinInputHelpers);
+            currentResult.setValue(initialResult.table);
+        } else {
+            currentResult.setValue(TableTools.emptyTable(0));
+        }
+
         final SingleValueColumnSource<Table> pivotTableSource = new ObjectSingleValueSource<>(Table.class);
-        currentResult.setValue(initialResult.table);
-        pivotTableSource.set(initialResult.table);
+        pivotTableSource.set(currentResult.getValue());
         pivotTableSource.startTrackingPrevValues();
 
         final SingleValueColumnSource<Table> namesTableSource = new ObjectSingleValueSource<>(Table.class);
@@ -333,45 +343,302 @@ public class MultiJoinTableImpl implements MultiJoinTable {
         final QueryTable oneAndOnlyPartition = new QueryTable(RowSetFactory.flat(1).toTracking(), resultMap);
 
         if (sourceTable.isRefreshing()) {
-            // TODO: we need to listen to the thing, and then generate new result tables from the partitioned table
-            boolean fancy = false;
+            oneAndOnlyPartition.manage(currentResult.getValue());
+            oneAndOnlyPartition.manage(namesTable);
 
-            sourceTable.addUpdateListener(new InstrumentedTableUpdateListener("pivot listener") {
-                @Override
-                public void onUpdate(TableUpdate upstream) {
-                    if (fancy) {
-                        if (upstream.removed().isNonempty()) {
-                            // figure out which tables to remove
-                        }
-                        if (upstream.modified().isNonempty()) {
-                            // figure out what was really removed, and what was really modified!
-                        }
-                        if (upstream.added().isNonempty()) {
-                            // we get to add new tables to our result!
-                        }
-                        if (upstream.shifted().nonempty()) {
-                            // no one cares, the data is still the same
-                        }
-                    } else {
-                        // we can figure out the answer from scratch, and then stick that into our result columns
-                    }
-                }
+            // we need to listen to the thing, and then generate new result tables from the partitioned table
 
-                @Override
-                protected void onFailureInternal(Throwable originalException, @Nullable Entry sourceEntry) {
-                    oneAndOnlyPartition.notifyListenersOnError(originalException, sourceEntry);
-                }
+            final PivotChangeListener listener = new PivotChangeListener(joinControl, joinInputHelpers, pivotTableSource, offset, sourceTable, constituentColumn,
+                    colNameColumn, rowMatches, value, oneAndOnlyPartition, namesTable, currentResult);
+            sourceTable.addUpdateListener(listener);
 
-                @Override
-                public boolean canExecute(long step) {
-                    return super.canExecute(step) && currentResult.getValue().satisfied(step);
-                }
-            });
-
-            oneAndOnlyPartition.addParentReference(sourceTable);
+            oneAndOnlyPartition.addParentReference(listener);
         }
 
         return oneAndOnlyPartition;
+    }
+
+
+    private static class PivotChangeListener extends InstrumentedTableUpdateListener {
+        private final JoinControl joinControl;
+        private final SingleValueColumnSource<Table> pivotTableSource;
+        private final Table sourceTable;
+        private final ColumnSource<Table> constituentColumn;
+        private final ColumnSource<?> colNameColumn;
+        private final JoinMatch[] rowMatches;
+        private final ColumnName value;
+        private final QueryTable oneAndOnlyPartition;
+        private final QueryTable namesTable;
+        private final MutableObject<Table> currentResult;
+        MultiJoinInputHelper[] currentHelpers;
+        final MutableInt nextTableOffset;
+
+        public PivotChangeListener(@NotNull final JoinControl joinControl,
+                                   @NotNull final MultiJoinInputHelper[] joinInputHelpers,
+                                   @NotNull final SingleValueColumnSource<Table> pivotTableSource,
+                                   final int offset,
+                                   final Table sourceTable,
+                                   final ColumnSource<Table> constituentColumn,
+                                   final ColumnSource<?> colNameColumn,
+                                   final JoinMatch[] rowMatches,
+                                   final @NotNull ColumnName value,
+                                   final QueryTable oneAndOnlyPartition,
+                                   final QueryTable namesTable,
+                                   @NotNull final MutableObject<Table> currentResult) {
+            super("pivot listener");
+            this.joinControl = joinControl;
+            this.pivotTableSource = pivotTableSource;
+            this.sourceTable = sourceTable;
+            this.constituentColumn = constituentColumn;
+            this.colNameColumn = colNameColumn;
+            this.rowMatches = rowMatches;
+            this.value = value;
+            this.oneAndOnlyPartition = oneAndOnlyPartition;
+            this.namesTable = namesTable;
+            this.currentResult = currentResult;
+            currentHelpers = joinInputHelpers;
+            nextTableOffset = new MutableInt(offset);
+        }
+
+        @Override
+        public void onUpdate(TableUpdate upstream) {
+            try (final PivotUpdateContext pivotUpdateContext =
+                    new PivotUpdateContext(this, upstream)) {
+                currentHelpers = pivotUpdateContext.apply(currentHelpers);
+            }
+        }
+
+        @Override
+        protected void onFailureInternal(Throwable originalException, @Nullable Entry sourceEntry) {
+            oneAndOnlyPartition.notifyListenersOnError(originalException, sourceEntry);
+        }
+
+        @Override
+        public boolean canExecute(long step) {
+            return super.canExecute(step) && currentResult.getValue().satisfied(step);
+        }
+    }
+
+    private static class PivotUpdateContext implements SafeCloseable {
+        private final ColumnSource<Table> constituentColumn;
+        private final ColumnSource<?> colNameColumn;
+        private final PivotChangeListener pivotChangeListener;
+        private final TableUpdate upstream;
+        private final RowSet.Iterator currentIt;
+        private final RowSet.Iterator addedIt;
+        private final RowSet.Iterator removedIt;
+        private final RowSet.Iterator modifiedIt;
+        private final RowSet.Iterator modPreShiftIt;
+        private final ChunkSource.GetContext addedTableContext;
+        private final ChunkSource.GetContext modifiedTableContext;
+        private final ChunkSource.GetContext preModifiedTableContext;
+
+        private final ChunkSource.GetContext addedNamesContext;
+        private final ChunkSource.GetContext modifiedNamesContext;
+        private final ChunkToString.ToString addedToString;
+        private final ChunkToString.ToString modifiedToString;
+        private final ObjectArraySource<String> resultNames;
+        private final RowSetBuilderSequential namesModifiedBuilder = RowSetFactory.builderSequential();
+        private final RowSetBuilderSequential namesAddedBuilder = RowSetFactory.builderSequential();
+
+        long current, nextAdded, nextRemoved, nextModified, nextModPreShift;
+
+        public PivotUpdateContext(PivotChangeListener pivotChangeListener, TableUpdate upstream) {
+            this.pivotChangeListener = pivotChangeListener;
+            this.constituentColumn = pivotChangeListener.constituentColumn;
+            this.colNameColumn = pivotChangeListener.colNameColumn;
+            this.upstream = upstream;
+            this.resultNames = (ObjectArraySource) pivotChangeListener.namesTable
+                    .getColumnSource(NAME_MAPPING_COLUMN_NAME, String.class);
+
+            currentIt = pivotChangeListener.sourceTable.getRowSet().iterator();
+            addedIt = upstream.added().iterator();
+            removedIt = upstream.removed().iterator();
+            modifiedIt = upstream.modified().iterator();
+            modPreShiftIt = upstream.getModifiedPreShift().iterator();
+
+            addedTableContext = constituentColumn.makeGetContext(upstream.added().intSize());
+            modifiedTableContext = constituentColumn.makeGetContext(upstream.modified().intSize());
+            preModifiedTableContext = constituentColumn.makeGetContext(upstream.modified().intSize());
+
+            addedNamesContext = colNameColumn.makeGetContext(upstream.added().intSize());
+            modifiedNamesContext = colNameColumn.makeGetContext(upstream.modified().intSize());
+
+            addedToString = ChunkToString.getToString(colNameColumn.getChunkType(), upstream.added().intSize());
+            modifiedToString = ChunkToString.getToString(colNameColumn.getChunkType(), upstream.modified().intSize());
+        }
+
+        @Override
+        public void close() {
+            // noinspection EmptyTryBlock
+            try (currentIt;
+                    addedIt;
+                    removedIt;
+                    modifiedIt;
+                    modPreShiftIt;
+                    addedTableContext;
+                    modifiedTableContext;
+                    preModifiedTableContext;
+                    addedNamesContext;
+                    modifiedNamesContext;
+                    addedToString;
+                    modifiedToString) {
+            }
+        }
+
+        public MultiJoinInputHelper[] apply(MultiJoinInputHelper[] currentHelpers) {
+
+            final ObjectChunk<Table, ? extends Values> addedTables =
+                    constituentColumn.getChunk(addedTableContext, upstream.added()).asObjectChunk();
+            final ObjectChunk<Table, ? extends Values> modifiedTables =
+                    constituentColumn.getChunk(modifiedTableContext, upstream.modified()).asObjectChunk();
+            final ObjectChunk<Table, ? extends Values> preModifiedTables = constituentColumn
+                    .getPrevChunk(preModifiedTableContext, upstream.getModifiedPreShift()).asObjectChunk();
+
+            final Chunk<? extends Values> addedNames = colNameColumn.getChunk(addedNamesContext, upstream.added());
+            final Chunk<? extends Values> modifiedNames = colNameColumn.getChunk(modifiedNamesContext, upstream.modified());
+
+            final ObjectChunk<String, ? extends Values> addedNameStrings = addedToString.toString(addedNames);
+            final ObjectChunk<String, ? extends Values> modifiedNameStrings = modifiedToString.toString(modifiedNames);
+
+            final MultiJoinInputHelper[] newHelpers = new MultiJoinInputHelper[pivotChangeListener.sourceTable.intSize()];
+
+            int helperOffset = 0;
+            int preHelperOffset = 0;
+
+            advanceCurrent();
+            advanceAdded();
+            advanceRemoved();
+            advanceModified();
+
+            int addOffset = 0;
+            int modOffset = 0;
+
+            resultNames.ensureCapacity(pivotChangeListener.nextTableOffset.intValue() + upstream.added().intSize());
+
+            // while there is something left in the current table, we should copy over our helpers to the new helpers
+            while (current >= 0) {
+                if (nextRemoved >= 0 && nextRemoved < current) {
+                    // we skip over this table in the original helpers
+                    preHelperOffset++;
+                    advanceRemoved();
+                    continue;
+                }
+                if (nextModified == current) {
+                    // check if the current table is modified
+
+                    if (modifiedTables.get(modOffset) == preModifiedTables.get(modOffset)) {
+                        // The table is the same, but the name could ahve changed.
+                        final int existingOffset = Integer.parseInt(currentHelpers[preHelperOffset].columnsToAdd[0].newColumn().name().split("_")[1]);
+                        namesModifiedBuilder.appendKey(existingOffset);
+                        resultNames.set(existingOffset, modifiedNameStrings.get(modOffset));
+                        newHelpers[helperOffset++] = currentHelpers[preHelperOffset];
+                    } else {
+                        // the table itself changed
+                        final MultiJoinInput modifiedInput = MultiJoinInput.of(modifiedTables.get(modOffset), pivotChangeListener.rowMatches,
+                                new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + pivotChangeListener.nextTableOffset.getAndIncrement()), pivotChangeListener.value)});
+                        newHelpers[helperOffset++] = new MultiJoinInputHelper(modifiedInput);
+                    }
+                    preHelperOffset++;
+                    modOffset++;
+
+                    advanceModified();
+                    advanceCurrent();
+                    continue;
+                }
+                if (nextAdded == current) {
+                    // add the new table to our result
+                    final int nameIndex = pivotChangeListener.nextTableOffset.getAndIncrement();
+                    final MultiJoinInput addedInput = MultiJoinInput.of(addedTables.get(addOffset), pivotChangeListener.rowMatches,
+                            new JoinAddition[] {JoinAddition.of(ColumnName.of("C_" + nameIndex), pivotChangeListener.value)});
+
+                    resultNames.set(nameIndex, addedNameStrings.get(addOffset));
+                    namesAddedBuilder.appendKey(nameIndex);
+                    addOffset++;
+
+                    newHelpers[helperOffset++] = new MultiJoinInputHelper(addedInput);
+                    advanceAdded();
+                    advanceCurrent();
+                    continue;
+                }
+                // just copy it over, unchanged
+                newHelpers[helperOffset++] = currentHelpers[preHelperOffset++];
+                advanceCurrent();
+            }
+
+            // we need to handle any additional removed tables
+            while (nextRemoved >= 0) {
+                // maybe we actually have to do anything?
+                advanceRemoved();
+                preHelperOffset++;
+            }
+
+            Assert.eq(preHelperOffset, "preHelperOffest", currentHelpers.length);
+
+            notifyNamesTable();
+
+            // generate a new multijoin table
+            final MultiJoinTableImpl newResult = new MultiJoinTableImpl(pivotChangeListener.joinControl, newHelpers);
+            final Table oldResult = pivotChangeListener.currentResult.getValue();
+            pivotChangeListener.oneAndOnlyPartition.manage(newResult.table);
+            pivotChangeListener.currentResult.setValue(newResult.table);
+            pivotChangeListener.pivotTableSource.set(newResult.table);
+            final ModifiedColumnSet mcs = pivotChangeListener.oneAndOnlyPartition.getModifiedColumnSetForUpdates();
+            mcs.setAll("__CONSTITUENT__");
+            pivotChangeListener.oneAndOnlyPartition.notifyListeners(new TableUpdateImpl(RowSetFactory.empty(), RowSetFactory.empty(), RowSetFactory.fromKeys(0), RowSetShiftData.EMPTY, mcs));
+
+            pivotChangeListener.oneAndOnlyPartition.unmanage(oldResult);
+
+            return newHelpers;
+        }
+
+        private void notifyNamesTable() {
+            final RowSet addedNamesRowSet = namesAddedBuilder.build();
+            final RowSet modifiedNamesRowSet = namesModifiedBuilder.build();
+
+            if (addedNamesRowSet.isNonempty() || modifiedNamesRowSet.isNonempty()) {
+                pivotChangeListener.namesTable.getRowSet().writableCast().insert(addedNamesRowSet);
+                pivotChangeListener.namesTable.notifyListeners(addedNamesRowSet, modifiedNamesRowSet, RowSetFactory.empty());
+            }
+        }
+
+        boolean advanceCurrent() {
+            if (currentIt.hasNext()) {
+                current = currentIt.nextLong();
+                return true;
+            }
+            current = -1;
+            return false;
+        }
+
+        boolean advanceAdded() {
+            if (addedIt.hasNext()) {
+                nextAdded = addedIt.nextLong();
+                return true;
+            }
+            nextAdded = -1;
+            return false;
+        }
+
+        boolean advanceRemoved() {
+            if (removedIt.hasNext()) {
+                nextRemoved = removedIt.nextLong();
+                return true;
+            }
+            nextRemoved = -1;
+            return false;
+        }
+
+        boolean advanceModified() {
+            if (modifiedIt.hasNext()) {
+                nextModified = modifiedIt.nextLong();
+                nextModPreShift = modPreShiftIt.nextLong();
+                return true;
+            }
+            nextModified = -1;
+            nextModPreShift = -1;
+            return false;
+        }
     }
 
     private Table bucketedMultiJoin(@NotNull final JoinControl joinControl,
