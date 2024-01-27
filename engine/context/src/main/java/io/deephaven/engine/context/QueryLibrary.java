@@ -5,6 +5,7 @@ package io.deephaven.engine.context;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 

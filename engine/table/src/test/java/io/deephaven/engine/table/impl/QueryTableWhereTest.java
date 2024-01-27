@@ -42,6 +42,7 @@ import org.junit.Test;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -1172,5 +1173,50 @@ public abstract class QueryTableWhereTest {
         assertEquals(1_000_000, result.size());
         assertEquals(6_000_000L, DataAccessHelpers.getColumn(result, "A").getLong(0));
         assertEquals(6_999_999L, DataAccessHelpers.getColumn(result, "A").getLong(result.size() - 1));
+    }
+
+
+    public static CharSequence charSeqFunc() {
+        return "Modern";
+    }
+
+    public static String stringFunc() {
+        return "Major";
+    }
+
+    public static Object objectFunc() {
+        return "General";
+    }
+
+    public static LocalDate localDateFunc() {
+        return java.time.LocalDate.of(2024, 1, 26);
+    }
+
+    @Test
+    public void testIncompatibleTypes() {
+        final Table input = TableTools.newTable(stringCol("Value", "Modern", "Major", "General", "2024-01-26", "Animal", "Vegetable", "Mineral", null));
+
+        final Table cs = input.where("Value=" + getClass().getCanonicalName() + ".charSeqFunc()");
+        TableTools.showWithRowSet(cs);
+        assertTableEquals(TableTools.newTable(stringCol("Value", "Modern")), cs);
+
+        final Table st = input.where("Value=" + getClass().getCanonicalName() + ".stringFunc()");
+        TableTools.showWithRowSet(st);
+        assertTableEquals(TableTools.newTable(stringCol("Value", "Major")), st);
+
+        final Table ob = input.where("Value=" + getClass().getCanonicalName() + ".objectFunc()");
+        TableTools.showWithRowSet(ob);
+        assertTableEquals(TableTools.newTable(stringCol("Value", "General")), ob);
+
+        try {
+            final Table ld = input.where("Value=" + getClass().getCanonicalName() + ".localDateFunc()");
+            TestCase.fail("expected exception)");
+        } catch (FormulaCompilationException e) {
+            System.out.println(e.getCause().getMessage());
+            assertTrue(e.getCause().getMessage().contains("Equality between class java.lang.String and class java.time.LocalDate is always false."));
+        }
+        // old version
+//        assertTableEquals(TableTools.emptyTable(0).update("Value=`not exists`"), ld);
+//        TableTools.showWithRowSet(ld);
     }
 }

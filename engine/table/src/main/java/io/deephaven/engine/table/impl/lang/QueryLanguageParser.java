@@ -1584,6 +1584,19 @@ public final class QueryLanguageParser extends GenericVisitorAdapter<Class<?>, Q
 
         String methodName = getOperatorName(op) + (isArray ? "Array" : "");
 
+        if (op == BinaryExpr.Operator.EQUALS) {
+            // Check if the QueryLanguageParser has an equals method defined, if it does we can allow that function to
+            // be called
+            if (Arrays.stream(QueryLanguageFunctionUtils.class.getMethods())
+                    .noneMatch(m -> isValidEqualsMethod(m, lhType, rhType))) {
+                // compare the lhs and rhs types
+                if (!lhType.isAssignableFrom(rhType) && !rhType.isAssignableFrom(lhType)) {
+                    throw new IllegalArgumentException(
+                            "Equality between " + lhType + " and " + rhType + " is always false.");
+                }
+            }
+        }
+
         if (printer.hasStringBuilder()) {
             final MethodCallExpr binaryOpOverloadMethod = new MethodCallExpr(methodName, n.getLeft(), n.getRight());
             replaceChildExpression(origParent, n, binaryOpOverloadMethod); // Replace the BinaryExpr with a method call,
@@ -1595,6 +1608,20 @@ public final class QueryLanguageParser extends GenericVisitorAdapter<Class<?>, Q
 
         return getMethodReturnType(null, methodName, new Class[] {lhType, rhType},
                 getTypeArguments(n.getLeft(), n.getRight()));
+    }
+
+    /**
+     * Return true if the given method is a valid eq method for comparing two objects of lhType and rhType.
+     *
+     * @param m the method to evaluate
+     * @param lhType the type of the LHS
+     * @param rhType the type of the RHS
+     * @return true if this method is an "eq" method for comparing those two types
+     */
+    private static boolean isValidEqualsMethod(Method m, Class<?> lhType, Class<?> rhType) {
+        return m.getName().equals("eq") && Modifier.isStatic(m.getModifiers()) && m.getParameterTypes().length != 2
+                && m.getParameterTypes()[0].isAssignableFrom(lhType)
+                && m.getParameterTypes()[1].isAssignableFrom(rhType);
     }
 
     /**
