@@ -29,7 +29,7 @@ jobs:
           cat gradle.properties
 
       - name: Run gradle
-        uses: burrunan/gradle-cache-action@v1
+        uses: burrunan/gradle-cache-action@v2
         with:
           job-id: image-compare
           arguments: --continue pullImage compareImage

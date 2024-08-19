@@ -88,7 +88,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Dockerfile and context
-        uses: burrunan/gradle-cache-action@v1
+        uses: burrunan/gradle-cache-action@v2
         with:
           job-id: build-server
           arguments: --scan outputVersion docker-server-slim:prepareDocker docker-server:prepareDockerAll
@@ -182,7 +182,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Dockerfile and context
-        uses: burrunan/gradle-cache-action@v1
+        uses: burrunan/gradle-cache-action@v2
         with:
           job-id: build-web
           arguments: --scan outputVersion docker-web-plugin-packager:prepareDocker

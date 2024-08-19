@@ -36,7 +36,7 @@ jobs:
           cat gradle.properties
 
       - name: Quick Task
-        uses: burrunan/gradle-cache-action@v1
+        uses: burrunan/gradle-cache-action@v2
         with:
           job-id: quick-task
           # Even though quick includes spotlessCheck, we want to make sure it runs first and fails ASAP for quick feedback
