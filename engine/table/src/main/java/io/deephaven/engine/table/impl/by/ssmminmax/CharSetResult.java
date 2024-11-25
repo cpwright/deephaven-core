@@ -7,6 +7,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.CharacterArraySource;
 import io.deephaven.engine.table.impl.ssms.CharSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_CHAR;
 
@@ -26,7 +27,15 @@ public class CharSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = NULL_CHAR;
         } else {
             final CharSegmentedSortedMultiset charSsm = (CharSegmentedSortedMultiset) ssm;
-            newResult = minimum ? charSsm.getMinChar() : charSsm.getMaxChar();
+            if (NullNanHelper.charHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(charSsm.getMaxChar())) {
+                    newResult = charSsm.getMaxChar();
+                } else {
+                    newResult = charSsm.getMinChar();
+                }
+            } else {
+                newResult = minimum ? charSsm.getMinChar() : charSsm.getMaxChar();
+            }
         }
         return setResult(destination, newResult);
     }

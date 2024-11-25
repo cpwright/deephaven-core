@@ -87,13 +87,13 @@ public abstract class QueryTableMinAggTestBase {
     }
 
     @Test
-    public void testSkipsNanFloat() {
-        check(Float.POSITIVE_INFINITY, new float[] {Float.POSITIVE_INFINITY, Float.NaN});
+    public void testNanPoisonFloat() {
+        check(Float.NaN, new float[] {Float.POSITIVE_INFINITY, Float.NaN});
     }
 
     @Test
-    public void testSkipsNanDouble() {
-        check(Double.POSITIVE_INFINITY, new double[] {Double.POSITIVE_INFINITY, Double.NaN});
+    public void testnanPoisonDouble() {
+        check(Double.NaN, new double[] {Double.POSITIVE_INFINITY, Double.NaN});
     }
 
     @Test
@@ -118,12 +118,12 @@ public abstract class QueryTableMinAggTestBase {
 
     @Test
     public void testAllNaNFloat() {
-        check(QueryConstants.NULL_FLOAT, new float[] {Float.NaN});
+        check(Float.NaN, new float[] {Float.NaN});
     }
 
     @Test
     public void testAllNaNDouble() {
-        check(QueryConstants.NULL_DOUBLE, new double[] {Double.NaN});
+        check(Double.NaN, new double[] {Double.NaN});
     }
 
     public void check(char expected, char[] data) {

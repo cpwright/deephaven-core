@@ -11,6 +11,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.ShortArraySource;
 import io.deephaven.engine.table.impl.ssms.ShortSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_SHORT;
 
@@ -30,7 +31,15 @@ public class ShortSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = NULL_SHORT;
         } else {
             final ShortSegmentedSortedMultiset shortSsm = (ShortSegmentedSortedMultiset) ssm;
-            newResult = minimum ? shortSsm.getMinShort() : shortSsm.getMaxShort();
+            if (NullNanHelper.shortHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(shortSsm.getMaxShort())) {
+                    newResult = shortSsm.getMaxShort();
+                } else {
+                    newResult = shortSsm.getMinShort();
+                }
+            } else {
+                newResult = minimum ? shortSsm.getMinShort() : shortSsm.getMaxShort();
+            }
         }
         return setResult(destination, newResult);
     }

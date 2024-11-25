@@ -14,6 +14,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 
 public class ObjectSetResult implements SsmChunkedMinMaxOperator.SetResult {
@@ -32,7 +33,15 @@ public class ObjectSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = null;
         } else {
             final ObjectSegmentedSortedMultiset ObjectSsm = (ObjectSegmentedSortedMultiset) ssm;
-            newResult = minimum ? ObjectSsm.getMinObject() : ObjectSsm.getMaxObject();
+            if (NullNanHelper.ObjectHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(ObjectSsm.getMaxObject())) {
+                    newResult = ObjectSsm.getMaxObject();
+                } else {
+                    newResult = ObjectSsm.getMinObject();
+                }
+            } else {
+                newResult = minimum ? ObjectSsm.getMinObject() : ObjectSsm.getMaxObject();
+            }
         }
         return setResult(destination, newResult);
     }

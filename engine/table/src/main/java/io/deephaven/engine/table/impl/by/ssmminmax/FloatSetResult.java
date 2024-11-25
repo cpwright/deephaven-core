@@ -11,6 +11,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.FloatArraySource;
 import io.deephaven.engine.table.impl.ssms.FloatSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_FLOAT;
 
@@ -30,7 +31,15 @@ public class FloatSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = NULL_FLOAT;
         } else {
             final FloatSegmentedSortedMultiset floatSsm = (FloatSegmentedSortedMultiset) ssm;
-            newResult = minimum ? floatSsm.getMinFloat() : floatSsm.getMaxFloat();
+            if (NullNanHelper.floatHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(floatSsm.getMaxFloat())) {
+                    newResult = floatSsm.getMaxFloat();
+                } else {
+                    newResult = floatSsm.getMinFloat();
+                }
+            } else {
+                newResult = minimum ? floatSsm.getMinFloat() : floatSsm.getMaxFloat();
+            }
         }
         return setResult(destination, newResult);
     }

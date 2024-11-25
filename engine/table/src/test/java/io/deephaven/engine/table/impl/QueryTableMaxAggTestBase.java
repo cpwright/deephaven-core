@@ -88,12 +88,12 @@ public abstract class QueryTableMaxAggTestBase {
 
     @Test
     public void testSkipsNanFloat() {
-        check(Float.NEGATIVE_INFINITY, new float[] {Float.NEGATIVE_INFINITY, Float.NaN});
+        check(Float.NaN, new float[] {Float.NEGATIVE_INFINITY, Float.NaN});
     }
 
     @Test
     public void testSkipsNanDouble() {
-        check(Double.NEGATIVE_INFINITY, new double[] {Double.NEGATIVE_INFINITY, Double.NaN});
+        check(Double.NaN, new double[] {Double.NEGATIVE_INFINITY, Double.NaN});
     }
 
     @Test
@@ -118,12 +118,12 @@ public abstract class QueryTableMaxAggTestBase {
 
     @Test
     public void testAllNaNFloat() {
-        check(QueryConstants.NULL_FLOAT, new float[] {Float.NaN});
+        check(Float.NaN, new float[] {Float.NaN});
     }
 
     @Test
     public void testAllNaNDouble() {
-        check(QueryConstants.NULL_DOUBLE, new double[] {Double.NaN});
+        check(Double.NaN, new double[] {Double.NaN});
     }
 
     public void check(char expected, char[] data) {

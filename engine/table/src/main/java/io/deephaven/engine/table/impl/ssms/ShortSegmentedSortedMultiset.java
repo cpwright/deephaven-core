@@ -1340,9 +1340,7 @@ public final class ShortSegmentedSortedMultiset implements SegmentedSortedMultiS
     }
 
     private static boolean eq(short lhs, short rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return ShortComparisons.eq(lhs, rhs);
     }
     // endregion
 

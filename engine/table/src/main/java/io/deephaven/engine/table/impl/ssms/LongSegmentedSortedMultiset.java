@@ -1345,9 +1345,7 @@ public final class LongSegmentedSortedMultiset implements SegmentedSortedMultiSe
     }
 
     private static boolean eq(long lhs, long rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return LongComparisons.eq(lhs, rhs);
     }
     // endregion
 

@@ -11,6 +11,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.DoubleArraySource;
 import io.deephaven.engine.table.impl.ssms.DoubleSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_DOUBLE;
 
@@ -30,7 +31,15 @@ public class DoubleSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = NULL_DOUBLE;
         } else {
             final DoubleSegmentedSortedMultiset doubleSsm = (DoubleSegmentedSortedMultiset) ssm;
-            newResult = minimum ? doubleSsm.getMinDouble() : doubleSsm.getMaxDouble();
+            if (NullNanHelper.doubleHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(doubleSsm.getMaxDouble())) {
+                    newResult = doubleSsm.getMaxDouble();
+                } else {
+                    newResult = doubleSsm.getMinDouble();
+                }
+            } else {
+                newResult = minimum ? doubleSsm.getMinDouble() : doubleSsm.getMaxDouble();
+            }
         }
         return setResult(destination, newResult);
     }

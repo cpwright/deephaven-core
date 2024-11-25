@@ -1340,9 +1340,7 @@ public final class FloatSegmentedSortedMultiset implements SegmentedSortedMultiS
     }
 
     private static boolean eq(float lhs, float rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return FloatComparisons.eq(lhs, rhs);
     }
     // endregion
 

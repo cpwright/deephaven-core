@@ -1340,9 +1340,7 @@ public final class ByteSegmentedSortedMultiset implements SegmentedSortedMultiSe
     }
 
     private static boolean eq(byte lhs, byte rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return ByteComparisons.eq(lhs, rhs);
     }
     // endregion
 

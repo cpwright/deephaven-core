@@ -1336,9 +1336,7 @@ public final class CharSegmentedSortedMultiset implements SegmentedSortedMultiSe
     }
 
     private static boolean eq(char lhs, char rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return CharComparisons.eq(lhs, rhs);
     }
     // endregion
 

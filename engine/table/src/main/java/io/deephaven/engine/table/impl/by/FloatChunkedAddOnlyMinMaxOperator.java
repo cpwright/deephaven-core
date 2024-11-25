@@ -11,6 +11,7 @@ import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 import io.deephaven.util.QueryConstants;
 import io.deephaven.util.compare.FloatComparisons;
 import io.deephaven.engine.table.impl.sources.FloatArraySource;
@@ -42,47 +43,69 @@ class FloatChunkedAddOnlyMinMaxOperator implements IterativeChunkedAggregationOp
         // endregion resultColumn initialization
     }
 
-    private static float min(FloatChunk<?> values, MutableInt chunkNonNullNan, int chunkStart, int chunkEnd) {
-        int nonNullNan = 0;
+    private static float min(FloatChunk<?> values, MutableInt chunkNonNull, int chunkStart, int chunkEnd) {
+        int nonNull = 0;
         float value = QueryConstants.NULL_FLOAT;
         for (int ii = chunkStart; ii < chunkEnd; ++ii) {
             final float candidate = values.get(ii);
-            if (MinMaxHelper.isNullOrNan(candidate)) {
+            if (NullNanHelper.isNull(candidate)) {
                 continue;
             }
-            if (nonNullNan++ == 0) {
+            if (nonNull++ == 0) {
                 value = candidate;
+            } else if (NullNanHelper.isNaN(candidate)) {
+                value = candidate;
+                // the nonNull count is not accurate in this short circuit case, but it will be non-zero which is
+                // enough for the caller within this class to function properly.
+                break;
             } else if (FloatComparisons.lt(candidate, value)) {
                 value = candidate;
             }
         }
-        chunkNonNullNan.set(nonNullNan);
+        chunkNonNull.set(nonNull);
         return value;
     }
 
-    private static float max(FloatChunk<?> values, MutableInt chunkNonNullNan, int chunkStart, int chunkEnd) {
-        int nonNullNan = 0;
+    private static float max(FloatChunk<?> values, MutableInt chunkNonNull, int chunkStart, int chunkEnd) {
+        int nonNull = 0;
         float value = QueryConstants.NULL_FLOAT;
         for (int ii = chunkStart; ii < chunkEnd; ++ii) {
             final float candidate = values.get(ii);
-            if (MinMaxHelper.isNullOrNan(candidate)) {
+            if (NullNanHelper.isNull(candidate)) {
                 continue;
             }
-            if (nonNullNan++ == 0) {
+            if (nonNull++ == 0) {
                 value = candidate;
+            } else if (NullNanHelper.isNaN(candidate)) {
+                value = candidate;
+                // the nonNull count is not accurate in this short circuit case, but it will be non-zero which is
+                // enough for the caller within this class to function properly.
+                break;
             } else if (FloatComparisons.gt(candidate, value)) {
                 value = candidate;
             }
         }
-        chunkNonNullNan.set(nonNullNan);
+        chunkNonNull.set(nonNull);
         return value;
     }
 
     private static float min(float a, float b) {
+        if (NullNanHelper.isNaN(a)) {
+            return a;
+        }
+        if (NullNanHelper.isNaN(b)) {
+            return b;
+        }
         return FloatComparisons.leq(a, b) ? a : b;
     }
 
     private static float max(float a, float b) {
+        if (NullNanHelper.isNaN(a)) {
+            return a;
+        }
+        if (NullNanHelper.isNaN(b)) {
+            return b;
+        }
         return FloatComparisons.geq(a, b) ? a : b;
     }
 
@@ -137,17 +160,21 @@ class FloatChunkedAddOnlyMinMaxOperator implements IterativeChunkedAggregationOp
         if (chunkSize == 0) {
             return false;
         }
-        final MutableInt chunkNonNullNan = new MutableInt(0);
+        final float oldValue = resultColumn.getUnsafe(destination);
+        if (NullNanHelper.isNaN(oldValue)) {
+            return false;
+        }
+
+        final MutableInt chunkNonNull = new MutableInt(0);
         final int chunkEnd = chunkStart + chunkSize;
-        final float chunkValue = minimum ? min(values, chunkNonNullNan, chunkStart, chunkEnd)
-                : max(values, chunkNonNullNan, chunkStart, chunkEnd);
-        if (chunkNonNullNan.get() == 0) {
+        final float chunkValue = minimum ? min(values, chunkNonNull, chunkStart, chunkEnd)
+                : max(values, chunkNonNull, chunkStart, chunkEnd);
+        if (chunkNonNull.get() == 0) {
             return false;
         }
 
         final float result;
-        final float oldValue = resultColumn.getUnsafe(destination);
-        if (MinMaxHelper.isNullOrNan(oldValue)) {
+        if (NullNanHelper.isNull(oldValue)) {
             // we exclude nulls (and NaNs) from the min/max calculation, therefore if the value in our min/max is null
             // or NaN we know that it is in fact empty and we should use the value from the chunk
             result = chunkValue;

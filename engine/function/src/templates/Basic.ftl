@@ -83,6 +83,20 @@ public class Basic {
                 (value instanceof Double && (Double)value == NULL_DOUBLE);
     }
 
+
+    /**
+    * Determines if a value is a NaN.  Float and Doubles may take on NaN values.  All other primitives types or objects
+    * may not.
+    *
+    * @param value Object to check for NaN
+    * @return true if the value is a NaN, and false otherwise.
+    */
+    static public <T> boolean isNan(T value) {
+        return ((value != null) &&
+            (value instanceof Double && Double.isNaN((Double)value)) ||
+            (value instanceof Float && Float.isNaN((Float)value)));
+    }
+
     /**
      * Replaces values that are null according to Deephaven convention with a specified value.
      *
@@ -934,6 +948,14 @@ public class Basic {
      */
     static public boolean isNull(${pt.primitive} value) {
         return value == QueryConstants.${pt.null};
+    }
+
+    static public boolean isNan(${pt.primitive} value) {
+<#if pt.valueType.isFloat>
+        return ${pt.boxed}.isNaN(value);
+<#else>
+        return false;
+</#if>
     }
 
     /**

@@ -1340,9 +1340,7 @@ public final class IntSegmentedSortedMultiset implements SegmentedSortedMultiSet
     }
 
     private static boolean eq(int lhs, int rhs) {
-        // region equality function
-        return lhs == rhs;
-        // endregion equality function
+        return IntComparisons.eq(lhs, rhs);
     }
     // endregion
 

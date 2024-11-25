@@ -11,6 +11,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.ByteArraySource;
 import io.deephaven.engine.table.impl.ssms.ByteSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_BYTE;
 
@@ -30,7 +31,15 @@ public class ByteSetResult implements SsmChunkedMinMaxOperator.SetResult {
             newResult = NULL_BYTE;
         } else {
             final ByteSegmentedSortedMultiset byteSsm = (ByteSegmentedSortedMultiset) ssm;
-            newResult = minimum ? byteSsm.getMinByte() : byteSsm.getMaxByte();
+            if (NullNanHelper.byteHasNans()) {
+                if (!minimum || NullNanHelper.isNaN(byteSsm.getMaxByte())) {
+                    newResult = byteSsm.getMaxByte();
+                } else {
+                    newResult = byteSsm.getMinByte();
+                }
+            } else {
+                newResult = minimum ? byteSsm.getMinByte() : byteSsm.getMaxByte();
+            }
         }
         return setResult(destination, newResult);
     }

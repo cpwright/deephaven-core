@@ -10,6 +10,7 @@ package io.deephaven.engine.table.impl.util.compact;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 import io.deephaven.util.compare.ByteComparisons;
 import io.deephaven.chunk.*;
 import io.deephaven.chunk.attributes.Any;
@@ -45,14 +46,14 @@ public class ByteCompactKernel implements CompactKernel {
 
     @Override
     public void compactAndCount(WritableChunk<? extends Values> valueChunk, WritableIntChunk<ChunkLengths> counts,
-            boolean countNullAndNan) {
-        compactAndCount(valueChunk.asWritableByteChunk(), counts, countNullAndNan);
+            boolean countNull) {
+        compactAndCount(valueChunk.asWritableByteChunk(), counts, countNull);
     }
 
     @Override
     public void compactAndCount(WritableChunk<? extends Values> valueChunk, WritableIntChunk<ChunkLengths> counts,
-            IntChunk<ChunkPositions> startPositions, WritableIntChunk<ChunkLengths> lengths, boolean countNullAndNan) {
-        compactAndCount(valueChunk.asWritableByteChunk(), counts, startPositions, lengths, countNullAndNan);
+            IntChunk<ChunkPositions> startPositions, WritableIntChunk<ChunkLengths> lengths, boolean countNull) {
+        compactAndCount(valueChunk.asWritableByteChunk(), counts, startPositions, lengths, countNull);
     }
 
     public static void compactAndCount(WritableByteChunk<? extends Values> valueChunk,
@@ -69,29 +70,24 @@ public class ByteCompactKernel implements CompactKernel {
 
     public static void compactAndCount(WritableByteChunk<? extends Values> valueChunk,
             WritableIntChunk<ChunkLengths> counts, IntChunk<ChunkPositions> startPositions,
-            WritableIntChunk<ChunkLengths> lengths, boolean countNullAndNan) {
+            WritableIntChunk<ChunkLengths> lengths, boolean countNull) {
         for (int ii = 0; ii < startPositions.size(); ++ii) {
-            final int newSize =
-                    compactAndCount(valueChunk, counts, startPositions.get(ii), lengths.get(ii), countNullAndNan);
+            final int newSize = compactAndCount(valueChunk, counts, startPositions.get(ii), lengths.get(ii), countNull);
             lengths.set(ii, newSize);
         }
     }
 
     public static int compactAndCount(WritableByteChunk<? extends Values> valueChunk,
-            WritableIntChunk<ChunkLengths> counts, final int start, final int length, boolean countNullAndNan) {
+            WritableIntChunk<ChunkLengths> counts, final int start, final int length, boolean countNull) {
         int wpos = -1;
         // region compactAndCount
-        if (countNullAndNan) {
-            valueChunk.sort(start, length);
-        } else {
-            valueChunk.sortUnsafe(start, length);
-        }
+        valueChunk.sort(start, length);
         byte lastValue = NULL_BYTE;
         int currentCount = -1;
         final int end = start + length;
         for (int rpos = start; rpos < end; ++rpos) {
             final byte nextValue = valueChunk.get(rpos);
-            if (!countNullAndNan && isNullOrNan(nextValue)) {
+            if (!countNull && NullNanHelper.isNull(nextValue)) {
                 continue;
             }
             if (wpos == -1 || !ByteComparisons.eq(nextValue, lastValue)) {
@@ -104,11 +100,5 @@ public class ByteCompactKernel implements CompactKernel {
         }
         // endregion compactAndCount
         return wpos + 1;
-    }
-
-    private static boolean isNullOrNan(byte value) {
-        // region isNullOrNan
-        return value == NULL_BYTE;
-        // endregion isNullOrNan
     }
 }

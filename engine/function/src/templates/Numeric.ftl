@@ -1166,9 +1166,14 @@ public class Numeric {
     }
 
     /**
-     * Returns the index of the maximum value.
+     * Returns the index of the maximum value
      *
-     * @param values values.
+     * <p>Null values are ignored.  If there are no non-null values, then NULL_LONG is returned.</p>
+<#if pt.valueType.isFloat>
+     * <p>NaNs poison the result, therefore return the first occurrence of a NaN is treated as the maximum index.</p>
+</#if>
+     *
+     * @param values the vector to determine the index of the maximum value.
      * @return index of the maximum value.
      */
     public static long indexOfMax(${pt.vector} values) {
@@ -1184,6 +1189,12 @@ public class Numeric {
         try ( final ${pt.vectorIterator} vi = values.iterator() ) {
             while ( vi.hasNext() ) {
                 final ${pt.primitive} c = vi.${pt.iteratorNext}();
+<#if pt.valueType.isFloat>
+                // NaN poisons min and max, so we use the first occurrence as our index.
+                if (isNaN(c)) {
+                    return i;
+                }
+</#if>
                 if (!isNull(c) && (c > val || (c == val && count == 0))) {
                     val = c;
                     index = i;
@@ -1224,7 +1235,12 @@ public class Numeric {
     /**
      * Returns the index of the minimum value.
      *
-     * @param values values.
+     * <p>Null values are ignored.  If there are no non-null values, then NULL_LONG is returned.</p>
+<#if pt.valueType.isFloat>
+     * <p>NaNs poison the result, therefore return the first occurrence of a NaN is treated as the minimum index.</p>
+</#if>
+     *
+     * @param values the vector to determine the index of the maximum value.
      * @return index of the minimum value.
      */
     public static long indexOfMin(${pt.vector} values) {
@@ -1240,6 +1256,12 @@ public class Numeric {
         try ( final ${pt.vectorIterator} vi = values.iterator() ) {
             while ( vi.hasNext() ) {
                 final ${pt.primitive} c = vi.${pt.iteratorNext}();
+<#if pt.valueType.isFloat>
+                // NaN poisons min and max, so we use the first occurrence as our index.
+                if (isNaN(c)) {
+                    return i;
+                }
+</#if>
                 if (!isNull(c) && (c < val || (c == val && count == 0) )) {
                     val = c;
                     index = i;

@@ -1352,9 +1352,7 @@ public final class ObjectSegmentedSortedMultiset implements SegmentedSortedMulti
     }
 
     private static boolean eq(Object lhs, Object rhs) {
-        // region equality function
-        return Objects.equals(lhs, rhs);
-        // endregion equality function
+        return ObjectComparisons.eq(lhs, rhs);
     }
     // endregion
 

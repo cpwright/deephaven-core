@@ -6,7 +6,6 @@ package io.deephaven.engine.table.impl;
 import io.deephaven.function.Numeric;
 import io.deephaven.vector.*;
 import io.deephaven.util.compare.CharComparisons;
-import io.deephaven.util.compare.DoubleComparisons;
 import io.deephaven.util.compare.ObjectComparisons;
 import io.deephaven.libs.GroovyStaticImports;
 import io.deephaven.util.QueryConstants;
@@ -508,46 +507,6 @@ public class QueryTableAggregationTestFormulaStaticMethods {
         return count == 0 ? null : max;
     }
 
-    public static double minDouble(DoubleVector values) {
-        if (values.isEmpty()) {
-            return QueryConstants.NULL_DOUBLE;
-        }
-        double min = 0;
-        int count = 0;
-        for (int ii = 0; ii < values.size(); ++ii) {
-            final double v = values.get(ii);
-            if (v == QueryConstants.NULL_DOUBLE || Double.isNaN(v)) {
-                continue;
-            }
-            if (count++ == 0) {
-                min = v;
-            } else if (DoubleComparisons.lt(v, min)) {
-                min = v;
-            }
-        }
-        return count == 0 ? QueryConstants.NULL_DOUBLE : min;
-    }
-
-    public static double maxDouble(DoubleVector values) {
-        if (values.isEmpty()) {
-            return QueryConstants.NULL_DOUBLE;
-        }
-        double min = 0;
-        int count = 0;
-        for (int ii = 0; ii < values.size(); ++ii) {
-            final double v = values.get(ii);
-            if (v == QueryConstants.NULL_DOUBLE || Double.isNaN(v)) {
-                continue;
-            }
-            if (count++ == 0) {
-                min = v;
-            } else if (DoubleComparisons.gt(v, min)) {
-                min = v;
-            }
-        }
-        return count == 0 ? QueryConstants.NULL_DOUBLE : min;
-    }
-
     static String sumFunction(String col) {
         switch (col) {
             case "charCol":
@@ -578,9 +537,6 @@ public class QueryTableAggregationTestFormulaStaticMethods {
         switch (col) {
             case "charCol":
                 return QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".minChar(" + col + ")";
-            case "doubleNanCol":
-                return QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".minDouble(" + col
-                        + ")";
             case "Sym":
                 return "(String)" + QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".minObj("
                         + col + ")";
@@ -598,9 +554,6 @@ public class QueryTableAggregationTestFormulaStaticMethods {
         switch (col) {
             case "charCol":
                 return QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".maxChar(" + col + ")";
-            case "doubleNanCol":
-                return QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".maxDouble(" + col
-                        + ")";
             case "Sym":
                 return "(String)" + QueryTableAggregationTestFormulaStaticMethods.class.getCanonicalName() + ".maxObj("
                         + col + ")";
