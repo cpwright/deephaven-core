@@ -89,7 +89,7 @@ public abstract class AbstractConditionFilter extends WhereFilterImpl {
         try {
             final QueryLanguageParser.Result result = FormulaAnalyzer.parseFormula(
                     formula, tableDefinition.getColumnNameMap(), outerToInnerNames,
-                    compilationProcessor.getQueryScopeVariables(), unboxArguments);
+                    compilationProcessor.getFormulaImports(), unboxArguments);
 
             formulaShiftColPair = result.getFormulaShiftColPair();
             if (formulaShiftColPair != null) {
@@ -309,6 +309,11 @@ public abstract class AbstractConditionFilter extends WhereFilterImpl {
      */
     public boolean hasConstantArrayAccess() {
         return getFormulaShiftColPair() != null;
+    }
+
+    @Override
+    public boolean hasVirtualRowVariables() {
+        return usesI || usesII || usesK;
     }
 
     /**

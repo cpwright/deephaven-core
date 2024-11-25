@@ -12,6 +12,7 @@ concurrency:
 jobs:
   nightly-publish:
     runs-on: ubuntu-24.04
+    if: ${{ github.repository_owner == 'deephaven' }}
 
     steps:
       - name: Checkout
@@ -32,7 +33,7 @@ jobs:
           java-version: '17'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set JAVA_HOME
         run: echo "JAVA_HOME=${{ steps.setup-java-11.outputs.path }}" >> $GITHUB_ENV
@@ -54,7 +55,7 @@ jobs:
           ORG_GRADLE_PROJECT_signingRequired: true
 
       - name: Slack Nightly Failure
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v1.27.0
         id: slack-nightly-failure
         if: failure()
         with:

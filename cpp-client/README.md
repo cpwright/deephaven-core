@@ -17,7 +17,7 @@ To actually use Deephaven, for example running these examples and unit
 tests, you will eventually need to have a server running. If you have
 an existing server running Deephaven Core, you should be able to
 connect to that. However, if you don't have one, you can follow the
-instructions here: https://deephaven.io/core/docs/how-to-guides/launch-build/.
+instructions [here](https://deephaven.io/core/docs/getting-started/launch-build/).
 
 Note that it is only possible to build a server on Linux. Building a server on
 Windows is not currently supported.
@@ -80,7 +80,7 @@ connect a server when you want to run them.
    export DHCPP=$HOME/dhcpp
    # If the directory already exists from a previous attempt, ensure is clean/empty
    mkdir -p $DHCPP
-   cp build-dependencies.sh $DHCPP
+   cp $DHSRC/build-dependencies.sh $DHCPP
    cd $DHCPP
    # Maybe edit build-dependencies.sh to reflect choices of build tools and build target, if you
    # want anything different than defaults; defaults are tested to work,
@@ -281,12 +281,14 @@ Notes
 
 9. Now configure the build for Deephaven Core:
    ``` 
-   cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX=%DHINSTALL% -DX_VCPKG_APPLOCAL_DEPS_INSTALL=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX=%DHINSTALL% -DX_VCPKG_APPLOCAL_DEPS_INSTALL=ON
    ```
    
-10. Finally, build and install Deephaven Core:
+10. Finally, build and install Deephaven Core. Note that the build type (RelWithDebInfo) is specified differently for the Windows build
+    than it is for the Ubuntu build. For Windows, we specify the configuration type directly in the build step using the --config flag.
    ```
-   cmake --build build --target install
+   # Replace '16' by the number of CPU threads you want to use for building
+   cmake --build build --config RelWithDebInfo --target install -- /p:CL_MPCount=16 -m:1
    ```
 
 11. Run the tests.

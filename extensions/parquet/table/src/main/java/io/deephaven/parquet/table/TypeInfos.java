@@ -13,6 +13,7 @@ import io.deephaven.util.codec.ExternalizableCodec;
 import io.deephaven.util.codec.SerializableCodec;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -57,6 +58,12 @@ public class TypeInfos {
     };
 
     private static final Map<Class<?>, TypeInfo> BY_CLASS;
+
+    /**
+     * A list's element must be named this, see
+     * <a href="https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists">lists</a>
+     */
+    private static final String ELEMENT_NAME = "element";
 
     static {
         final Map<Class<?>, TypeInfo> fa = new HashMap<>();
@@ -124,7 +131,7 @@ public class TypeInfos {
             @NotNull final Map<String, Map<ParquetCacheTags, Object>> computedCache,
             @NotNull final String columnName,
             @NotNull final RowSet rowSet,
-            @NotNull Supplier<ColumnSource<BigDecimal>> columnSourceSupplier) {
+            @NotNull final Supplier<ColumnSource<?>> columnSourceSupplier) {
         return (PrecisionAndScale) computedCache
                 .computeIfAbsent(columnName, unusedColumnName -> new HashMap<>())
                 .computeIfAbsent(ParquetCacheTags.DECIMAL_ARGS,
@@ -152,7 +159,7 @@ public class TypeInfos {
         final String columnName = column.getName();
         // noinspection unchecked
         final PrecisionAndScale precisionAndScale = getPrecisionAndScale(
-                computedCache, columnName, rowSet, () -> (ColumnSource<BigDecimal>) columnSourceMap.get(columnName));
+                computedCache, columnName, rowSet, () -> columnSourceMap.get(columnName));
         final Set<Class<?>> clazzes = Set.of(BigDecimal.class);
         return new TypeInfo() {
             @Override
@@ -175,8 +182,7 @@ public class TypeInfos {
             final RowSet rowSet,
             final Map<String, ? extends ColumnSource<?>> columnSourceMap,
             @NotNull final ParquetInstructions instructions) {
-        final Class<?> dataType = column.getDataType();
-        if (BigDecimal.class.equals(dataType)) {
+        if (column.getDataType() == BigDecimal.class || column.getComponentType() == BigDecimal.class) {
             return bigDecimalTypeInfo(computedCache, column, rowSet, columnSourceMap);
         }
         return lookupTypeInfo(column, instructions);
@@ -476,12 +482,19 @@ public class TypeInfos {
                 isRepeating = false;
             }
             if (!isRepeating) {
+                instructions.getFieldId(columnDefinition.getName()).ifPresent(builder::id);
                 return builder.named(parquetColumnName);
             }
-            return Types.buildGroup(Type.Repetition.OPTIONAL).addField(
-                    Types.buildGroup(Type.Repetition.REPEATED).addField(
-                            builder.named("item")).named(parquetColumnName))
-                    .as(LogicalTypeAnnotation.listType()).named(parquetColumnName);
+            // Note: the Parquet type builder would take care of the element name for us if we were constructing it
+            // ahead of time via ListBuilder.optionalElement
+            // (org.apache.parquet.schema.Types.BaseListBuilder.ElementBuilder.named) when we named the outer list; but
+            // since we are constructing types recursively (without regard to the outer type), we are responsible for
+            // setting the element name correctly at this point in time.
+            final Types.ListBuilder<GroupType> listBuilder = Types.optionalList();
+            instructions.getFieldId(columnDefinition.getName()).ifPresent(listBuilder::id);
+            return listBuilder
+                    .element(builder.named(ELEMENT_NAME))
+                    .named(parquetColumnName);
         }
     }
 

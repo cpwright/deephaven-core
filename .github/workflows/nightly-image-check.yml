@@ -21,7 +21,7 @@ jobs:
           java-version: '11'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set JAVA_HOME
         run: echo "JAVA_HOME=${{ steps.setup-java-11.outputs.path }}" >> $GITHUB_ENV
@@ -35,7 +35,7 @@ jobs:
         run: ./gradlew --continue pullImage compareImage
 
       - name: Notify Slack
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v1.27.0
         id: notify-slack
         if: ${{ failure() }}
         env:

@@ -24,6 +24,7 @@ import io.deephaven.util.annotations.ReferentialIntegrity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.OverridingMethodsMustInvokeSuper;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
@@ -56,6 +57,9 @@ public abstract class MergedListener extends LivenessArtifact implements Notific
     @Nullable
     protected final PerformanceEntry entry;
     private final String logPrefix;
+
+    private boolean failed;
+
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile long lastCompletedStep = NotificationStepReceiver.NULL_NOTIFICATION_STEP;
@@ -96,6 +100,10 @@ public abstract class MergedListener extends LivenessArtifact implements Notific
         return recorders;
     }
 
+    public boolean isFailed() {
+        return failed;
+    }
+
     public final void notifyOnUpstreamError(
             @NotNull final Throwable upstreamError, @Nullable final TableListener.Entry errorSourceEntry) {
         notifyInternal(upstreamError, errorSourceEntry);
@@ -107,6 +115,10 @@ public abstract class MergedListener extends LivenessArtifact implements Notific
 
     private void notifyInternal(@Nullable final Throwable upstreamError,
             @Nullable final TableListener.Entry errorSourceEntry) {
+        if (failed) {
+            return;
+        }
+
         final long currentStep = getUpdateGraph().clock().currentStep();
 
         synchronized (this) {
@@ -150,6 +162,7 @@ public abstract class MergedListener extends LivenessArtifact implements Notific
             final boolean uncaughtExceptionFromProcess,
             @NotNull final Throwable error,
             @Nullable final TableListener.Entry entry) {
+        failed = true;
         forceReferenceCountToZero();
         propagateErrorDownstream(uncaughtExceptionFromProcess, error, entry);
         try {
@@ -162,11 +175,13 @@ public abstract class MergedListener extends LivenessArtifact implements Notific
     }
 
     protected boolean systemicResult() {
-        return result == null ? false : SystemicObjectTracker.isSystemic(result);
+        return result != null && SystemicObjectTracker.isSystemic(result);
     }
 
+    @OverridingMethodsMustInvokeSuper
     @Override
     protected void destroy() {
+        super.destroy();
         recorders.forEach(ListenerRecorder::forceReferenceCountToZero);
     }
 
