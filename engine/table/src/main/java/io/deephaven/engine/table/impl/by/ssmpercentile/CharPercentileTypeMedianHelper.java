@@ -7,6 +7,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.DoubleArraySource;
 import io.deephaven.engine.table.impl.ssms.CharSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_DOUBLE;
 

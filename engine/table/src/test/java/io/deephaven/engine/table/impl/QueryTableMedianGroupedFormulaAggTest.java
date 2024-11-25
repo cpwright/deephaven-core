@@ -59,7 +59,7 @@ public class QueryTableMedianGroupedFormulaAggTest extends QueryTableMedianAggTe
     public void testSkipsNullFloat() {}
 
     @Override
-    public void testSkipsNanFloat() {}
+    public void testPoisonNanFloat() {}
 
     @Override
     public void testNegZeroFirstFloat() {}

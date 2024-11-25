@@ -7,6 +7,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.FloatArraySource;
 import io.deephaven.engine.table.impl.ssms.FloatSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_FLOAT;
 
@@ -34,6 +35,10 @@ public class FloatPercentileTypeMedianHelper extends FloatPercentileTypeHelper {
                 ssmHi.moveFrontToBack(ssmLo, targetLo - loSize);
             } else if (loSize > targetLo) {
                 ssmLo.moveBackToFront(ssmHi, loSize - targetLo);
+            }
+
+            if (ssmHi.size() > 0 && Float.isNaN(((FloatSegmentedSortedMultiset) ssmHi).getMaxFloat())) {
+                return setResult(destination, Float.NaN);
             }
 
             if (ssmLo.totalSize() == ssmHi.totalSize()) {

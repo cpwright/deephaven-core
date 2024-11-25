@@ -10,6 +10,7 @@ package io.deephaven.engine.table.impl.by.ssmpercentile;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.table.WritableColumnSource;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 import io.deephaven.util.compare.IntComparisons;
 import io.deephaven.engine.table.impl.sources.IntegerArraySource;
 import io.deephaven.chunk.IntChunk;
@@ -48,6 +49,13 @@ public class IntPercentileTypeHelper implements SsmChunkedPercentileOperator.Per
                 ssmLo.moveBackToFront(ssmHi, loSize - targetLo);
             }
 
+            if (NullNanHelper.intHasNans()) {
+                // if we have only a low value, then there is by definition only one thing that is a NaN if we need
+                // to poison it so we can just check the high values for poison
+                if (ssmHi.size() > 0 && NullNanHelper.isNaN(ssmHi.getMax())) {
+                    return setResult(destination, ((IntSegmentedSortedMultiset) ssmHi).getMaxInt());
+                }
+            }
             return setResult(destination, ((IntSegmentedSortedMultiset) ssmLo).getMaxInt());
         }
     }

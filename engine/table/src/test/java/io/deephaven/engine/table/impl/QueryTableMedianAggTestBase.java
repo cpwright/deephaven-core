@@ -117,13 +117,13 @@ public abstract class QueryTableMedianAggTestBase {
     }
 
     @Test
-    public void testSkipsNanFloat() {
-        check(0.0f, new float[] {Float.NaN, Float.NaN, 0.0f});
+    public void testPoisonNanFloat() {
+        check(Float.NaN, new float[] {3.0f, Float.NaN, Float.NaN, 0.0f, 1.0f, 2.0f});
     }
 
     @Test
-    public void testSkipsNanDouble() {
-        check(0.0, new double[] {Double.NaN, Double.NaN, 0.0});
+    public void tesPoisonNanDouble() {
+        check(Double.NaN, new double[] {3.0, Double.NaN, Double.NaN, 0.0, 1.0, 2.0});
     }
 
     @Test
@@ -148,12 +148,12 @@ public abstract class QueryTableMedianAggTestBase {
 
     @Test
     public void testAllNaNFloat() {
-        check(QueryConstants.NULL_FLOAT, new float[] {Float.NaN});
+        check(Float.NaN, new float[] {Float.NaN});
     }
 
     @Test
     public void testAllNaNDouble() {
-        check(QueryConstants.NULL_DOUBLE, new double[] {Double.NaN});
+        check(Double.NaN, new double[] {Double.NaN});
     }
 
     public void check(char expected, char[] data) {

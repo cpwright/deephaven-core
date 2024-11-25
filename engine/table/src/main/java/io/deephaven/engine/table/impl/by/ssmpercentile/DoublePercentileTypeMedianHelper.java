@@ -11,6 +11,7 @@ import io.deephaven.engine.table.WritableColumnSource;
 import io.deephaven.engine.table.impl.sources.DoubleArraySource;
 import io.deephaven.engine.table.impl.ssms.DoubleSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.util.NullNanHelper;
 
 import static io.deephaven.util.QueryConstants.NULL_DOUBLE;
 
@@ -38,6 +39,10 @@ public class DoublePercentileTypeMedianHelper extends DoublePercentileTypeHelper
                 ssmHi.moveFrontToBack(ssmLo, targetLo - loSize);
             } else if (loSize > targetLo) {
                 ssmLo.moveBackToFront(ssmHi, loSize - targetLo);
+            }
+
+            if (ssmHi.size() > 0 && Double.isNaN(((DoubleSegmentedSortedMultiset) ssmHi).getMaxDouble())) {
+                return setResult(destination, Double.NaN);
             }
 
             if (ssmLo.totalSize() == ssmHi.totalSize()) {
