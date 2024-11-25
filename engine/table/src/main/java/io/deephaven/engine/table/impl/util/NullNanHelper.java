@@ -41,7 +41,7 @@ public final class NullNanHelper {
     public static boolean isNull(final Object o) {
         return o == null;
     }
-    
+
     public static boolean isNaN(final byte x) {
         return false;
     }

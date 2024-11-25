@@ -1425,7 +1425,7 @@ public class QueryTableAggregationTest {
 
     @Test
     public void testMinMaxByStatic() {
-//        final int[] sizes = {10, 100, 1000};
+        // final int[] sizes = {10, 100, 1000};
         final int[] sizes = {1000};
         for (final int size : sizes) {
             testMinMaxByStatic(size, false);
@@ -2446,32 +2446,34 @@ public class QueryTableAggregationTest {
         }
 
         final EvalNuggetInterface[] en = new EvalNuggetInterface[] {
-//                EvalNugget.Sorted.from(() -> queryTable.maxBy("Sym"), "Sym"),
-//                EvalNugget.from(() -> queryTable.sort("Sym").maxBy("Sym")),
-//                EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").maxBy("intCol").sort("intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").maxBy("Sym", "intCol").sort("Sym", "intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").maxBy("Sym").sort("Sym")),
-//                EvalNugget.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
-//                        .maxBy("intCol").sort("intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").maxBy("Sym", "intCol")
-//                        .sort("Sym", "intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").maxBy("Sym").sort("Sym")),
-//                EvalNugget.from(() -> queryTable.minBy("Sym").sort("Sym")),
-//                EvalNugget.from(() -> queryTable.sort("Sym").minBy("Sym")),
-//                EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").minBy("intCol").sort("intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").minBy("Sym", "intCol").sort("Sym", "intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").minBy("Sym").sort("Sym")),
-//                EvalNugget.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
-//                        .minBy("intCol").sort("intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").minBy("Sym", "intCol")
-//                        .sort("Sym", "intCol")),
-//                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").minBy("Sym").sort("Sym")),
-//                new TableComparator(queryTable.maxBy("Sym").sort("Sym"), "maxBy",
-//                        queryTable.groupBy("Sym").update(maxQueryStrings).sort("Sym"), "numeric library"),
+                EvalNugget.Sorted.from(() -> queryTable.maxBy("Sym"), "Sym"),
+                EvalNugget.from(() -> queryTable.sort("Sym").maxBy("Sym")),
+                EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").maxBy("intCol").sort("intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").maxBy("Sym", "intCol").sort("Sym", "intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").maxBy("Sym").sort("Sym")),
+                EvalNugget.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
+                        .maxBy("intCol").sort("intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").maxBy("Sym", "intCol")
+                        .sort("Sym", "intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym",
+                        "intCol").update("x=intCol+1").maxBy("Sym").sort("Sym")),
+                EvalNugget.from(() -> queryTable.minBy("Sym").sort("Sym")),
+                EvalNugget.from(() -> queryTable.sort("Sym").minBy("Sym")),
+                EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").minBy("intCol").sort("intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").minBy("Sym", "intCol").sort("Sym", "intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").minBy("Sym").sort("Sym")),
+                EvalNugget.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
+                        .minBy("intCol").sort("intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").minBy("Sym", "intCol")
+                        .sort("Sym", "intCol")),
+                EvalNugget.from(() -> queryTable.sort("Sym",
+                        "intCol").update("x=intCol+1").minBy("Sym").sort("Sym")),
+                new TableComparator(queryTable.maxBy("Sym").sort("Sym"), "maxBy",
+                        queryTable.groupBy("Sym").update(maxQueryStrings).sort("Sym"), "numeric library"),
                 new TableComparator(queryTable.maxBy("Sym"), "maxBy",
                         queryTable.groupBy("Sym").update(maxQueryStrings), "numeric library"),
-//                new TableComparator(queryTable.minBy("Sym").sort("Sym"), "minBy",
-//                        queryTable.groupBy("Sym").update(minQueryStrings).sort("Sym"), "numeric library"),
+                new TableComparator(queryTable.minBy("Sym").sort("Sym"), "minBy",
+                        queryTable.groupBy("Sym").update(minQueryStrings).sort("Sym"), "numeric library"),
         };
         for (int step = 0; step < 50; step++) {
             if (RefreshingTableTestCase.printTableUpdates) {
