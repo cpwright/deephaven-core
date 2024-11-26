@@ -3062,6 +3062,24 @@ public class QueryTableAggregationTest {
     }
 
     @Test
+    public void testMedianPoison() {
+        final QueryTable t = testRefreshingTable(doubleCol("D", NULL_DOUBLE,1, 2, 3, 4, Double.NaN), intCol("I", NULL_INT, 1, 2, 3, 4, NULL_INT));
+        final Table p = t.aggBy(AggPct(0.5d, "D", "I"));
+        final Table m = t.medianBy();
+        assertTableEquals(TableTools.newTable(doubleCol("D", Double.NaN), doubleCol("I", 2.5)), m);
+        assertTableEquals(TableTools.newTable(doubleCol("D", Double.NaN), intCol("I", 3)), p);
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(t, i(5));
+            t.notifyListeners(i(), i(5), i());
+        });
+
+        assertTableEquals(TableTools.newTable(doubleCol("D", 2.5), doubleCol("I", 2.5)), m);
+        assertTableEquals(TableTools.newTable(doubleCol("D", 3.0), intCol("I", 3)), p);
+    }
+
+    @Test
     public void testCountBy() {
         try {
             newTable().countBy("x = 1");

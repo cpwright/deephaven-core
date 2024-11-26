@@ -48,8 +48,9 @@ public class CharPercentileTypeHelper implements SsmChunkedPercentileOperator.Pe
             if (NullNanHelper.charHasNans()) {
                 // if we have only a low value, then there is by definition only one thing that is a NaN if we need
                 // to poison it so we can just check the high values for poison
-                if (ssmHi.size() > 0 && NullNanHelper.isNaN(ssmHi.getMax())) {
-                    return setResult(destination, ((CharSegmentedSortedMultiset) ssmHi).getMaxChar());
+                final CharSegmentedSortedMultiset typedHi = (CharSegmentedSortedMultiset) ssmHi;
+                if (ssmHi.size() > 0 && NullNanHelper.isNaN(typedHi.getMaxChar())) {
+                    return setResult(destination, typedHi.getMaxChar());
                 }
             }
             return setResult(destination, ((CharSegmentedSortedMultiset) ssmLo).getMaxChar());

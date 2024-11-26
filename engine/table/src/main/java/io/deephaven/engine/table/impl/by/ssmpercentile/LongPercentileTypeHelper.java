@@ -52,8 +52,9 @@ public class LongPercentileTypeHelper implements SsmChunkedPercentileOperator.Pe
             if (NullNanHelper.longHasNans()) {
                 // if we have only a low value, then there is by definition only one thing that is a NaN if we need
                 // to poison it so we can just check the high values for poison
-                if (ssmHi.size() > 0 && NullNanHelper.isNaN(ssmHi.getMax())) {
-                    return setResult(destination, ((LongSegmentedSortedMultiset) ssmHi).getMaxLong());
+                final LongSegmentedSortedMultiset typedHi = (LongSegmentedSortedMultiset) ssmHi;
+                if (ssmHi.size() > 0 && NullNanHelper.isNaN(typedHi.getMaxLong())) {
+                    return setResult(destination, typedHi.getMaxLong());
                 }
             }
             return setResult(destination, ((LongSegmentedSortedMultiset) ssmLo).getMaxLong());

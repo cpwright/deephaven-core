@@ -52,8 +52,9 @@ public class ShortPercentileTypeHelper implements SsmChunkedPercentileOperator.P
             if (NullNanHelper.shortHasNans()) {
                 // if we have only a low value, then there is by definition only one thing that is a NaN if we need
                 // to poison it so we can just check the high values for poison
-                if (ssmHi.size() > 0 && NullNanHelper.isNaN(ssmHi.getMax())) {
-                    return setResult(destination, ((ShortSegmentedSortedMultiset) ssmHi).getMaxShort());
+                final ShortSegmentedSortedMultiset typedHi = (ShortSegmentedSortedMultiset) ssmHi;
+                if (ssmHi.size() > 0 && NullNanHelper.isNaN(typedHi.getMaxShort())) {
+                    return setResult(destination, typedHi.getMaxShort());
                 }
             }
             return setResult(destination, ((ShortSegmentedSortedMultiset) ssmLo).getMaxShort());

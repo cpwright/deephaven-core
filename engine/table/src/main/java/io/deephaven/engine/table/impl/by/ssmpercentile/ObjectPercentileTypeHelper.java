@@ -54,8 +54,9 @@ public class ObjectPercentileTypeHelper implements SsmChunkedPercentileOperator.
             if (NullNanHelper.ObjectHasNans()) {
                 // if we have only a low value, then there is by definition only one thing that is a NaN if we need
                 // to poison it so we can just check the high values for poison
-                if (ssmHi.size() > 0 && NullNanHelper.isNaN(ssmHi.getMax())) {
-                    return setResult(destination, ((ObjectSegmentedSortedMultiset) ssmHi).getMaxObject());
+                final ObjectSegmentedSortedMultiset typedHi = (ObjectSegmentedSortedMultiset) ssmHi;
+                if (ssmHi.size() > 0 && NullNanHelper.isNaN(typedHi.getMaxObject())) {
+                    return setResult(destination, typedHi.getMaxObject());
                 }
             }
             return setResult(destination, ((ObjectSegmentedSortedMultiset) ssmLo).getMaxObject());
