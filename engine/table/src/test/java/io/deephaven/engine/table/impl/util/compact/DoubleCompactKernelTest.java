@@ -34,14 +34,14 @@ public class DoubleCompactKernelTest {
         check(new double[] {
                 0.0, -0.0, QueryConstants.NULL_DOUBLE, Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY},
                 false,
-                new double[] {Double.NEGATIVE_INFINITY, -0.0, Double.POSITIVE_INFINITY},
-                new int[] {1, 2, 1});
+                new double[] {Double.NEGATIVE_INFINITY, -0.0, Double.POSITIVE_INFINITY, Double.NaN},
+                new int[] {1, 2, 1, 1});
     }
 
-    private static void check(double[] input, boolean countNullNan, double[] expectedSorted, int[] expectedCounts) {
+    private static void check(double[] input, boolean countNull, double[] expectedSorted, int[] expectedCounts) {
         try (final WritableIntChunk<ChunkLengths> counts = WritableIntChunk.makeWritableChunk(input.length)) {
             final WritableDoubleChunk<Values> chunk = WritableDoubleChunk.writableChunkWrap(input);
-            DoubleCompactKernel.compactAndCount(chunk, counts, countNullNan);
+            DoubleCompactKernel.compactAndCount(chunk, counts, countNull);
             // can't use ChunkEquals b/c that treats -0.0 == 0.0
             Assert.eqTrue(
                     Arrays.equals(input, 0, chunk.size(), expectedSorted, 0, expectedSorted.length),

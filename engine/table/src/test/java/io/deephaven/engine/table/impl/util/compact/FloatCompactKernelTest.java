@@ -34,14 +34,14 @@ public class FloatCompactKernelTest {
         check(new float[] {
                 0.0f, -0.0f, QueryConstants.NULL_FLOAT, Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY},
                 false,
-                new float[] {Float.NEGATIVE_INFINITY, -0.0f, Float.POSITIVE_INFINITY},
-                new int[] {1, 2, 1});
+                new float[] {Float.NEGATIVE_INFINITY, -0.0f, Float.POSITIVE_INFINITY, Float.NaN},
+                new int[] {1, 2, 1, 1});
     }
 
-    private static void check(float[] input, boolean countNullNan, float[] expectedSorted, int[] expectedCounts) {
+    private static void check(float[] input, boolean countNull, float[] expectedSorted, int[] expectedCounts) {
         try (final WritableIntChunk<ChunkLengths> counts = WritableIntChunk.makeWritableChunk(input.length)) {
             final WritableFloatChunk<Values> chunk = WritableFloatChunk.writableChunkWrap(input);
-            FloatCompactKernel.compactAndCount(chunk, counts, countNullNan);
+            FloatCompactKernel.compactAndCount(chunk, counts, countNull);
             // can't use ChunkEquals b/c that treats -0.0 == 0.0
             Assert.eqTrue(
                     Arrays.equals(input, 0, chunk.size(), expectedSorted, 0, expectedSorted.length),
