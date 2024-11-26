@@ -3052,6 +3052,30 @@ public class GroovyStaticImports {
     /** @see io.deephaven.function.Numeric#isNaN(short) */
     public static  boolean isNaN( short value ) {return Numeric.isNaN( value );}
 
+    /** @see io.deephaven.function.Basic#isNan(java.lang.Object) */
+    public static <T> boolean isNan( T value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(byte) */
+    public static  boolean isNan( byte value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(char) */
+    public static  boolean isNan( char value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(double) */
+    public static  boolean isNan( double value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(float) */
+    public static  boolean isNan( float value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(int) */
+    public static  boolean isNan( int value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(long) */
+    public static  boolean isNan( long value ) {return Basic.isNan( value );}
+
+    /** @see io.deephaven.function.Basic#isNan(short) */
+    public static  boolean isNan( short value ) {return Basic.isNan( value );}
+
     /** @see io.deephaven.function.Basic#isNull(java.lang.Object) */
     public static <T> boolean isNull( T value ) {return Basic.isNull( value );}
 
