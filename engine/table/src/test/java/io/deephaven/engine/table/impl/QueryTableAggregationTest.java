@@ -3063,7 +3063,8 @@ public class QueryTableAggregationTest {
 
     @Test
     public void testMedianPoison() {
-        final QueryTable t = testRefreshingTable(doubleCol("D", NULL_DOUBLE,1, 2, 3, 4, Double.NaN), intCol("I", NULL_INT, 1, 2, 3, 4, NULL_INT));
+        final QueryTable t = testRefreshingTable(doubleCol("D", NULL_DOUBLE, 1, 2, 3, 4, Double.NaN),
+                intCol("I", NULL_INT, 1, 2, 3, 4, NULL_INT));
         final Table p = t.aggBy(AggPct(0.5d, "D", "I"));
         final Table m = t.medianBy();
         assertTableEquals(TableTools.newTable(doubleCol("D", Double.NaN), doubleCol("I", 2.5)), m);
