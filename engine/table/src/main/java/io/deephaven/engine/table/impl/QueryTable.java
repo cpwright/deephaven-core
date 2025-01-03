@@ -15,6 +15,9 @@ import io.deephaven.api.snapshot.SnapshotWhenOptions;
 import io.deephaven.api.snapshot.SnapshotWhenOptions.Flag;
 import io.deephaven.api.updateby.UpdateByControl;
 import io.deephaven.api.updateby.UpdateByOperation;
+import io.deephaven.base.stats.Counter;
+import io.deephaven.base.stats.Stats;
+import io.deephaven.base.stats.Value;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.base.verify.Require;
 import io.deephaven.chunk.attributes.Values;
@@ -98,6 +101,10 @@ import static java.lang.Boolean.TRUE;
  * Primary coalesced table implementation.
  */
 public class QueryTable extends BaseTable<QueryTable> {
+    public static final Value filter = Stats.makeItem("QueryTable", "filter", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
+    public static final Value whereInternal = Stats.makeItem("QueryTable", "whereInternal", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
+    public static final Value filterInit = Stats.makeItem("QueryTable", "filterInit", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
+    public static final Value compProcessor = Stats.makeItem("QueryTable", "compProcessor", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
 
     public interface Operation<T extends DynamicNode & NotificationStepReceiver> {
 
@@ -1157,9 +1164,13 @@ public class QueryTable extends BaseTable<QueryTable> {
 
     @Override
     public Table where(Filter filter) {
+        final long t0 = System.nanoTime();
         final UpdateGraph updateGraph = getUpdateGraph();
         try (final SafeCloseable ignored = ExecutionContext.getContext().withUpdateGraph(updateGraph).open()) {
             return whereInternal(WhereFilter.fromInternal(filter));
+        } finally {
+            final long t1 = System.nanoTime();
+            whereInternal.sample(t1 - t0);
         }
     }
 
@@ -1168,7 +1179,15 @@ public class QueryTable extends BaseTable<QueryTable> {
         final int numFilters = filters.length;
         final BitSet priorityFilterIndexes = new BitSet(numFilters);
 
-        final QueryCompilerRequestProcessor.BatchProcessor compilationProcesor = QueryCompilerRequestProcessor.batch();
+        final long t0 = System.nanoTime();
+        final QueryCompilerRequestProcessor.BatchProcessor compilationProcesor;
+        try {
+            compilationProcesor = QueryCompilerRequestProcessor.batch();
+        } finally {
+            final long t1 = System.nanoTime();
+            compProcessor.sample(t1 - t0);
+        }
+
         // Initialize our filters immediately so we can examine the columns they use. Note that filter
         // initialization is safe to invoke repeatedly.
         for (final WhereFilter filter : filters) {
@@ -1222,7 +1241,13 @@ public class QueryTable extends BaseTable<QueryTable> {
         final String whereDescription = "where(" + Arrays.toString(filters) + ")";
         return QueryPerformanceRecorder.withNugget(whereDescription, sizeForInstrumentation(),
                 () -> {
-                    initializeAndPrioritizeFilters(filters);
+                    final long t0_i = System.nanoTime();
+                    try {
+                        initializeAndPrioritizeFilters(filters);
+                    } finally {
+                        final long t1_i = System.nanoTime();
+                        filterInit.sample(t1_i - t0_i);
+                    }
 
                     for (int fi = 0; fi < filters.length; ++fi) {
                         if (!(filters[fi] instanceof ReindexingFilter)) {
@@ -1292,32 +1317,40 @@ public class QueryTable extends BaseTable<QueryTable> {
                                         final boolean usePrev = prevRequested && isRefreshing();
                                         final RowSet rowSetToUse = usePrev ? rowSet.prev() : rowSet;
 
+
                                         final CompletableFuture<TrackingWritableRowSet> currentMappingFuture =
                                                 new CompletableFuture<>();
-                                        final InitialFilterExecution initialFilterExecution =
-                                                new InitialFilterExecution(this, filters, rowSetToUse.copy(), usePrev);
                                         final TrackingWritableRowSet currentMapping;
-                                        initialFilterExecution.scheduleCompletion((adds, mods) -> {
-                                            currentMappingFuture.complete(adds.writableCast().toTracking());
-                                        }, currentMappingFuture::completeExceptionally);
 
+                                        final long t0 = System.nanoTime();
                                         try {
-                                            currentMapping = currentMappingFuture.get();
-                                        } catch (ExecutionException | InterruptedException e) {
-                                            if (e instanceof InterruptedException) {
-                                                throw new CancellationException("interrupted while filtering");
+                                            final InitialFilterExecution initialFilterExecution =
+                                                    new InitialFilterExecution(this, filters, rowSetToUse.copy(), usePrev);
+                                            initialFilterExecution.scheduleCompletion((adds, mods) -> {
+                                                currentMappingFuture.complete(adds.writableCast().toTracking());
+                                            }, currentMappingFuture::completeExceptionally);
+
+                                            try {
+                                                currentMapping = currentMappingFuture.get();
+                                            } catch (ExecutionException | InterruptedException e) {
+                                                if (e instanceof InterruptedException) {
+                                                    throw new CancellationException("interrupted while filtering");
+                                                }
+                                                throw new TableInitializationException(whereDescription,
+                                                        "an exception occurred while performing the initial filter",
+                                                        e.getCause());
+                                            } finally {
+                                                // account for work done in alternative threads
+                                                final BasePerformanceEntry basePerformanceEntry =
+                                                        initialFilterExecution.getBasePerformanceEntry();
+                                                if (basePerformanceEntry != null) {
+                                                    QueryPerformanceRecorder.getInstance().getEnclosingNugget()
+                                                            .accumulate(basePerformanceEntry);
+                                                }
                                             }
-                                            throw new TableInitializationException(whereDescription,
-                                                    "an exception occurred while performing the initial filter",
-                                                    e.getCause());
                                         } finally {
-                                            // account for work done in alternative threads
-                                            final BasePerformanceEntry basePerformanceEntry =
-                                                    initialFilterExecution.getBasePerformanceEntry();
-                                            if (basePerformanceEntry != null) {
-                                                QueryPerformanceRecorder.getInstance().getEnclosingNugget()
-                                                        .accumulate(basePerformanceEntry);
-                                            }
+                                            final long t1 = System.nanoTime();
+                                            filter.sample(t1 - t0);
                                         }
                                         currentMapping.initializePreviousValue();
 

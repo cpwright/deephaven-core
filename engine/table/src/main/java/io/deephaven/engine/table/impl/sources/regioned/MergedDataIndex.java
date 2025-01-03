@@ -4,6 +4,11 @@
 package io.deephaven.engine.table.impl.sources.regioned;
 
 import io.deephaven.UncheckedDeephavenException;
+import io.deephaven.api.ColumnName;
+import io.deephaven.api.Selectable;
+import io.deephaven.base.stats.Counter;
+import io.deephaven.base.stats.Stats;
+import io.deephaven.base.stats.Value;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.base.verify.Require;
 import io.deephaven.engine.primitive.iterator.CloseableIterator;
@@ -11,10 +16,7 @@ import io.deephaven.engine.rowset.RowSequence;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetBuilderSequential;
 import io.deephaven.engine.rowset.RowSetFactory;
-import io.deephaven.engine.table.BasicDataIndex;
-import io.deephaven.engine.table.ColumnSource;
-import io.deephaven.engine.table.PartitionedTableFactory;
-import io.deephaven.engine.table.Table;
+import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.ForkJoinPoolOperationInitializer;
 import io.deephaven.engine.table.impl.by.AggregationProcessor;
 import io.deephaven.engine.table.impl.by.AggregationRowLookup;
@@ -44,6 +46,15 @@ import java.util.stream.IntStream;
  */
 @InternalUseOnly
 class MergedDataIndex extends AbstractDataIndex {
+    public static final Value loadIndexAndShift = Stats.makeItem("DataIndex", "loadAndShift", Counter.FACTORY, "Duration in nanos of loading and shifting a data index").getValue();
+    public static final Value buildTable = Stats.makeItem("DataIndex", "buildTable", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value loadWallTime = Stats.makeItem("DataIndex", "loadWallTime", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value union = Stats.makeItem("DataIndex", "union", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value select = Stats.makeItem("DataIndex", "select", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value grouping = Stats.makeItem("DataIndex", "grouping", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value unionSize = Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of merged data indices").getValue();
+    public static final Value groupedSize = Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of grouped data indices").getValue();
+    public static final Value mergeAndCleanup = Stats.makeItem("DataIndex", "mergeAndCleanup", Counter.FACTORY, "Duration in nanos of building an index").getValue();
 
     private static final String LOCATION_DATA_INDEX_TABLE_COLUMN_NAME = "__DataIndexTable";
 
@@ -133,66 +144,104 @@ class MergedDataIndex extends AbstractDataIndex {
     }
 
     private Table buildTable() {
-        final Table locationTable = columnSourceManager.locationTable().coalesce();
+        final long t0 = System.nanoTime();
+        try {
+            final Table locationTable = columnSourceManager.locationTable().coalesce();
 
-        // Perform a parallelizable update to produce coalesced location index tables with their row sets shifted by
-        // the appropriate region offset.
-        // This potentially loads many small row sets into memory, but it avoids the risk of re-materializing row set
-        // pages during the accumulation phase.
-        final String[] keyColumnNamesArray = keyColumnNames.toArray(String[]::new);
-        final Table locationDataIndexes = locationTable
-                .update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
-                        columnSourceManager.locationColumnName(), TableLocation.class,
-                        LOCATION_DATA_INDEX_TABLE_COLUMN_NAME, Table.class,
-                        (final long locationRowKey, final TableLocation location) -> loadIndexTableAndShiftRowSets(
-                                locationRowKey, location, keyColumnNamesArray)))))
-                .dropColumns(columnSourceManager.locationColumnName());
+            // Perform a parallelizable update to produce coalesced location index tables with their row sets shifted by
+            // the appropriate region offset.
+            // This potentially loads many small row sets into memory, but it avoids the risk of re-materializing row set
+            // pages during the accumulation phase.
+            final String[] keyColumnNamesArray = keyColumnNames.toArray(String[]::new);
+            final Table locationDataIndexes = locationTable
+                    .update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
+                            columnSourceManager.locationColumnName(), TableLocation.class,
+                            LOCATION_DATA_INDEX_TABLE_COLUMN_NAME, Table.class,
+                            (final long locationRowKey, final TableLocation location) -> loadIndexTableAndShiftRowSets(
+                                    locationRowKey, location, keyColumnNamesArray)))))
+                    .dropColumns(columnSourceManager.locationColumnName());
 
-        // Merge all the location index tables into a single table
-        final Table mergedDataIndexes = PartitionedTableFactory.of(locationDataIndexes).merge();
+            final long t2 = System.nanoTime();
+            loadWallTime.sample(t2 - t0);
 
-        // Group the merged data indexes by the keys
-        final Table groupedByKeyColumns = mergedDataIndexes.groupBy(keyColumnNamesArray);
+            // Merge all the location index tables into a single table
+            final PartitionedTable transform = PartitionedTableFactory.of(locationDataIndexes).transform(t -> t.update(keyColumnNamesArray));
 
-        // Combine the row sets from each group into a single row set
-        final Table combined = groupedByKeyColumns
-                .update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
-                        ROW_SET_COLUMN_NAME, ObjectVector.class,
-                        ROW_SET_COLUMN_NAME, RowSet.class,
-                        this::mergeRowSets))));
-        Assert.assertion(combined.isFlat(), "combined.isFlat()");
-        Assert.eq(groupedByKeyColumns.size(), "groupedByKeyColumns.size()", combined.size(), "combined.size()");
+            final long t2_25 = System.nanoTime();
+            select.sample(t2_25 - t2);
 
-        // Cleanup after ourselves
-        try (final CloseableIterator<RowSet> rowSets = mergedDataIndexes.objectColumnIterator(ROW_SET_COLUMN_NAME)) {
-            rowSets.forEachRemaining(SafeCloseable::close);
+            final Table mergedDataIndexes = transform.merge();
+            final long t2_5 = System.nanoTime();
+            union.sample(t2_5 - t2_25);
+            unionSize.sample(mergedDataIndexes.size());
+
+            // Group the merged data indexes by the keys
+            final Table groupedByKeyColumns = mergedDataIndexes.groupBy(keyColumnNamesArray);
+
+            final long t3 = System.nanoTime();
+            grouping.sample(t3 - t2_5);
+            groupedSize.sample(groupedByKeyColumns.size());
+
+            // Combine the row sets from each group into a single row set
+            final Table combined = groupedByKeyColumns
+                    .updateView(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
+                            ROW_SET_COLUMN_NAME, ObjectVector.class,
+                            ROW_SET_COLUMN_NAME, RowSet.class,
+                            this::mergeRowSets))));
+            Assert.assertion(combined.isFlat(), "combined.isFlat()");
+            Assert.eq(groupedByKeyColumns.size(), "groupedByKeyColumns.size()", combined.size(), "combined.size()");
+
+            // Cleanup after ourselves
+//            try (final CloseableIterator<RowSet> rowSets = mergedDataIndexes.objectColumnIterator(ROW_SET_COLUMN_NAME)) {
+//                rowSets.forEachRemaining(SafeCloseable::close);
+//            }
+
+            lookupFunction = AggregationProcessor.getRowLookup(groupedByKeyColumns);
+            indexTable = combined;
+
+            final long t4 = System.nanoTime();
+            mergeAndCleanup.sample(t4 - t3);
+
+            return combined;
+        } finally {
+            final long t1 = System.nanoTime();
+            buildTable.sample(t1 - t0);
         }
-
-        lookupFunction = AggregationProcessor.getRowLookup(groupedByKeyColumns);
-        indexTable = combined;
-        return combined;
     }
 
     private static Table loadIndexTableAndShiftRowSets(
             final long locationRowKey,
             @NotNull final TableLocation location,
             @NotNull final String[] keyColumnNames) {
-        final BasicDataIndex dataIndex = location.getDataIndex(keyColumnNames);
-        if (dataIndex == null) {
-            throw new UncheckedDeephavenException(String.format("Failed to load data index [%s] for location %s",
-                    String.join(", ", keyColumnNames), location));
+        final long t0 = System.nanoTime();
+        try {
+            final BasicDataIndex dataIndex = location.getDataIndex(keyColumnNames);
+            if (dataIndex == null) {
+                throw new UncheckedDeephavenException(String.format("Failed to load data index [%s] for location %s",
+                        String.join(", ", keyColumnNames), location));
+            }
+            final Table indexTable = dataIndex.table();
+            final long shiftAmount = RegionedColumnSource.getFirstRowKey(Math.toIntExact(locationRowKey));
+            final Table coalesced = indexTable.coalesce();
+            if (shiftAmount == 0) {
+                return coalesced.updateView(List.of(SelectColumn.ofStateless(Selectable.of(ColumnName.of(ROW_SET_COLUMN_NAME), ColumnName.of(dataIndex.rowSetColumnName())))));
+            }
+            return coalesced.updateView(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
+                    dataIndex.rowSetColumnName(), RowSet.class,
+                    ROW_SET_COLUMN_NAME, RowSet.class,
+                    (final RowSet rowSet) -> rowSet.shift(shiftAmount)))));
+        } finally {
+            final long t1 = System.nanoTime();
+            loadIndexAndShift.sample(t1 - t0);
         }
-        final Table indexTable = dataIndex.table();
-        return indexTable.coalesce().update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
-                dataIndex.rowSetColumnName(), RowSet.class,
-                ROW_SET_COLUMN_NAME, RowSet.class,
-                (final RowSet rowSet) -> rowSet
-                        .shift(RegionedColumnSource.getFirstRowKey(Math.toIntExact(locationRowKey)))))));
     }
 
     private RowSet mergeRowSets(
             @SuppressWarnings("unused") final long unusedRowKey,
             @NotNull final ObjectVector<RowSet> keyRowSets) {
+        if (keyRowSets.size() == 1) {
+            return keyRowSets.get(0).copy();
+        }
         final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
         try (final CloseableIterator<RowSet> rowSets = keyRowSets.iterator()) {
             rowSets.forEachRemaining(builder::appendRowSequence);
@@ -231,6 +280,7 @@ class MergedDataIndex extends AbstractDataIndex {
         final String[] keyColumnNamesArray = keyColumnNames.toArray(String[]::new);
         try (final CloseableIterator<TableLocation> locations =
                 columnSourceManager.locationTable().objectColumnIterator(columnSourceManager.locationColumnName())) {
+//            return isValid = locations.stream().parallel().allMatch(l -> l.hasDataIndex(keyColumnNamesArray));
             while (locations.hasNext()) {
                 if (!locations.next().hasDataIndex(keyColumnNamesArray)) {
                     return isValid = false;

@@ -3,6 +3,9 @@
 //
 package io.deephaven.engine.table.impl;
 
+import io.deephaven.base.stats.Counter;
+import io.deephaven.base.stats.Stats;
+import io.deephaven.base.stats.Value;
 import io.deephaven.base.string.cache.CharSequenceUtils;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.chunk.Chunk;
@@ -39,6 +42,10 @@ import java.util.Collections;
 public abstract class AbstractColumnSource<T> implements
         ColumnSource<T>,
         DefaultChunkSource.WithPrev<Values> {
+
+    public static final Value lookup = Stats.makeItem("DataIndex", "lookup", Counter.FACTORY, "Duration in nanos of looking up values").getValue();
+    public static final Value indexBuild = Stats.makeItem("DataIndex", "indexBuild", Counter.FACTORY, "Duration in nanos of building result index").getValue();
+    public static final Value chunkFilter = Stats.makeItem("DataIndex", "chunkFilter", Counter.FACTORY, "Duration in nanos of running a chunk filter").getValue();
 
     /**
      * Minimum average run length in an {@link RowSequence} that should trigger {@link Chunk}-filling by key ranges
@@ -154,19 +161,26 @@ public abstract class AbstractColumnSource<T> implements
                 }
                 matchingIndexRows = matchingIndexRowsBuilder.build();
             } else {
-                // Use the lookup function to get the index row keys for the matching keys
-                final RowSetBuilderRandom matchingIndexRowsBuilder = RowSetFactory.builderRandom();
+                final long t0 = System.nanoTime();
+                try {
+                    // Use the lookup function to get the index row keys for the matching keys
+                    final RowSetBuilderRandom matchingIndexRowsBuilder = RowSetFactory.builderRandom();
 
-                final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup();
-                for (Object key : keys) {
-                    final long rowKey = rowKeyLookup.apply(key, usePrev);
-                    if (rowKey != RowSequence.NULL_ROW_KEY) {
-                        matchingIndexRowsBuilder.addKey(rowKey);
+                    final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup();
+                    for (Object key : keys) {
+                        final long rowKey = rowKeyLookup.apply(key, usePrev);
+                        if (rowKey != RowSequence.NULL_ROW_KEY) {
+                            matchingIndexRowsBuilder.addKey(rowKey);
+                        }
                     }
+                    matchingIndexRows = matchingIndexRowsBuilder.build();
+                } finally {
+                    final long t1 = System.nanoTime();
+                    lookup.sample(t1 - t0);
                 }
-                matchingIndexRows = matchingIndexRowsBuilder.build();
             }
 
+            final long t0 = System.nanoTime();
             try (final SafeCloseable ignored = matchingIndexRows) {
                 final WritableRowSet filtered = invertMatch ? mapper.copy() : RowSetFactory.empty();
                 if (matchingIndexRows.isNonempty()) {
@@ -187,10 +201,19 @@ public abstract class AbstractColumnSource<T> implements
                     }
                 }
                 return filtered;
+            } finally {
+                final long t1 = System.nanoTime();
+                indexBuild.sample(t1 - t0);
             }
         } else {
-            return ChunkFilter.applyChunkFilter(mapper, this, usePrev,
-                    ChunkMatchFilterFactory.getChunkFilter(type, caseInsensitive, invertMatch, keys));
+            final long t0 = System.nanoTime();
+            try {
+                return ChunkFilter.applyChunkFilter(mapper, this, usePrev,
+                        ChunkMatchFilterFactory.getChunkFilter(type, caseInsensitive, invertMatch, keys));
+            } finally {
+                final long t1 = System.nanoTime();
+                chunkFilter.sample(t1 - t0);
+            }
         }
     }
 

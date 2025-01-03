@@ -4,6 +4,9 @@
 package io.deephaven.engine.table.impl.indexer;
 
 import com.google.common.collect.Sets;
+import io.deephaven.base.stats.Counter;
+import io.deephaven.base.stats.Stats;
+import io.deephaven.base.stats.Value;
 import io.deephaven.base.verify.Require;
 import io.deephaven.engine.liveness.LivenessScopeStack;
 import io.deephaven.engine.rowset.RowSet;
@@ -35,6 +38,9 @@ import java.util.stream.Collectors;
  *          closed}.
  */
 public class DataIndexer implements TrackingRowSet.Indexer {
+    public static final Value hasDataIndex = Stats.makeItem("DataIndex", "hasDataIndex", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
+    public static final Value isValidAndLive = Stats.makeItem("DataIndex", "isValidAndLive", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
+    public static final Value dataIndexFactoryStat = Stats.makeItem("DataIndex", "dataIndexFactory", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
 
     /**
      * DataIndexer lookup method. Use this call when you will query from the returned DataIndexer but not add new ones.
@@ -121,15 +127,21 @@ public class DataIndexer implements TrackingRowSet.Indexer {
      * @return Whether {@code table} has a DataIndexer with a {@link DataIndex} for the given key columns
      */
     public static boolean hasDataIndex(@NotNull final Table table, @NotNull final Collection<String> keyColumnNames) {
-        if (keyColumnNames.isEmpty()) {
-            return false;
+        final long t0 = System.nanoTime();
+        try {
+            if (keyColumnNames.isEmpty()) {
+                return false;
+            }
+            final Table tableToUse = table.coalesce();
+            final DataIndexer indexer = DataIndexer.existingOf(tableToUse.getRowSet());
+            if (indexer == null) {
+                return false;
+            }
+            return indexer.hasDataIndex(getColumnSources(tableToUse, keyColumnNames));
+        } finally {
+            final long t1 = System.nanoTime();
+            hasDataIndex.sample(t1 - t0);
         }
-        final Table tableToUse = table.coalesce();
-        final DataIndexer indexer = DataIndexer.existingOf(tableToUse.getRowSet());
-        if (indexer == null) {
-            return false;
-        }
-        return indexer.hasDataIndex(getColumnSources(tableToUse, keyColumnNames));
     }
 
     /**
@@ -340,16 +352,22 @@ public class DataIndexer implements TrackingRowSet.Indexer {
      * @return Whether {@code dataIndex} is valid and live for use
      */
     private static boolean isValidAndLive(@Nullable final DataIndex dataIndex) {
-        if (isInvalid(dataIndex)) {
-            return false;
-        }
-        boolean retained = false;
+        final long t0 = System.nanoTime();
         try {
-            return !dataIndex.isRefreshing() || (retained = dataIndex.tryRetainReference());
-        } finally {
-            if (retained) {
-                dataIndex.dropReference();
+            if (isInvalid(dataIndex)) {
+                return false;
             }
+            boolean retained = false;
+            try {
+                return !dataIndex.isRefreshing() || (retained = dataIndex.tryRetainReference());
+            } finally {
+                if (retained) {
+                    dataIndex.dropReference();
+                }
+            }
+        } finally {
+            final long t1 = System.nanoTime();
+            isValidAndLive.sample(t1 - t0);
         }
     }
 
@@ -543,7 +561,13 @@ public class DataIndexer implements TrackingRowSet.Indexer {
                             // It's the caller's responsibility to make sure we produce a valid data index that is
                             // managed by the appropriate scope for the caller's own use. Further validation is deferred
                             // as in add.
-                            dataIndex = dataIndexFactory.get();
+                            final long t0 = System.nanoTime();
+                            try {
+                                dataIndex = dataIndexFactory.get();
+                            } finally {
+                                final long t1 = System.nanoTime();
+                                dataIndexFactoryStat.sample(t1 - t0);
+                            }
                             cache.dataIndexReference = new WeakReference<>(dataIndex);
                         }
                     }

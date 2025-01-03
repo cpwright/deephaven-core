@@ -4,6 +4,9 @@
 package io.deephaven.engine.table.impl.select;
 
 import io.deephaven.api.literal.Literal;
+import io.deephaven.base.stats.Counter;
+import io.deephaven.base.stats.Stats;
+import io.deephaven.base.stats.Value;
 import io.deephaven.base.string.cache.CompressedString;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.liveness.LivenessScopeStack;
@@ -42,6 +45,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class MatchFilter extends WhereFilterImpl implements DependencyStreamProvider {
+    public static final Value init = Stats.makeItem("MatchFilter", "init", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
 
     private static final long serialVersionUID = 1L;
 
@@ -204,6 +208,7 @@ public class MatchFilter extends WhereFilterImpl implements DependencyStreamProv
         if (initialized) {
             return;
         }
+        final long t0 = System.nanoTime();
         try {
             ColumnDefinition<?> column = tableDefinition.getColumn(columnName);
             if (column == null) {
@@ -238,6 +243,9 @@ public class MatchFilter extends WhereFilterImpl implements DependencyStreamProv
             } catch (final RuntimeException ignored) {
                 throw err;
             }
+        } finally {
+            final long t1 = System.nanoTime();
+            init.sample(t1 - t0);
         }
         initialized = true;
     }

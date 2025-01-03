@@ -3,6 +3,8 @@
 //
 package io.deephaven.base.stats;
 
+import java.text.DecimalFormat;
+
 public abstract class Value {
 
     protected long n = 0;
@@ -98,5 +100,25 @@ public abstract class Value {
                 }
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        final DecimalFormat format = new DecimalFormat("#,###");
+        final DecimalFormat avgFormat = new DecimalFormat("#,###.###");
+
+        final double variance = n > 1 ? (sum2 - ((double)sum * sum / (double)n)) / (n - 1) : Double.NaN;
+
+        return "Value{" +
+                "n=" + format.format(n) +
+                (n > 0 ?
+                ", sum=" + format.format(sum) +
+                ", sum2=" + format.format(sum2) +
+                ", max=" + format.format(max) +
+                ", min=" + format.format(min) +
+                ", avg=" + avgFormat.format((n > 0 ? (double)sum / n : Double.NaN)) +
+                ", std=" + avgFormat.format(Math.sqrt(variance))
+                : "") +
+                '}';
     }
 }
