@@ -4,15 +4,19 @@
 package io.deephaven.base.stats;
 
 import java.text.DecimalFormat;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 public abstract class Value {
+    private static final AtomicLongFieldUpdater<Value> N_UPDATER = AtomicLongFieldUpdater.newUpdater(Value.class, "n");
+    private static final AtomicLongFieldUpdater<Value> SUM_UPDATER = AtomicLongFieldUpdater.newUpdater(Value.class, "sum");
+    private static final AtomicLongFieldUpdater<Value> SUM2_UPDATER = AtomicLongFieldUpdater.newUpdater(Value.class, "sum2");
 
-    protected long n = 0;
-    protected long last = 0;
-    protected long sum = 0;
-    protected long sum2 = 0;
-    protected long max = Long.MIN_VALUE;
-    protected long min = Long.MAX_VALUE;
+    volatile protected long n = 0;
+    volatile protected long last = 0;
+    volatile protected long sum = 0;
+    volatile protected long sum2 = 0;
+    volatile protected long max = Long.MIN_VALUE;
+    volatile protected long min = Long.MAX_VALUE;
 
     private boolean alwaysUpdated = false;
 
@@ -54,10 +58,10 @@ public abstract class Value {
     }
 
     public void sample(long x) {
-        n++;
+        N_UPDATER.incrementAndGet(this);
+        SUM_UPDATER.addAndGet(this, x);
+        SUM2_UPDATER.addAndGet(this, x * x);
         last = x;
-        sum += x;
-        sum2 += x * x;
         if (x > max) {
             max = x;
         }
