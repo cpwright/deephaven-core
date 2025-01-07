@@ -38,9 +38,15 @@ import java.util.stream.Collectors;
  *          closed}.
  */
 public class DataIndexer implements TrackingRowSet.Indexer {
-    public static final Value hasDataIndex = Stats.makeItem("DataIndex", "hasDataIndex", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
-    public static final Value isValidAndLive = Stats.makeItem("DataIndex", "isValidAndLive", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
-    public static final Value dataIndexFactoryStat = Stats.makeItem("DataIndex", "dataIndexFactory", Counter.FACTORY, "Duration in nanos of checking for data index").getValue();
+    public static final Value hasDataIndex =
+            Stats.makeItem("DataIndex", "hasDataIndex", Counter.FACTORY, "Duration in nanos of checking for data index")
+                    .getValue();
+    public static final Value isValidAndLive = Stats
+            .makeItem("DataIndex", "isValidAndLive", Counter.FACTORY, "Duration in nanos of checking for data index")
+            .getValue();
+    public static final Value dataIndexFactoryStat = Stats
+            .makeItem("DataIndex", "dataIndexFactory", Counter.FACTORY, "Duration in nanos of checking for data index")
+            .getValue();
 
     /**
      * DataIndexer lookup method. Use this call when you will query from the returned DataIndexer but not add new ones.

@@ -27,10 +27,8 @@ import io.deephaven.engine.table.impl.select.SelectColumn;
 import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.annotations.InternalUseOnly;
-import io.deephaven.util.datastructures.CachingSupplier;
 import io.deephaven.vector.ObjectVector;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.stream.IntStream;
@@ -48,18 +46,34 @@ import java.util.stream.IntStream;
  */
 @InternalUseOnly
 class MergedDataIndex extends AbstractDataIndex {
-    public static final Value loadIndexAndShift = Stats.makeItem("DataIndex", "loadAndShift", Counter.FACTORY, "Duration in nanos of loading and shifting a data index").getValue();
-    public static final Value loadSelect = Stats.makeItem("DataIndex", "loadSelect", Counter.FACTORY, "Duration in nanos of loading and shifting a data index").getValue();
-    public static final Value buildTable = Stats.makeItem("DataIndex", "buildTable", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value loadWallTime = Stats.makeItem("DataIndex", "loadWallTime", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value union = Stats.makeItem("DataIndex", "union", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value grouping = Stats.makeItem("DataIndex", "grouping", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value unionSize = Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of merged data indices").getValue();
-    public static final Value groupedSize = Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of grouped data indices").getValue();
-    public static final Value mergeAndCleanup = Stats.makeItem("DataIndex", "mergeAndCleanup", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value lazyGeneration = Stats.makeItem("DataIndex", "lazyGeneration", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value lazyFetch = Stats.makeItem("DataIndex", "lazyFetch", Counter.FACTORY, "Duration in nanos of building an index").getValue();
-    public static final Value cachedFetch = Stats.makeItem("DataIndex", "cachedFetch", Counter.FACTORY, "How often a fetch results in a cached result").getValue();
+    public static final Value loadIndexAndShift = Stats.makeItem("DataIndex", "loadAndShift", Counter.FACTORY,
+            "Duration in nanos of loading and shifting a data index").getValue();
+    public static final Value loadSelect = Stats.makeItem("DataIndex", "loadSelect", Counter.FACTORY,
+            "Duration in nanos of loading and shifting a data index").getValue();
+    public static final Value buildTable = Stats
+            .makeItem("DataIndex", "buildTable", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value loadWallTime =
+            Stats.makeItem("DataIndex", "loadWallTime", Counter.FACTORY, "Duration in nanos of building an index")
+                    .getValue();
+    public static final Value union =
+            Stats.makeItem("DataIndex", "union", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value grouping = Stats
+            .makeItem("DataIndex", "grouping", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value unionSize =
+            Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of merged data indices").getValue();
+    public static final Value groupedSize =
+            Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of grouped data indices").getValue();
+    public static final Value mergeAndCleanup =
+            Stats.makeItem("DataIndex", "mergeAndCleanup", Counter.FACTORY, "Duration in nanos of building an index")
+                    .getValue();
+    public static final Value lazyGeneration =
+            Stats.makeItem("DataIndex", "lazyGeneration", Counter.FACTORY, "Duration in nanos of building an index")
+                    .getValue();
+    public static final Value lazyFetch = Stats
+            .makeItem("DataIndex", "lazyFetch", Counter.FACTORY, "Duration in nanos of building an index").getValue();
+    public static final Value cachedFetch =
+            Stats.makeItem("DataIndex", "cachedFetch", Counter.FACTORY, "How often a fetch results in a cached result")
+                    .getValue();
 
     private static final String LOCATION_DATA_INDEX_TABLE_COLUMN_NAME = "__DataIndexTable";
 
@@ -79,8 +93,8 @@ class MergedDataIndex extends AbstractDataIndex {
     private volatile Table indexTable;
 
     /**
-     * A lazy version of the table, note this value is never set if indexTable is set.  A lazy table can
-     * be converted to an indexTable by selecting the rowset column.
+     * A lazy version of the table, note this value is never set if indexTable is set. A lazy table can be converted to
+     * an indexTable by selecting the rowset column.
      */
     private volatile Table lazyTable;
 
@@ -148,8 +162,7 @@ class MergedDataIndex extends AbstractDataIndex {
         synchronized (this) {
             if ((localIndexTable = indexTable) != null) {
                 return localIndexTable;
-            }
-            else if (lazyRowsetMerge) {
+            } else if (lazyRowsetMerge) {
                 if ((localIndexTable = lazyTable) != null) {
                     return localIndexTable;
                 }
@@ -167,8 +180,8 @@ class MergedDataIndex extends AbstractDataIndex {
 
     /**
      * The RowSetCacher is a bit of a hack that allows us to avoid reading actual rowsets from disk until they are
-     * actually required for a query operation.  We are breaking engine rules in that we reference the source
-     * ColumnSource directly and do not have correct dependencies encoded in a select.  MergedDataIndexes are only
+     * actually required for a query operation. We are breaking engine rules in that we reference the source
+     * ColumnSource directly and do not have correct dependencies encoded in a select. MergedDataIndexes are only
      * permitted for a static table, so we can get away with this.
      *
      * Once a RowSet has been written, we write down the result into an ObjectArraySource so that it need not be read
@@ -230,9 +243,8 @@ class MergedDataIndex extends AbstractDataIndex {
             final Table locationTable = columnSourceManager.locationTable().coalesce();
 
             // Perform a parallelizable update to produce coalesced location index tables with their row sets shifted by
-            // the appropriate region offset.
-            // This potentially loads many small row sets into memory, but it avoids the risk of re-materializing row set
-            // pages during the accumulation phase.
+            // the appropriate region offset.  The row sets are not forced into memory; but keys are to enable efficient
+            // grouping.  The rowsets are read into memory as part of the {@link #mergeRowSets} call.
             final String[] keyColumnNamesArray = keyColumnNames.toArray(String[]::new);
             final Table locationDataIndexes = locationTable
                     .update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
@@ -261,12 +273,15 @@ class MergedDataIndex extends AbstractDataIndex {
 
             final Table combined;
             if (lazyRowsetMerge) {
-                final ColumnSource<ObjectVector<RowSet>> vectorColumnSource = groupedByKeyColumns.getColumnSource(ROW_SET_COLUMN_NAME);
+                final ColumnSource<ObjectVector<RowSet>> vectorColumnSource =
+                        groupedByKeyColumns.getColumnSource(ROW_SET_COLUMN_NAME);
 
                 final RowsetCacher rowsetCacher = new RowsetCacher(vectorColumnSource, groupedByKeyColumns.size());
                 // need to do something better with a magic holder that looks at the rowset column source and lazily
                 // merges them instead of this version that actually wants to have an input and doesn't cache anything
-                combined = groupedByKeyColumns.view(List.of(SelectColumn.ofStateless(new MultiSourceFunctionalColumn<>(List.of(), ROW_SET_COLUMN_NAME, RowSet.class, (k, v) -> rowsetCacher.get(k)))));
+                combined = groupedByKeyColumns
+                        .view(List.of(SelectColumn.ofStateless(new MultiSourceFunctionalColumn<>(List.of(),
+                                ROW_SET_COLUMN_NAME, RowSet.class, (k, v) -> rowsetCacher.get(k)))));
                 final long t4 = System.nanoTime();
                 lazyGeneration.sample(t4 - t3);
             } else {
@@ -278,7 +293,8 @@ class MergedDataIndex extends AbstractDataIndex {
 
                 combined = groupedByKeyColumns.update(mergeFunction);
                 // Cleanup after ourselves
-                try (final CloseableIterator<RowSet> rowSets = mergedDataIndexes.objectColumnIterator(ROW_SET_COLUMN_NAME)) {
+                try (final CloseableIterator<RowSet> rowSets =
+                        mergedDataIndexes.objectColumnIterator(ROW_SET_COLUMN_NAME)) {
                     rowSets.forEachRemaining(SafeCloseable::close);
                 }
                 final long t4 = System.nanoTime();
@@ -322,10 +338,11 @@ class MergedDataIndex extends AbstractDataIndex {
                 // pull the key columns into memory while we are parallel;
                 // the rowset column shift need not occur until we perform the rowset merge operation - which is either
                 // lazy or part of an update [which itself can be parallel].
-                return coalesced.update(keyColumnNames).updateView(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
-                        dataIndex.rowSetColumnName(), RowSet.class,
-                        ROW_SET_COLUMN_NAME, RowSet.class,
-                        (final RowSet rowSet) -> rowSet.shift(shiftAmount)))));
+                return coalesced.update(keyColumnNames)
+                        .updateView(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
+                                dataIndex.rowSetColumnName(), RowSet.class,
+                                ROW_SET_COLUMN_NAME, RowSet.class,
+                                (final RowSet rowSet) -> rowSet.shift(shiftAmount)))));
             } finally {
                 final long t3 = System.nanoTime();
                 loadSelect.sample(t3 - t2);

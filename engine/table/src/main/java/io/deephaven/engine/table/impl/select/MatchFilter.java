@@ -45,8 +45,10 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class MatchFilter extends WhereFilterImpl implements DependencyStreamProvider {
-    public static final Value init = Stats.makeItem("MatchFilter", "init", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
-    public static final Value match = Stats.makeItem("MatchFilter", "match", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
+    public static final Value init = Stats
+            .makeItem("MatchFilter", "init", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
+    public static final Value match = Stats
+            .makeItem("MatchFilter", "match", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
 
     private static final long serialVersionUID = 1L;
 

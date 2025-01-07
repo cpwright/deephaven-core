@@ -101,9 +101,13 @@ import static java.lang.Boolean.TRUE;
  * Primary coalesced table implementation.
  */
 public class QueryTable extends BaseTable<QueryTable> {
-    public static final Value filter = Stats.makeItem("QueryTable", "filter", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
-    public static final Value whereInternal = Stats.makeItem("QueryTable", "whereInternal", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
-    public static final Value filterInit = Stats.makeItem("QueryTable", "filterInit", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
+    public static final Value filter =
+            Stats.makeItem("QueryTable", "filter", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
+    public static final Value whereInternal = Stats
+            .makeItem("QueryTable", "whereInternal", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
+    public static final Value filterInit =
+            Stats.makeItem("QueryTable", "filterInit", Counter.FACTORY, "Duration in nanos of filter initialization")
+                    .getValue();
 
     public interface Operation<T extends DynamicNode & NotificationStepReceiver> {
 
@@ -1309,7 +1313,6 @@ public class QueryTable extends BaseTable<QueryTable> {
                                         final boolean usePrev = prevRequested && isRefreshing();
                                         final RowSet rowSetToUse = usePrev ? rowSet.prev() : rowSet;
 
-
                                         final CompletableFuture<TrackingWritableRowSet> currentMappingFuture =
                                                 new CompletableFuture<>();
                                         final TrackingWritableRowSet currentMapping;
@@ -1317,7 +1320,8 @@ public class QueryTable extends BaseTable<QueryTable> {
                                         final long t0 = System.nanoTime();
                                         try {
                                             final InitialFilterExecution initialFilterExecution =
-                                                    new InitialFilterExecution(this, filters, rowSetToUse.copy(), usePrev);
+                                                    new InitialFilterExecution(this, filters, rowSetToUse.copy(),
+                                                            usePrev);
                                             initialFilterExecution.scheduleCompletion((adds, mods) -> {
                                                 currentMappingFuture.complete(adds.writableCast().toTracking());
                                             }, currentMappingFuture::completeExceptionally);

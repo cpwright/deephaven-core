@@ -113,7 +113,9 @@ public interface BasicDataIndex extends LivenessReferent {
     /**
      * Get the {@link Table} backing this data index.
      *
-     * <p>The returned table is fully in-memory, equivalent to {@link #table(DataIndexOptions)} with default options.</p>
+     * <p>
+     * The returned table is fully in-memory, equivalent to {@link #table(DataIndexOptions)} with default options.
+     * </p>
      * 
      * @return The {@link Table}
      */

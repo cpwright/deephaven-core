@@ -45,11 +45,18 @@ public abstract class AbstractColumnSource<T> implements
         ColumnSource<T>,
         DefaultChunkSource.WithPrev<Values> {
 
-    public static boolean USE_PARTIAL_TABLE_DATA_INDEX = Configuration.getInstance().getBooleanWithDefault("AbstractColumnSource.USE_PARTIAL_TABLE_DATA_INDEX", true);
-    public static final Value lookup = Stats.makeItem("DataIndex", "lookup", Counter.FACTORY, "Duration in nanos of looking up values").getValue();
-    public static final Value matchingRows = Stats.makeItem("DataIndex", "matchingRows", Counter.FACTORY, "How many index rows matched").getValue();
-    public static final Value indexBuild = Stats.makeItem("DataIndex", "indexBuild", Counter.FACTORY, "Duration in nanos of building result index").getValue();
-    public static final Value chunkFilter = Stats.makeItem("DataIndex", "chunkFilter", Counter.FACTORY, "Duration in nanos of running a chunk filter").getValue();
+    public static boolean USE_PARTIAL_TABLE_DATA_INDEX = Configuration.getInstance()
+            .getBooleanWithDefault("AbstractColumnSource.USE_PARTIAL_TABLE_DATA_INDEX", true);
+    public static final Value lookup =
+            Stats.makeItem("DataIndex", "lookup", Counter.FACTORY, "Duration in nanos of looking up values").getValue();
+    public static final Value matchingRows =
+            Stats.makeItem("DataIndex", "matchingRows", Counter.FACTORY, "How many index rows matched").getValue();
+    public static final Value indexBuild =
+            Stats.makeItem("DataIndex", "indexBuild", Counter.FACTORY, "Duration in nanos of building result index")
+                    .getValue();
+    public static final Value chunkFilter =
+            Stats.makeItem("DataIndex", "chunkFilter", Counter.FACTORY, "Duration in nanos of running a chunk filter")
+                    .getValue();
 
     /**
      * Minimum average run length in an {@link RowSequence} that should trigger {@link Chunk}-filling by key ranges
@@ -60,9 +67,11 @@ public abstract class AbstractColumnSource<T> implements
     private static final int CHUNK_SIZE = 1 << 11;
 
     /**
-     * The match operation does not use the complete table, it just picks out the relevant indices so there is no reason to actually read it fully.
+     * The match operation does not use the complete table, it just picks out the relevant indices so there is no reason
+     * to actually read it fully.
      */
-    private static final DataIndexOptions PARTIAL_TABLE_DATA_INDEX = DataIndexOptions.builder().operationUsesPartialTable(true).build();
+    private static final DataIndexOptions PARTIAL_TABLE_DATA_INDEX =
+            DataIndexOptions.builder().operationUsesPartialTable(true).build();
 
     protected final Class<T> type;
     protected final Class<?> componentType;
@@ -135,7 +144,8 @@ public abstract class AbstractColumnSource<T> implements
             final Object... keys) {
 
         if (dataIndex != null) {
-            final DataIndexOptions partialOption = USE_PARTIAL_TABLE_DATA_INDEX ? PARTIAL_TABLE_DATA_INDEX : DataIndexOptions.DEFAULT;
+            final DataIndexOptions partialOption =
+                    USE_PARTIAL_TABLE_DATA_INDEX ? PARTIAL_TABLE_DATA_INDEX : DataIndexOptions.DEFAULT;
             final Table indexTable = dataIndex.table(partialOption);
             final RowSet matchingIndexRows;
             if (caseInsensitive && type == String.class) {
