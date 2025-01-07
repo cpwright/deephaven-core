@@ -12,12 +12,7 @@ import io.deephaven.engine.rowset.RowSetBuilderRandom;
 import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.WritableRowSet;
-import io.deephaven.engine.table.ColumnSource;
-import io.deephaven.engine.table.ModifiedColumnSet;
-import io.deephaven.engine.table.Table;
-import io.deephaven.engine.table.TableUpdate;
-import io.deephaven.engine.table.TableUpdateListener;
-import io.deephaven.engine.table.WritableColumnSource;
+import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.BaseTable;
 import io.deephaven.engine.table.impl.QueryTable;
 import io.deephaven.engine.table.impl.TableUpdateImpl;
@@ -248,13 +243,13 @@ class PartitioningColumnDataIndex<KEY_TYPE> extends AbstractDataIndex {
 
     @Override
     @NotNull
-    public Table table() {
+    public Table table(final DataIndexOptions unused) {
         return indexTable;
     }
 
     @Override
     @NotNull
-    public RowKeyLookup rowKeyLookup() {
+    public RowKeyLookup rowKeyLookup(final DataIndexOptions unusedOptions) {
         return (final Object key, final boolean usePrev) -> keyPositionMap.get(key);
     }
 

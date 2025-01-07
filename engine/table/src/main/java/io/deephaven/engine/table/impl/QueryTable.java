@@ -104,7 +104,6 @@ public class QueryTable extends BaseTable<QueryTable> {
     public static final Value filter = Stats.makeItem("QueryTable", "filter", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
     public static final Value whereInternal = Stats.makeItem("QueryTable", "whereInternal", Counter.FACTORY, "Duration in nanos of initial filter").getValue();
     public static final Value filterInit = Stats.makeItem("QueryTable", "filterInit", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
-    public static final Value compProcessor = Stats.makeItem("QueryTable", "compProcessor", Counter.FACTORY, "Duration in nanos of filter initialization").getValue();
 
     public interface Operation<T extends DynamicNode & NotificationStepReceiver> {
 
@@ -1179,21 +1178,14 @@ public class QueryTable extends BaseTable<QueryTable> {
         final int numFilters = filters.length;
         final BitSet priorityFilterIndexes = new BitSet(numFilters);
 
-        final long t0 = System.nanoTime();
-        final QueryCompilerRequestProcessor.BatchProcessor compilationProcesor;
-        try {
-            compilationProcesor = QueryCompilerRequestProcessor.batch();
-        } finally {
-            final long t1 = System.nanoTime();
-            compProcessor.sample(t1 - t0);
-        }
+        final QueryCompilerRequestProcessor.BatchProcessor compilationProcessor = QueryCompilerRequestProcessor.batch();
 
         // Initialize our filters immediately so we can examine the columns they use. Note that filter
         // initialization is safe to invoke repeatedly.
         for (final WhereFilter filter : filters) {
-            filter.init(getDefinition(), compilationProcesor);
+            filter.init(getDefinition(), compilationProcessor);
         }
-        compilationProcesor.compile();
+        compilationProcessor.compile();
 
         for (int fi = 0; fi < numFilters; ++fi) {
             final WhereFilter filter = filters[fi];

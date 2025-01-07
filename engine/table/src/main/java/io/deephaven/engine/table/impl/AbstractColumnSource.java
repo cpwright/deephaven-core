@@ -13,12 +13,14 @@ import io.deephaven.chunk.LongChunk;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.configuration.Configuration;
 import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.primitive.iterator.CloseableIterator;
 import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.rowset.chunkattributes.OrderedRowKeys;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.DataIndex;
+import io.deephaven.engine.table.DataIndexOptions;
 import io.deephaven.engine.table.Table;
 import io.deephaven.engine.table.impl.chunkfillers.ChunkFiller;
 import io.deephaven.engine.table.impl.chunkfilter.ChunkFilter;
@@ -43,7 +45,9 @@ public abstract class AbstractColumnSource<T> implements
         ColumnSource<T>,
         DefaultChunkSource.WithPrev<Values> {
 
+    public static boolean USE_PARTIAL_TABLE_DATA_INDEX = Configuration.getInstance().getBooleanWithDefault("AbstractColumnSource.USE_PARTIAL_TABLE_DATA_INDEX", true);
     public static final Value lookup = Stats.makeItem("DataIndex", "lookup", Counter.FACTORY, "Duration in nanos of looking up values").getValue();
+    public static final Value matchingRows = Stats.makeItem("DataIndex", "matchingRows", Counter.FACTORY, "How many index rows matched").getValue();
     public static final Value indexBuild = Stats.makeItem("DataIndex", "indexBuild", Counter.FACTORY, "Duration in nanos of building result index").getValue();
     public static final Value chunkFilter = Stats.makeItem("DataIndex", "chunkFilter", Counter.FACTORY, "Duration in nanos of running a chunk filter").getValue();
 
@@ -54,6 +58,11 @@ public abstract class AbstractColumnSource<T> implements
     public static final long USE_RANGES_AVERAGE_RUN_LENGTH = 5;
 
     private static final int CHUNK_SIZE = 1 << 11;
+
+    /**
+     * The match operation does not use the complete table, it just picks out the relevant indices so there is no reason to actually read it fully.
+     */
+    private static final DataIndexOptions PARTIAL_TABLE_DATA_INDEX = DataIndexOptions.builder().operationUsesPartialTable(true).build();
 
     protected final Class<T> type;
     protected final Class<?> componentType;
@@ -126,7 +135,8 @@ public abstract class AbstractColumnSource<T> implements
             final Object... keys) {
 
         if (dataIndex != null) {
-            final Table indexTable = dataIndex.table();
+            final DataIndexOptions partialOption = USE_PARTIAL_TABLE_DATA_INDEX ? PARTIAL_TABLE_DATA_INDEX : DataIndexOptions.DEFAULT;
+            final Table indexTable = dataIndex.table(partialOption);
             final RowSet matchingIndexRows;
             if (caseInsensitive && type == String.class) {
                 // Linear scan through the index table, accumulating index row keys for case-insensitive matches
@@ -166,14 +176,15 @@ public abstract class AbstractColumnSource<T> implements
                     // Use the lookup function to get the index row keys for the matching keys
                     final RowSetBuilderRandom matchingIndexRowsBuilder = RowSetFactory.builderRandom();
 
-                    final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup();
-                    for (Object key : keys) {
+                    final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup(partialOption);
+                    for (final Object key : keys) {
                         final long rowKey = rowKeyLookup.apply(key, usePrev);
                         if (rowKey != RowSequence.NULL_ROW_KEY) {
                             matchingIndexRowsBuilder.addKey(rowKey);
                         }
                     }
                     matchingIndexRows = matchingIndexRowsBuilder.build();
+                    matchingRows.sample(matchingIndexRows.size());
                 } finally {
                     final long t1 = System.nanoTime();
                     lookup.sample(t1 - t0);
@@ -185,8 +196,8 @@ public abstract class AbstractColumnSource<T> implements
                 final WritableRowSet filtered = invertMatch ? mapper.copy() : RowSetFactory.empty();
                 if (matchingIndexRows.isNonempty()) {
                     final ColumnSource<RowSet> indexRowSetSource = usePrev
-                            ? dataIndex.rowSetColumn().getPrevSource()
-                            : dataIndex.rowSetColumn();
+                            ? dataIndex.rowSetColumn(partialOption).getPrevSource()
+                            : dataIndex.rowSetColumn(partialOption);
                     try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
                             ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
                         matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {

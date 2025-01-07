@@ -6,6 +6,7 @@ package io.deephaven.engine.table.impl.dataindex;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.DataIndex;
+import io.deephaven.engine.table.DataIndexOptions;
 import io.deephaven.engine.table.Table;
 import org.jetbrains.annotations.NotNull;
 
@@ -90,14 +91,14 @@ public class RemappedDataIndex extends AbstractDataIndex {
 
     @Override
     @NotNull
-    public Table table() {
-        return sourceIndex.table();
+    public Table table(final DataIndexOptions options) {
+        return sourceIndex.table(options);
     }
 
     @Override
     @NotNull
-    public RowKeyLookup rowKeyLookup() {
-        return sourceIndex.rowKeyLookup();
+    public RowKeyLookup rowKeyLookup(final DataIndexOptions options) {
+        return sourceIndex.rowKeyLookup(options);
     }
 
     @Override

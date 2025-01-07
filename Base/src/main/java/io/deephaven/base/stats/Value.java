@@ -117,7 +117,6 @@ public abstract class Value {
                 "n=" + format.format(n) +
                 (n > 0 ?
                 ", sum=" + format.format(sum) +
-                ", sum2=" + format.format(sum2) +
                 ", max=" + format.format(max) +
                 ", min=" + format.format(min) +
                 ", avg=" + avgFormat.format((n > 0 ? (double)sum / n : Double.NaN)) +
