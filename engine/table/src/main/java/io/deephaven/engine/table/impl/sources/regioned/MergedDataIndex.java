@@ -31,6 +31,7 @@ import io.deephaven.vector.ObjectVector;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.IntStream;
 
 /**
@@ -189,37 +190,62 @@ class MergedDataIndex extends AbstractDataIndex {
      */
     private static class RowsetCacher {
         final ColumnSource<ObjectVector<RowSet>> source;
-        final ObjectArraySource<RowSet> results;
+        final AtomicReferenceArray<Object> results;
 
-        private RowsetCacher(final ColumnSource<ObjectVector<RowSet>> source, final long capacity) {
+        private RowsetCacher(final ColumnSource<ObjectVector<RowSet>> source, final int capacity) {
             this.source = source;
-            this.results = new ObjectArraySource<>(RowSet.class);
-            results.ensureCapacity(capacity);
+            this.results = new AtomicReferenceArray<>(capacity);
         }
 
+        // TODO: locking and not redo the work
         RowSet get(final long rowKey) {
             final long t0 = System.nanoTime();
             try {
-                if (rowKey < 0 || rowKey >= results.getCapacity()) {
+                if (rowKey < 0 || rowKey >= results.length()) {
                     return null;
                 }
-                final RowSet localResult = results.getUnsafe(rowKey);
-                if (localResult != null) {
-                    cachedFetch.sample(1);
-                    return localResult;
+
+                int iRowKey = (int) rowKey;
+                do {
+                    final Object localResult = results.get(iRowKey);
+                    if (localResult instanceof RowSet) {
+                        cachedFetch.sample(1);
+                        return (RowSet)localResult;
+                    }
+
+                    if (localResult != null) {
+                        synchronized (localResult) {
+                            // don't care to do anything, we are just waiting for the barrier to be done
+                        }
+                        continue;
+                    }
+
+                    // we need to create our own placeholder, and synchronize on it first
+                    final Object placeholder = new Object();
+                    //noinspection SynchronizationOnLocalVariableOrMethodParameter
+                    synchronized (placeholder) {
+                        if (!results.compareAndSet(iRowKey, null, placeholder)) {
+                            // we must try again, someone else has claimed the placeholder
+                            continue;
+                        }
+                        // it is our responsibility to get the right answer
+                        final ObjectVector<RowSet> inputRowsets = source.get(rowKey);
+                        Assert.neqNull(inputRowsets, "inputRowsets");
+                        assert inputRowsets != null;
+
+                        // need to get the value and set it into our own value
+                        final RowSet computedResult = mergeRowSets(rowKey, inputRowsets);
+                        if (!results.compareAndSet(iRowKey, placeholder, computedResult)) {
+                            throw new IllegalStateException("another thread changed our cache placeholder!");
+                        }
+
+                        // close the components; we are never going to look at them again
+                        inputRowsets.forEach(RowSet::close);
+
+                        return computedResult;
+                    }
                 }
-                // need to get the value and set it into our own value
-                final ObjectVector<RowSet> inputRowsets = source.get(rowKey);
-                Assert.neqNull(inputRowsets, "inputRowsets");
-                assert inputRowsets != null;
-
-                final RowSet computedResult = mergeRowSets(rowKey, inputRowsets);
-                results.set(rowKey, computedResult);
-
-                // close the components; we are never going to look at them again
-                inputRowsets.forEach(RowSet::close);
-
-                return computedResult;
+                while (true);
             } finally {
                 final long t1 = System.nanoTime();
                 lazyFetch.sample(t1 - t0);

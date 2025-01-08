@@ -352,6 +352,22 @@ public class DataIndexer implements TrackingRowSet.Indexer {
     }
 
     /**
+     * Test whether {@code dataIndex} is {@code null} or invalid for use. This test does not evaluate liveness.
+     *
+     * @param dataIndex The {@link DataIndex} to test
+     * @return Whether {@code dataIndex} is {@code null} or invalid for use
+     */
+    private static boolean isInvalidCheat(@Nullable final DataIndex dataIndex) {
+        if (dataIndex == null) {
+            return true;
+        }
+        if (dataIndex instanceof AbstractDataIndex && !((AbstractDataIndex) dataIndex).isValid()) {
+            return true;
+        }
+        return dataIndex.isRefreshing() && dataIndex.table().isFailed();
+    }
+
+    /**
      * Test whether {@code dataIndex} is a non-{@code null} {@link DataIndex} that is currently valid and live for use.
      *
      * @param dataIndex The {@link DataIndex} to test
@@ -482,6 +498,7 @@ public class DataIndexer implements TrackingRowSet.Indexer {
          * @return Whether this DataIndexCache contains a valid, live {@link DataIndex} for the given key columns
          */
         private boolean contains(@NotNull final List<ColumnSource<?>> keyColumns) {
+            // TODO: cheat this out for a quick test
             return traverse(keyColumns, 0, false, cache -> isValidAndLive(cache.dataIndexReference.get()));
         }
 

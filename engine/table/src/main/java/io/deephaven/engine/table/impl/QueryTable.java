@@ -1202,6 +1202,8 @@ public class QueryTable extends BaseTable<QueryTable> {
         for (int fi = 0; fi < numFilters; ++fi) {
             final WhereFilter filter = filters[fi];
 
+            // TODO: boolean option to hasDataIndex to test for validity; defaults to true
+
             // Simple filters against indexed columns get priority
             if (dataIndexer != null
                     && !(filter instanceof ReindexingFilter)
