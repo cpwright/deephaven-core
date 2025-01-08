@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 
 public abstract class AbstractColumnSource<T> implements
@@ -46,7 +47,10 @@ public abstract class AbstractColumnSource<T> implements
         DefaultChunkSource.WithPrev<Values> {
 
     public static boolean USE_PARTIAL_TABLE_DATA_INDEX = Configuration.getInstance()
-            .getBooleanWithDefault("AbstractColumnSource.USE_PARTIAL_TABLE_DATA_INDEX", true);
+            .getBooleanWithDefault("AbstractColumnSource.usePartialDataIndex", true);
+    public static boolean USE_PARALLEL_INDEX_BUILD = Configuration.getInstance()
+            .getBooleanWithDefault("AbstractColumnSource.useParallelIndexBuild", true);
+
     public static final Value lookup =
             Stats.makeItem("DataIndex", "lookup", Counter.FACTORY, "Duration in nanos of looking up values").getValue();
     public static final Value matchingRows =
@@ -208,17 +212,38 @@ public abstract class AbstractColumnSource<T> implements
                     final ColumnSource<RowSet> indexRowSetSource = usePrev
                             ? dataIndex.rowSetColumn(partialOption).getPrevSource()
                             : dataIndex.rowSetColumn(partialOption);
-                    try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
-                            ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
-                        matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {
+
+                    if (USE_PARALLEL_INDEX_BUILD) {
+                        final long[] rowKeyArray = new long[matchingIndexRows.intSize()];
+                        matchingIndexRows.toRowKeyArray(rowKeyArray);
+                        Arrays.stream(rowKeyArray).parallel().forEach((final long rowKey) -> {
+                            final RowSet matchingRowSet = indexRowSetSource.get(rowKey);
+                            assert matchingRowSet != null;
                             if (invertMatch) {
-                                filtered.remove(matchingRowSet);
+                                synchronized (filtered) {
+                                    filtered.remove(matchingRowSet);
+                                }
                             } else {
                                 try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
-                                    filtered.insert(intersected);
+                                    synchronized (filtered) {
+                                        filtered.insert(intersected);
+                                    }
                                 }
                             }
                         });
+                    } else {
+                        try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
+                                     ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
+                            matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {
+                                if (invertMatch) {
+                                    filtered.remove(matchingRowSet);
+                                } else {
+                                    try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
+                                        filtered.insert(intersected);
+                                    }
+                                }
+                            });
+                        }
                     }
                 }
                 return filtered;

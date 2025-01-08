@@ -9,6 +9,7 @@ import io.deephaven.base.stats.Stats;
 import io.deephaven.base.stats.Value;
 import io.deephaven.base.string.cache.CompressedString;
 import io.deephaven.base.verify.Assert;
+import io.deephaven.configuration.Configuration;
 import io.deephaven.engine.liveness.LivenessScopeStack;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.WritableRowSet;
@@ -18,6 +19,7 @@ import io.deephaven.engine.table.DataIndex;
 import io.deephaven.engine.table.Table;
 import io.deephaven.engine.table.TableDefinition;
 import io.deephaven.engine.table.impl.QueryCompilerRequestProcessor;
+import io.deephaven.engine.table.impl.QueryTable;
 import io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils;
 import io.deephaven.engine.table.impl.preview.DisplayWrapper;
 import io.deephaven.engine.table.impl.DependencyStreamProvider;
@@ -257,6 +259,9 @@ public class MatchFilter extends WhereFilterImpl implements DependencyStreamProv
     public SafeCloseable beginOperation(@NotNull final Table sourceTable) {
         if (initialDependenciesGathered || dataIndex != null) {
             throw new IllegalStateException("Inputs already initialized, use copy() instead of re-using a WhereFilter");
+        }
+        if (!QueryTable.USE_DATA_INDEX_FOR_WHERE) {
+            return () -> {};
         }
         try (final SafeCloseable ignored = sourceTable.isRefreshing() ? LivenessScopeStack.open() : null) {
             dataIndex = DataIndexer.getDataIndex(sourceTable, columnName);
