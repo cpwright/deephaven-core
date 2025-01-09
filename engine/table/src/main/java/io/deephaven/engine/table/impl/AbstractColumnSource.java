@@ -233,7 +233,7 @@ public abstract class AbstractColumnSource<T> implements
                         });
                     } else {
                         try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
-                                     ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
+                                ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
                             matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {
                                 if (invertMatch) {
                                     filtered.remove(matchingRowSet);

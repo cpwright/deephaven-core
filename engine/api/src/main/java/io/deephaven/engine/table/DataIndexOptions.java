@@ -10,8 +10,10 @@ import org.immutables.value.Value;
 /**
  * Options for controlling the function of a {@link DataIndex}.
  *
- * <p>Presently, this is used for the {@link Table#where(Filter)} operation to more efficiently handle data index matches,
- * without necessarily reading all RowSet information from disk across partitions.</p>
+ * <p>
+ * Presently, this is used for the {@link Table#where(Filter)} operation to more efficiently handle data index matches,
+ * without necessarily reading all RowSet information from disk across partitions.
+ * </p>
  */
 @Value.Immutable
 @BuildableStyle

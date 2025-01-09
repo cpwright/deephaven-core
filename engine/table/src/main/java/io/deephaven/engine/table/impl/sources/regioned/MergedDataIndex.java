@@ -210,7 +210,7 @@ class MergedDataIndex extends AbstractDataIndex {
                     final Object localResult = results.get(iRowKey);
                     if (localResult instanceof RowSet) {
                         cachedFetch.sample(1);
-                        return (RowSet)localResult;
+                        return (RowSet) localResult;
                     }
 
                     if (localResult != null) {
@@ -222,7 +222,7 @@ class MergedDataIndex extends AbstractDataIndex {
 
                     // we need to create our own placeholder, and synchronize on it first
                     final Object placeholder = new Object();
-                    //noinspection SynchronizationOnLocalVariableOrMethodParameter
+                    // noinspection SynchronizationOnLocalVariableOrMethodParameter
                     synchronized (placeholder) {
                         if (!results.compareAndSet(iRowKey, null, placeholder)) {
                             // we must try again, someone else has claimed the placeholder
@@ -244,8 +244,7 @@ class MergedDataIndex extends AbstractDataIndex {
 
                         return computedResult;
                     }
-                }
-                while (true);
+                } while (true);
             } finally {
                 final long t1 = System.nanoTime();
                 lazyFetch.sample(t1 - t0);
@@ -269,8 +268,8 @@ class MergedDataIndex extends AbstractDataIndex {
             final Table locationTable = columnSourceManager.locationTable().coalesce();
 
             // Perform a parallelizable update to produce coalesced location index tables with their row sets shifted by
-            // the appropriate region offset.  The row sets are not forced into memory; but keys are to enable efficient
-            // grouping.  The rowsets are read into memory as part of the {@link #mergeRowSets} call.
+            // the appropriate region offset. The row sets are not forced into memory; but keys are to enable efficient
+            // grouping. The rowsets are read into memory as part of the {@link #mergeRowSets} call.
             final String[] keyColumnNamesArray = keyColumnNames.toArray(String[]::new);
             final Table locationDataIndexes = locationTable
                     .update(List.of(SelectColumn.ofStateless(new FunctionalColumn<>(
