@@ -82,7 +82,7 @@ class MergedDataIndex extends AbstractDataIndex {
                     .getValue();
 
     public static boolean USE_PARALLEL_LAZY_FETCH = Configuration.getInstance()
-            .getBooleanWithDefault("MergedDataIndex.useParallelLazyFetch", true);
+            .getBooleanWithDefault("data", true);
 
     private static final String LOCATION_DATA_INDEX_TABLE_COLUMN_NAME = "__DataIndexTable";
 

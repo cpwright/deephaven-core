@@ -497,7 +497,6 @@ public class DataIndexer implements TrackingRowSet.Indexer {
          * @return Whether this DataIndexCache contains a valid, live {@link DataIndex} for the given key columns
          */
         private boolean contains(@NotNull final List<ColumnSource<?>> keyColumns) {
-            // TODO: cheat this out for a quick test
             return traverse(keyColumns, 0, false, cache -> isValidAndLive(cache.dataIndexReference.get()));
         }
 
