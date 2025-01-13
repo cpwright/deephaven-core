@@ -91,7 +91,7 @@ public class DataIndexer implements TrackingRowSet.Indexer {
      */
     private DataIndexer() {}
 
-    private List<ColumnSource<?>> pathFor(@NotNull final Collection<ColumnSource<?>> keyColumns) {
+        private List<ColumnSource<?>> pathFor(@NotNull final Collection<ColumnSource<?>> keyColumns) {
         return keyColumns.stream()
                 .sorted(Comparator.comparingInt(this::priorityOf))
                 .collect(Collectors.toList());
@@ -366,7 +366,6 @@ public class DataIndexer implements TrackingRowSet.Indexer {
         }
         return dataIndex.isRefreshing() && dataIndex.table().isFailed();
     }
-
     /**
      * Test whether {@code dataIndex} is a non-{@code null} {@link DataIndex} that is currently valid and live for use.
      *
@@ -601,4 +600,6 @@ public class DataIndexer implements TrackingRowSet.Indexer {
             return resultHolder.getValue();
         }
     }
+
+
 }

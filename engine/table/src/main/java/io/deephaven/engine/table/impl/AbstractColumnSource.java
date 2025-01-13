@@ -30,6 +30,8 @@ import io.deephaven.engine.table.iterators.ChunkedColumnIterator;
 import io.deephaven.engine.updategraph.UpdateGraph;
 import io.deephaven.hash.KeyedObjectHashSet;
 import io.deephaven.hash.KeyedObjectKey;
+import io.deephaven.internal.log.LoggerFactory;
+import io.deephaven.io.logger.Logger;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.annotations.VisibleForTesting;
 import io.deephaven.util.type.TypeUtils;
@@ -146,120 +148,126 @@ public abstract class AbstractColumnSource<T> implements
             @Nullable final DataIndex dataIndex,
             @NotNull final RowSet mapper,
             final Object... keys) {
+        if (dataIndex == null) {
+            return doChunkFilter(invertMatch, usePrev, caseInsensitive, mapper, keys);
+        }
 
-        if (dataIndex != null) {
-            final DataIndexOptions partialOption =
-                    USE_PARTIAL_TABLE_DATA_INDEX ? PARTIAL_TABLE_DATA_INDEX : DataIndexOptions.DEFAULT;
-            final Table indexTable = dataIndex.table(partialOption);
-            final RowSet matchingIndexRows;
-            if (caseInsensitive && type == String.class) {
-                // Linear scan through the index table, accumulating index row keys for case-insensitive matches
-                final RowSetBuilderSequential matchingIndexRowsBuilder = RowSetFactory.builderSequential();
+        final DataIndexOptions partialOption =
+                USE_PARTIAL_TABLE_DATA_INDEX ? PARTIAL_TABLE_DATA_INDEX : DataIndexOptions.DEFAULT;
 
-                // noinspection rawtypes
-                final KeyedObjectHashSet keySet = new KeyedObjectHashSet<>(new CIStringKey());
-                // noinspection unchecked
-                Collections.addAll(keySet, keys);
+        final Table indexTable = dataIndex.table(partialOption);
 
-                final RowSet indexRowSet = usePrev ? indexTable.getRowSet().prev() : indexTable.getRowSet();
-                final ColumnSource<?> indexKeySource =
-                        indexTable.getColumnSource(dataIndex.keyColumnNames().get(0), String.class);
+        final RowSet matchingIndexRows;
+        if (caseInsensitive && type == String.class) {
+            // Linear scan through the index table, accumulating index row keys for case-insensitive matches
+            final RowSetBuilderSequential matchingIndexRowsBuilder = RowSetFactory.builderSequential();
 
-                final int chunkSize = (int) Math.min(CHUNK_SIZE, indexRowSet.size());
-                try (final RowSequence.Iterator indexRowSetIterator = indexRowSet.getRowSequenceIterator();
-                        final GetContext indexKeyGetContext = indexKeySource.makeGetContext(chunkSize)) {
-                    while (indexRowSetIterator.hasMore()) {
-                        final RowSequence chunkIndexRows = indexRowSetIterator.getNextRowSequenceWithLength(chunkSize);
-                        final ObjectChunk<String, ? extends Values> chunkKeys = (usePrev
-                                ? indexKeySource.getPrevChunk(indexKeyGetContext, chunkIndexRows)
-                                : indexKeySource.getChunk(indexKeyGetContext, chunkIndexRows)).asObjectChunk();
-                        final LongChunk<OrderedRowKeys> chunkRowKeys = chunkIndexRows.asRowKeyChunk();
-                        final int thisChunkSize = chunkKeys.size();
-                        for (int ii = 0; ii < thisChunkSize; ++ii) {
-                            final String key = chunkKeys.get(ii);
-                            if (keySet.containsKey(key)) {
-                                matchingIndexRowsBuilder.appendKey(chunkRowKeys.get(ii));
-                            }
+            // noinspection rawtypes
+            final KeyedObjectHashSet keySet = new KeyedObjectHashSet<>(new CIStringKey());
+            // noinspection unchecked
+            Collections.addAll(keySet, keys);
+
+            final RowSet indexRowSet = usePrev ? indexTable.getRowSet().prev() : indexTable.getRowSet();
+            final ColumnSource<?> indexKeySource =
+                    indexTable.getColumnSource(dataIndex.keyColumnNames().get(0), String.class);
+
+            final int chunkSize = (int) Math.min(CHUNK_SIZE, indexRowSet.size());
+            try (final RowSequence.Iterator indexRowSetIterator = indexRowSet.getRowSequenceIterator();
+                    final GetContext indexKeyGetContext = indexKeySource.makeGetContext(chunkSize)) {
+                while (indexRowSetIterator.hasMore()) {
+                    final RowSequence chunkIndexRows = indexRowSetIterator.getNextRowSequenceWithLength(chunkSize);
+                    final ObjectChunk<String, ? extends Values> chunkKeys = (usePrev
+                            ? indexKeySource.getPrevChunk(indexKeyGetContext, chunkIndexRows)
+                            : indexKeySource.getChunk(indexKeyGetContext, chunkIndexRows)).asObjectChunk();
+                    final LongChunk<OrderedRowKeys> chunkRowKeys = chunkIndexRows.asRowKeyChunk();
+                    final int thisChunkSize = chunkKeys.size();
+                    for (int ii = 0; ii < thisChunkSize; ++ii) {
+                        final String key = chunkKeys.get(ii);
+                        if (keySet.containsKey(key)) {
+                            matchingIndexRowsBuilder.appendKey(chunkRowKeys.get(ii));
                         }
                     }
-                }
-                matchingIndexRows = matchingIndexRowsBuilder.build();
-            } else {
-                final long t0 = System.nanoTime();
-                try {
-                    // Use the lookup function to get the index row keys for the matching keys
-                    final RowSetBuilderRandom matchingIndexRowsBuilder = RowSetFactory.builderRandom();
-
-                    final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup(partialOption);
-                    for (final Object key : keys) {
-                        final long rowKey = rowKeyLookup.apply(key, usePrev);
-                        if (rowKey != RowSequence.NULL_ROW_KEY) {
-                            matchingIndexRowsBuilder.addKey(rowKey);
-                        }
-                    }
-                    matchingIndexRows = matchingIndexRowsBuilder.build();
-                    matchingRows.sample(matchingIndexRows.size());
-                } finally {
-                    final long t1 = System.nanoTime();
-                    lookup.sample(t1 - t0);
                 }
             }
-
-            final long t0 = System.nanoTime();
-            try (final SafeCloseable ignored = matchingIndexRows) {
-                final WritableRowSet filtered = invertMatch ? mapper.copy() : RowSetFactory.empty();
-                if (matchingIndexRows.isNonempty()) {
-                    final ColumnSource<RowSet> indexRowSetSource = usePrev
-                            ? dataIndex.rowSetColumn(partialOption).getPrevSource()
-                            : dataIndex.rowSetColumn(partialOption);
-
-                    if (USE_PARALLEL_INDEX_BUILD) {
-                        final long[] rowKeyArray = new long[matchingIndexRows.intSize()];
-                        matchingIndexRows.toRowKeyArray(rowKeyArray);
-                        Arrays.stream(rowKeyArray).parallel().forEach((final long rowKey) -> {
-                            final RowSet matchingRowSet = indexRowSetSource.get(rowKey);
-                            assert matchingRowSet != null;
-                            if (invertMatch) {
-                                synchronized (filtered) {
-                                    filtered.remove(matchingRowSet);
-                                }
-                            } else {
-                                try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
-                                    synchronized (filtered) {
-                                        filtered.insert(intersected);
-                                    }
-                                }
-                            }
-                        });
-                    } else {
-                        try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
-                                ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
-                            matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {
-                                if (invertMatch) {
-                                    filtered.remove(matchingRowSet);
-                                } else {
-                                    try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
-                                        filtered.insert(intersected);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
-                return filtered;
-            } finally {
-                final long t1 = System.nanoTime();
-                indexBuild.sample(t1 - t0);
-            }
+            matchingIndexRows = matchingIndexRowsBuilder.build();
         } else {
             final long t0 = System.nanoTime();
             try {
-                return ChunkFilter.applyChunkFilter(mapper, this, usePrev,
-                        ChunkMatchFilterFactory.getChunkFilter(type, caseInsensitive, invertMatch, keys));
+                // Use the lookup function to get the index row keys for the matching keys
+                final RowSetBuilderRandom matchingIndexRowsBuilder = RowSetFactory.builderRandom();
+
+                final DataIndex.RowKeyLookup rowKeyLookup = dataIndex.rowKeyLookup(partialOption);
+                for (final Object key : keys) {
+                    final long rowKey = rowKeyLookup.apply(key, usePrev);
+                    if (rowKey != RowSequence.NULL_ROW_KEY) {
+                        matchingIndexRowsBuilder.addKey(rowKey);
+                    }
+                }
+                matchingIndexRows = matchingIndexRowsBuilder.build();
+                matchingRows.sample(matchingIndexRows.size());
             } finally {
                 final long t1 = System.nanoTime();
-                chunkFilter.sample(t1 - t0);
+                lookup.sample(t1 - t0);
             }
+        }
+
+        final long t0 = System.nanoTime();
+        try (final SafeCloseable ignored = matchingIndexRows) {
+            final WritableRowSet filtered = invertMatch ? mapper.copy() : RowSetFactory.empty();
+            if (matchingIndexRows.isNonempty()) {
+                final ColumnSource<RowSet> indexRowSetSource = usePrev
+                        ? dataIndex.rowSetColumn(partialOption).getPrevSource()
+                        : dataIndex.rowSetColumn(partialOption);
+
+                if (USE_PARALLEL_INDEX_BUILD) {
+                    final long[] rowKeyArray = new long[matchingIndexRows.intSize()];
+                    matchingIndexRows.toRowKeyArray(rowKeyArray);
+                    Arrays.stream(rowKeyArray).parallel().forEach((final long rowKey) -> {
+
+                        final RowSet matchingRowSet = indexRowSetSource.get(rowKey);
+                        assert matchingRowSet != null;
+                        if (invertMatch) {
+                            synchronized (filtered) {
+                                filtered.remove(matchingRowSet);
+                            }
+                        } else {
+                            try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
+                                synchronized (filtered) {
+                                    filtered.insert(intersected);
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    try (final CloseableIterator<RowSet> matchingIndexRowSetIterator =
+                            ChunkedColumnIterator.make(indexRowSetSource, matchingIndexRows)) {
+                        matchingIndexRowSetIterator.forEachRemaining((final RowSet matchingRowSet) -> {
+                            if (invertMatch) {
+                                filtered.remove(matchingRowSet);
+                            } else {
+                                try (final RowSet intersected = matchingRowSet.intersect(mapper)) {
+                                    filtered.insert(intersected);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            return filtered;
+        } finally {
+            final long t1 = System.nanoTime();
+            indexBuild.sample(t1 - t0);
+        }
+    }
+
+    private WritableRowSet doChunkFilter(boolean invertMatch, boolean usePrev, boolean caseInsensitive, @NotNull RowSet mapper, Object[] keys) {
+        final long t0 = System.nanoTime();
+        try {
+            return ChunkFilter.applyChunkFilter(mapper, this, usePrev,
+                    ChunkMatchFilterFactory.getChunkFilter(type, caseInsensitive, invertMatch, keys));
+        } finally {
+            final long t1 = System.nanoTime();
+            chunkFilter.sample(t1 - t0);
         }
     }
 

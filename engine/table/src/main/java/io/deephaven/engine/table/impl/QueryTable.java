@@ -38,6 +38,7 @@ import io.deephaven.engine.table.impl.by.*;
 import io.deephaven.engine.table.impl.hierarchical.RollupTableImpl;
 import io.deephaven.engine.table.impl.hierarchical.TreeTableImpl;
 import io.deephaven.engine.table.impl.indexer.DataIndexer;
+import io.deephaven.engine.table.impl.indexer.DataIndexerOptions;
 import io.deephaven.engine.table.impl.lang.QueryLanguageParser;
 import io.deephaven.engine.table.impl.partitioned.PartitionedTableImpl;
 import io.deephaven.engine.table.impl.perf.BasePerformanceEntry;
@@ -215,6 +216,7 @@ public class QueryTable extends BaseTable<QueryTable> {
      */
     public static boolean USE_DATA_INDEX_FOR_WHERE =
             Configuration.getInstance().getBooleanWithDefault("QueryTable.useDataIndexForWhere", true);
+
 
     /**
      * For a static select(), we would prefer to flatten the table to avoid using memory unnecessarily (because the data
@@ -1298,8 +1300,10 @@ public class QueryTable extends BaseTable<QueryTable> {
                     }
 
                     return memoizeResult(MemoizedOperationKey.filter(filters), () -> {
+
                         try (final SafeCloseable ignored = Arrays.stream(filters)
                                 .map(filter -> filter.beginOperation(this)).collect(SafeCloseableList.COLLECTOR)) {
+
                             final OperationSnapshotControl snapshotControl = createSnapshotControlIfRefreshing(
                                     (final BaseTable<?> parent) -> {
                                         /*

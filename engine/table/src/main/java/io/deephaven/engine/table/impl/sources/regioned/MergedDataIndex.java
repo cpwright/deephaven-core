@@ -9,6 +9,7 @@ import io.deephaven.base.stats.Stats;
 import io.deephaven.base.stats.Value;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.base.verify.Require;
+import io.deephaven.configuration.Configuration;
 import io.deephaven.engine.primitive.iterator.CloseableIterator;
 import io.deephaven.engine.rowset.RowSequence;
 import io.deephaven.engine.rowset.RowSet;
@@ -24,7 +25,6 @@ import io.deephaven.engine.table.impl.perf.QueryPerformanceRecorder;
 import io.deephaven.engine.table.impl.select.FunctionalColumn;
 import io.deephaven.engine.table.impl.select.MultiSourceFunctionalColumn;
 import io.deephaven.engine.table.impl.select.SelectColumn;
-import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.annotations.InternalUseOnly;
 import io.deephaven.vector.ObjectVector;
@@ -32,7 +32,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * DataIndex that accumulates the individual per-{@link TableLocation} data indexes of a {@link Table} backed by a
@@ -61,7 +63,7 @@ class MergedDataIndex extends AbstractDataIndex {
     public static final Value grouping = Stats
             .makeItem("DataIndex", "grouping", Counter.FACTORY, "Duration in nanos of building an index").getValue();
     public static final Value unionSize =
-            Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of merged data indices").getValue();
+            Stats.makeItem("DataIndex", "unionSize", Counter.FACTORY, "Size of merged data indices").getValue();
     public static final Value groupedSize =
             Stats.makeItem("DataIndex", "mergedSize", Counter.FACTORY, "Size of grouped data indices").getValue();
     public static final Value mergeAndCleanup =
@@ -75,6 +77,12 @@ class MergedDataIndex extends AbstractDataIndex {
     public static final Value cachedFetch =
             Stats.makeItem("DataIndex", "cachedFetch", Counter.FACTORY, "How often a fetch results in a cached result")
                     .getValue();
+    public static final Value placeHolderWait =
+            Stats.makeItem("DataIndex", "placeHolderWait", Counter.FACTORY, "How often a fetch results in waiting for a place holder result")
+                    .getValue();
+
+    public static boolean USE_PARALLEL_LAZY_FETCH = Configuration.getInstance()
+            .getBooleanWithDefault("MergedDataIndex.useParallelLazyFetch", true);
 
     private static final String LOCATION_DATA_INDEX_TABLE_COLUMN_NAME = "__DataIndexTable";
 
@@ -185,8 +193,9 @@ class MergedDataIndex extends AbstractDataIndex {
      * ColumnSource directly and do not have correct dependencies encoded in a select. MergedDataIndexes are only
      * permitted for a static table, so we can get away with this.
      *
-     * Once a RowSet has been written, we write down the result into an ObjectArraySource so that it need not be read
-     * repeatedly.
+     * <p>Once a RowSet has been written, we write down the result into an AtomicReferenceArray so that it need not be read
+     * repeatedly.  If two threads attempt to concurrently fetch the same rowset, then we use a placeholder object
+     * in the array to avoid duplicated work.</p>
      */
     private static class RowsetCacher {
         final ColumnSource<ObjectVector<RowSet>> source;
@@ -197,7 +206,6 @@ class MergedDataIndex extends AbstractDataIndex {
             this.results = new AtomicReferenceArray<>(capacity);
         }
 
-        // TODO: locking and not redo the work
         RowSet get(final long rowKey) {
             final long t0 = System.nanoTime();
             try {
@@ -205,7 +213,7 @@ class MergedDataIndex extends AbstractDataIndex {
                     return null;
                 }
 
-                int iRowKey = (int) rowKey;
+                final int iRowKey = (int) rowKey;
                 do {
                     final Object localResult = results.get(iRowKey);
                     if (localResult instanceof RowSet) {
@@ -216,12 +224,13 @@ class MergedDataIndex extends AbstractDataIndex {
                     if (localResult != null) {
                         synchronized (localResult) {
                             // don't care to do anything, we are just waiting for the barrier to be done
+                            placeHolderWait.sample(1);
                         }
                         continue;
                     }
 
                     // we need to create our own placeholder, and synchronize on it first
-                    final Object placeholder = new Object();
+                    final ReentrantLock placeholder = new ReentrantLock();
                     // noinspection SynchronizationOnLocalVariableOrMethodParameter
                     synchronized (placeholder) {
                         if (!results.compareAndSet(iRowKey, null, placeholder)) {
@@ -301,7 +310,9 @@ class MergedDataIndex extends AbstractDataIndex {
                 final ColumnSource<ObjectVector<RowSet>> vectorColumnSource =
                         groupedByKeyColumns.getColumnSource(ROW_SET_COLUMN_NAME);
 
-                final RowsetCacher rowsetCacher = new RowsetCacher(vectorColumnSource, groupedByKeyColumns.size());
+                // we are using a regular array here; so we must ensure that we are flat; or we'll have a bad time
+                Assert.assertion(groupedByKeyColumns.isFlat(), "groupedByKeyColumns.isFlat()");
+                final RowsetCacher rowsetCacher = new RowsetCacher(vectorColumnSource, groupedByKeyColumns.intSize());
                 // need to do something better with a magic holder that looks at the rowset column source and lazily
                 // merges them instead of this version that actually wants to have an input and doesn't cache anything
                 combined = groupedByKeyColumns
@@ -381,12 +392,19 @@ class MergedDataIndex extends AbstractDataIndex {
     private static RowSet mergeRowSets(
             @SuppressWarnings("unused") final long unusedRowKey,
             @NotNull final ObjectVector<RowSet> keyRowSets) {
-        if (keyRowSets.size() == 1) {
+        final long numRowSets = keyRowSets.size();
+
+        if (numRowSets == 1) {
             return keyRowSets.get(0).copy();
         }
         final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
-        try (final CloseableIterator<RowSet> rowSets = keyRowSets.iterator()) {
-            rowSets.forEachRemaining(builder::appendRowSequence);
+
+        if (USE_PARALLEL_LAZY_FETCH) {
+            LongStream.range(0, numRowSets).parallel().mapToObj(keyRowSets::get).sorted(Comparator.comparingLong(RowSet::firstRowKey)).forEachOrdered(builder::appendRowSequence);
+        } else {
+            try (final CloseableIterator<RowSet> rowSets = keyRowSets.iterator()) {
+                rowSets.forEachRemaining(builder::appendRowSequence);
+            }
         }
         return builder.build();
     }
