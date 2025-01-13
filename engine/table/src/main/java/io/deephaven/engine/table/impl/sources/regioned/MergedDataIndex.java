@@ -78,7 +78,8 @@ class MergedDataIndex extends AbstractDataIndex {
             Stats.makeItem("DataIndex", "cachedFetch", Counter.FACTORY, "How often a fetch results in a cached result")
                     .getValue();
     public static final Value placeHolderWait =
-            Stats.makeItem("DataIndex", "placeHolderWait", Counter.FACTORY, "How often a fetch results in waiting for a place holder result")
+            Stats.makeItem("DataIndex", "placeHolderWait", Counter.FACTORY,
+                    "How often a fetch results in waiting for a place holder result")
                     .getValue();
 
     public static boolean USE_PARALLEL_LAZY_FETCH = Configuration.getInstance()
@@ -193,9 +194,11 @@ class MergedDataIndex extends AbstractDataIndex {
      * ColumnSource directly and do not have correct dependencies encoded in a select. MergedDataIndexes are only
      * permitted for a static table, so we can get away with this.
      *
-     * <p>Once a RowSet has been written, we write down the result into an AtomicReferenceArray so that it need not be read
-     * repeatedly.  If two threads attempt to concurrently fetch the same rowset, then we use a placeholder object
-     * in the array to avoid duplicated work.</p>
+     * <p>
+     * Once a RowSet has been written, we write down the result into an AtomicReferenceArray so that it need not be read
+     * repeatedly. If two threads attempt to concurrently fetch the same rowset, then we use a placeholder object in the
+     * array to avoid duplicated work.
+     * </p>
      */
     private static class RowsetCacher {
         final ColumnSource<ObjectVector<RowSet>> source;
@@ -400,7 +403,8 @@ class MergedDataIndex extends AbstractDataIndex {
         final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
 
         if (USE_PARALLEL_LAZY_FETCH) {
-            LongStream.range(0, numRowSets).parallel().mapToObj(keyRowSets::get).sorted(Comparator.comparingLong(RowSet::firstRowKey)).forEachOrdered(builder::appendRowSequence);
+            LongStream.range(0, numRowSets).parallel().mapToObj(keyRowSets::get)
+                    .sorted(Comparator.comparingLong(RowSet::firstRowKey)).forEachOrdered(builder::appendRowSequence);
         } else {
             try (final CloseableIterator<RowSet> rowSets = keyRowSets.iterator()) {
                 rowSets.forEachRemaining(builder::appendRowSequence);

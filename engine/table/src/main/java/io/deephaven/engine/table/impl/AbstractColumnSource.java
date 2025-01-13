@@ -260,7 +260,8 @@ public abstract class AbstractColumnSource<T> implements
         }
     }
 
-    private WritableRowSet doChunkFilter(boolean invertMatch, boolean usePrev, boolean caseInsensitive, @NotNull RowSet mapper, Object[] keys) {
+    private WritableRowSet doChunkFilter(boolean invertMatch, boolean usePrev, boolean caseInsensitive,
+            @NotNull RowSet mapper, Object[] keys) {
         final long t0 = System.nanoTime();
         try {
             return ChunkFilter.applyChunkFilter(mapper, this, usePrev,
