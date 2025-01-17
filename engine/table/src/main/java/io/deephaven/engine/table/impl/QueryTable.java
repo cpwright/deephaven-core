@@ -867,7 +867,8 @@ public class QueryTable extends BaseTable<QueryTable> {
         final UpdateGraph updateGraph = getUpdateGraph();
         try (final SafeCloseable ignored = ExecutionContext.getContext().withUpdateGraph(updateGraph).open()) {
             final String description = "aggregation(" + aggregationContextFactory + ", " + groupByColumns + ")";
-            final AggregationControl aggregationControl = USE_DATA_INDEX_FOR_AGGREGATION ? AggregationControl.DEFAULT : AggregationControl.IGNORE_INDEXING;
+            final AggregationControl aggregationControl =
+                    USE_DATA_INDEX_FOR_AGGREGATION ? AggregationControl.DEFAULT : AggregationControl.IGNORE_INDEXING;
             return QueryPerformanceRecorder.withNugget(description, sizeForInstrumentation(),
                     () -> ChunkedOperatorAggregationHelper.aggregation(aggregationControl,
                             aggregationContextFactory, this, preserveEmpty, initialGroups, groupByColumns));

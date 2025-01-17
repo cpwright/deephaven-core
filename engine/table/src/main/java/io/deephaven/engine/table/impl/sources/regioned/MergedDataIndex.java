@@ -224,7 +224,8 @@ class MergedDataIndex extends AbstractDataIndex {
                         return (RowSet) localResult;
                     }
                     if (localResult instanceof Exception) {
-                        throw new UncheckedDeephavenException("Exception found for cached RowSet", (Exception)localResult);
+                        throw new UncheckedDeephavenException("Exception found for cached RowSet",
+                                (Exception) localResult);
                     }
 
                     if (localResult != null) {
