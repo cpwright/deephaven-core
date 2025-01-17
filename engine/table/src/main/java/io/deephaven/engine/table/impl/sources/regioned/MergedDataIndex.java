@@ -83,7 +83,7 @@ class MergedDataIndex extends AbstractDataIndex {
                     .getValue();
 
     public static boolean USE_PARALLEL_LAZY_FETCH = Configuration.getInstance()
-            .getBooleanWithDefault("data", true);
+            .getBooleanWithDefault("MergedDataIndex.useParallelLazyFetch", true);
 
     private static final String LOCATION_DATA_INDEX_TABLE_COLUMN_NAME = "__DataIndexTable";
 
@@ -263,9 +263,6 @@ class MergedDataIndex extends AbstractDataIndex {
                             throw new IllegalStateException("another thread changed our cache placeholder!");
                         }
 
-                        // close the components; we are never going to look at them again
-                        inputRowsets.forEach(RowSet::close);
-
                         return computedResult;
                     }
                 } while (true);
@@ -343,11 +340,6 @@ class MergedDataIndex extends AbstractDataIndex {
                         MergedDataIndex::mergeRowSets)));
 
                 combined = groupedByKeyColumns.update(mergeFunction);
-                // Cleanup after ourselves
-                try (final CloseableIterator<RowSet> rowSets =
-                        mergedDataIndexes.objectColumnIterator(ROW_SET_COLUMN_NAME)) {
-                    rowSets.forEachRemaining(SafeCloseable::close);
-                }
                 final long t4 = System.nanoTime();
                 mergeAndCleanup.sample(t4 - t3);
             }
@@ -410,16 +402,23 @@ class MergedDataIndex extends AbstractDataIndex {
         final long numRowSets = keyRowSets.size();
 
         if (numRowSets == 1) {
-            return keyRowSets.get(0).copy();
+            // we steal the reference, the input is never used again
+            return keyRowSets.get(0);
         }
         final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
 
         if (USE_PARALLEL_LAZY_FETCH) {
             LongStream.range(0, numRowSets).parallel().mapToObj(keyRowSets::get)
-                    .sorted(Comparator.comparingLong(RowSet::firstRowKey)).forEachOrdered(builder::appendRowSequence);
+                    .sorted(Comparator.comparingLong(RowSet::firstRowKey)).forEachOrdered(rs -> {
+                        builder.appendRowSequence(rs);
+                        rs.close();
+                    });
         } else {
             try (final CloseableIterator<RowSet> rowSets = keyRowSets.iterator()) {
-                rowSets.forEachRemaining(builder::appendRowSequence);
+                rowSets.forEachRemaining(rs -> {
+                    builder.appendRowSequence(rs);
+                    rs.close();
+                });
             }
         }
         return builder.build();
