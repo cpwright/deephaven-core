@@ -223,6 +223,9 @@ class MergedDataIndex extends AbstractDataIndex {
                         cachedFetch.sample(1);
                         return (RowSet) localResult;
                     }
+                    if (localResult instanceof Exception) {
+                        throw new UncheckedDeephavenException("Exception found for cached RowSet", (Exception)localResult);
+                    }
 
                     if (localResult != null) {
                         synchronized (localResult) {
@@ -246,7 +249,15 @@ class MergedDataIndex extends AbstractDataIndex {
                         assert inputRowsets != null;
 
                         // need to get the value and set it into our own value
-                        final RowSet computedResult = mergeRowSets(rowKey, inputRowsets);
+                        final RowSet computedResult;
+                        try {
+                            computedResult = mergeRowSets(rowKey, inputRowsets);
+                        } catch (Exception e) {
+                            if (!results.compareAndSet(iRowKey, placeholder, e)) {
+                                throw new IllegalStateException("another thread changed our cache placeholder!");
+                            }
+                            throw e;
+                        }
                         if (!results.compareAndSet(iRowKey, placeholder, computedResult)) {
                             throw new IllegalStateException("another thread changed our cache placeholder!");
                         }

@@ -216,6 +216,13 @@ public class QueryTable extends BaseTable<QueryTable> {
     public static boolean USE_DATA_INDEX_FOR_WHERE =
             Configuration.getInstance().getBooleanWithDefault("QueryTable.useDataIndexForWhere", true);
 
+    /**
+     * If set to true, then permit where filters to use a data index, when applicable. If false, data indexes are not
+     * used even if present.
+     */
+    public static boolean USE_DATA_INDEX_FOR_AGGREGATION =
+            Configuration.getInstance().getBooleanWithDefault("QueryTable.useDataIndexForAggregation", true);
+
 
     /**
      * For a static select(), we would prefer to flatten the table to avoid using memory unnecessarily (because the data
@@ -860,8 +867,9 @@ public class QueryTable extends BaseTable<QueryTable> {
         final UpdateGraph updateGraph = getUpdateGraph();
         try (final SafeCloseable ignored = ExecutionContext.getContext().withUpdateGraph(updateGraph).open()) {
             final String description = "aggregation(" + aggregationContextFactory + ", " + groupByColumns + ")";
+            final AggregationControl aggregationControl = USE_DATA_INDEX_FOR_AGGREGATION ? AggregationControl.DEFAULT : AggregationControl.IGNORE_INDEXING;
             return QueryPerformanceRecorder.withNugget(description, sizeForInstrumentation(),
-                    () -> ChunkedOperatorAggregationHelper.aggregation(
+                    () -> ChunkedOperatorAggregationHelper.aggregation(aggregationControl,
                             aggregationContextFactory, this, preserveEmpty, initialGroups, groupByColumns));
         }
     }
