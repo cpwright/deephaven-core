@@ -102,3 +102,5 @@ client.version.list=
 authentication.anonymous.warn=false
 
 deephaven.console.type=none
+
+BaseTable.validateUpdateIndices=true
