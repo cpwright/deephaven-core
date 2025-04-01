@@ -68,8 +68,6 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             Configuration.getInstance().getBooleanWithDefault("BaseTable.validateUpdateIndices", false);
     public static final boolean VALIDATE_UPDATE_OVERLAPS =
             Configuration.getInstance().getBooleanWithDefault("BaseTable.validateUpdateOverlaps", true);
-    private static final boolean VALIDATE_UPDATE_MCSEMPTY =
-            Configuration.getInstance().getBooleanWithDefault("BaseTable.validateUpdateModifiedColumnSets", false);
     public static final boolean PRINT_SERIALIZED_UPDATE_OVERLAPS =
             Configuration.getInstance().getBooleanWithDefault("BaseTable.printSerializedUpdateOverlaps", false);
 
@@ -733,13 +731,18 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             update.shifted().validate();
         }
 
-        if (VALIDATE_UPDATE_MCSEMPTY) {
-            Assert.eq(update.modified().isEmpty(), "update.modified.empty()", update.modifiedColumnSet().empty(),
-                    "update.modifiedColumnSet.empty()");
-        }
-
         if (VALIDATE_UPDATE_OVERLAPS) {
             validateUpdateOverlaps(update);
+        }
+
+        final TableUpdate sendUpdate;
+        if (update.modified().isEmpty() && update.modifiedColumnSet().nonempty()
+                || (update.modifiedColumnSet().empty() && update.modified().isNonempty())) {
+            sendUpdate = new TableUpdateImpl(update.added().copy(), update.removed().copy(), RowSetFactory.empty(),
+                    update.shifted(), ModifiedColumnSet.EMPTY);
+            update.release();
+        } else {
+            sendUpdate = update;
         }
 
         // notify children
@@ -748,10 +751,10 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
 
             final NotificationQueue notificationQueue = getNotificationQueue();
             childListenerReferences.forEach(
-                    (listenerRef, listener) -> notificationQueue.addNotification(listener.getNotification(update)));
+                    (listenerRef, listener) -> notificationQueue.addNotification(listener.getNotification(sendUpdate)));
         }
 
-        update.release();
+        sendUpdate.release();
     }
 
     private void validateUpdateOverlaps(final TableUpdate update) {
