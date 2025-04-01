@@ -678,13 +678,24 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
      *        {@code notifyListeners} takes ownership, and will call {@code release} on it once it is not used anymore;
      *        callers should pass a {@code copy} for updates they intend to further use.
      */
-    public final void notifyListeners(final TableUpdate update) {
+    public final void notifyListeners(final TableUpdate originalUpdate) {
         Assert.eqFalse(isFailed, "isFailed");
         final long currentStep = updateGraph.clock().currentStep();
         // tables may only be updated once per cycle
         Assert.lt(lastNotificationStep, "lastNotificationStep", currentStep, "updateGraph.clock().currentStep()");
 
-        Assert.eqTrue(update.valid(), "update.valid()");
+        Assert.eqTrue(originalUpdate.valid(), "originalUpdate.valid()");
+
+        final TableUpdate update;
+        if (originalUpdate.modified().isEmpty() && originalUpdate.modifiedColumnSet().nonempty()
+                || (originalUpdate.modifiedColumnSet().empty() && originalUpdate.modified().isNonempty())) {
+            update = new TableUpdateImpl(originalUpdate.added().copy(), originalUpdate.removed().copy(), RowSetFactory.empty(),
+                    originalUpdate.shifted(), ModifiedColumnSet.EMPTY);
+            originalUpdate.release();
+        } else {
+            update = originalUpdate;
+        }
+
         if (update.empty()) {
             update.release();
             return;
@@ -735,26 +746,16 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             validateUpdateOverlaps(update);
         }
 
-        final TableUpdate sendUpdate;
-        if (update.modified().isEmpty() && update.modifiedColumnSet().nonempty()
-                || (update.modifiedColumnSet().empty() && update.modified().isNonempty())) {
-            sendUpdate = new TableUpdateImpl(update.added().copy(), update.removed().copy(), RowSetFactory.empty(),
-                    update.shifted(), ModifiedColumnSet.EMPTY);
-            update.release();
-        } else {
-            sendUpdate = update;
-        }
-
         // notify children
         synchronized (this) {
             lastNotificationStep = currentStep;
 
             final NotificationQueue notificationQueue = getNotificationQueue();
             childListenerReferences.forEach(
-                    (listenerRef, listener) -> notificationQueue.addNotification(listener.getNotification(sendUpdate)));
+                    (listenerRef, listener) -> notificationQueue.addNotification(listener.getNotification(update)));
         }
 
-        sendUpdate.release();
+        update.release();
     }
 
     private void validateUpdateOverlaps(final TableUpdate update) {
