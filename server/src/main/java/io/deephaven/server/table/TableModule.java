@@ -106,11 +106,6 @@ public interface TableModule {
 
     @Binds
     @IntoMap
-    @BatchOpCode(BatchTableRequest.Operation.OpCase.COMBO_AGGREGATE)
-    GrpcTableOperation<?> bindOperationComboAgg(ComboAggregateGrpcImpl op);
-
-    @Binds
-    @IntoMap
     @BatchOpCode(BatchTableRequest.Operation.OpCase.AGGREGATE_ALL)
     GrpcTableOperation<?> bindOperationAggregateAll(AggregateAllGrpcImpl op);
 

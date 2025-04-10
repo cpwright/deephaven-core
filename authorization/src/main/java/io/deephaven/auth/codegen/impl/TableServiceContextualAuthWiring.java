@@ -12,7 +12,6 @@ import io.deephaven.proto.backplane.grpc.AjRajTablesRequest;
 import io.deephaven.proto.backplane.grpc.ApplyPreviewColumnsRequest;
 import io.deephaven.proto.backplane.grpc.AsOfJoinTablesRequest;
 import io.deephaven.proto.backplane.grpc.ColumnStatisticsRequest;
-import io.deephaven.proto.backplane.grpc.ComboAggregateRequest;
 import io.deephaven.proto.backplane.grpc.CreateInputTableRequest;
 import io.deephaven.proto.backplane.grpc.CrossJoinTablesRequest;
 import io.deephaven.proto.backplane.grpc.DropColumnsRequest;
@@ -393,17 +392,6 @@ public interface TableServiceContextualAuthWiring {
             List<Table> sourceTables);
 
     /**
-     * Authorize a request to ComboAggregate.
-     *
-     * @param authContext the authentication context of the request
-     * @param request the request to authorize
-     * @param sourceTables the operation's source tables
-     * @throws io.grpc.StatusRuntimeException if the user is not authorized to invoke ComboAggregate
-     */
-    void checkPermissionComboAggregate(AuthContext authContext, ComboAggregateRequest request,
-            List<Table> sourceTables);
-
-    /**
      * Authorize a request to AggregateAll.
      *
      * @param authContext the authentication context of the request
@@ -704,11 +692,6 @@ public interface TableServiceContextualAuthWiring {
 
         public void checkPermissionRangeJoinTables(AuthContext authContext,
                 RangeJoinTablesRequest request, List<Table> sourceTables) {
-            checkPermission(authContext, sourceTables);
-        }
-
-        public void checkPermissionComboAggregate(AuthContext authContext,
-                ComboAggregateRequest request, List<Table> sourceTables) {
             checkPermission(authContext, sourceTables);
         }
 
@@ -1013,13 +996,6 @@ public interface TableServiceContextualAuthWiring {
                 RangeJoinTablesRequest request, List<Table> sourceTables) {
             if (delegate != null) {
                 delegate.checkPermissionRangeJoinTables(authContext, request, sourceTables);
-            }
-        }
-
-        public void checkPermissionComboAggregate(AuthContext authContext,
-                ComboAggregateRequest request, List<Table> sourceTables) {
-            if (delegate != null) {
-                delegate.checkPermissionComboAggregate(authContext, request, sourceTables);
             }
         }
 

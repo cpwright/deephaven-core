@@ -67,8 +67,6 @@ public class OperationHelper {
                 return Stream.of(op.getAj().getLeftId(), op.getAj().getRightId());
             case RAJ:
                 return Stream.of(op.getRaj().getLeftId(), op.getRaj().getRightId());
-            case COMBO_AGGREGATE:
-                return Stream.of(op.getComboAggregate().getSourceId());
             case AGGREGATE_ALL:
                 return Stream.of(op.getAggregateAll().getSourceId());
             case AGGREGATE:

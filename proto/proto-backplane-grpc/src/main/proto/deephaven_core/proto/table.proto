@@ -173,15 +173,6 @@ service TableService {
   rpc RangeJoinTables(RangeJoinTablesRequest) returns (ExportedTableCreationResponse) {}
 
   /*
-   * Returns the result of an aggregate table operation.
-   *
-   * Deprecated: Please use AggregateAll or Aggregate instead
-   */
-  rpc ComboAggregate(ComboAggregateRequest) returns (ExportedTableCreationResponse) {
-    option deprecated = true;
-  }
-
-  /*
    * Aggregates all non-grouping columns against a single aggregation specification.
    */
   rpc AggregateAll(AggregateAllRequest) returns (ExportedTableCreationResponse) {};
@@ -851,41 +842,6 @@ message RangeJoinTablesRequest {
   string range_match = 11;
 }
 
-message ComboAggregateRequest {
-  option deprecated = true;
-
-  Ticket result_id = 1;
-  TableReference source_id = 2;
-  repeated Aggregate aggregates = 3;
-  repeated string group_by_columns = 4;
-  bool force_combo = 5; // don't use direct single-aggregate table operations even if there is only a single aggregate
-
-  message Aggregate {
-    AggType type = 1;
-    repeated string match_pairs = 2; // used in all aggregates except countBy
-    string column_name = 3; // countBy result (output) column OR weighted avg weight (input) column, otherwise unused
-    double percentile = 4; // required by percentileBy aggregates, otherwise unused
-    bool avg_median = 5; // used in percentileBy only
-  }
-
-  enum AggType {
-    SUM = 0;
-    ABS_SUM = 1;
-    GROUP = 2;
-    AVG = 3;
-    COUNT = 4;
-    FIRST = 5;
-    LAST = 6;
-    MIN = 7;
-    MAX = 8;
-    MEDIAN = 9;
-    PERCENTILE = 10;
-    STD = 11;
-    VAR = 12;
-    WEIGHTED_AVG = 13;
-  }
-}
-
 message AggregateAllRequest {
   Ticket result_id = 1;
   TableReference source_id = 2;
@@ -1383,7 +1339,7 @@ message BatchTableRequest {
       HeadOrTailByRequest tail_by = 16;
       UngroupRequest ungroup = 17;
       MergeTablesRequest merge = 18;
-      ComboAggregateRequest combo_aggregate = 19;
+      // ComboAggregateRequest combo_aggregate = 19; Deprecated in December 2022, Removed in 0.39 (April 2025)
       FlattenRequest flatten = 21;
       RunChartDownsampleRequest run_chart_downsample = 22;
       CrossJoinTablesRequest cross_join = 23;

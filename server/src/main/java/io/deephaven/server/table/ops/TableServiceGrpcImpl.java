@@ -184,13 +184,6 @@ public class TableServiceGrpcImpl extends TableServiceGrpc.TableServiceImplBase 
     }
 
     @Override
-    public void comboAggregate(
-            @NotNull final ComboAggregateRequest request,
-            @NotNull final StreamObserver<ExportedTableCreationResponse> responseObserver) {
-        oneShotOperationWrapper(BatchTableRequest.Operation.OpCase.COMBO_AGGREGATE, request, responseObserver);
-    }
-
-    @Override
     public void aggregateAll(
             @NotNull final AggregateAllRequest request,
             @NotNull final StreamObserver<ExportedTableCreationResponse> responseObserver) {
