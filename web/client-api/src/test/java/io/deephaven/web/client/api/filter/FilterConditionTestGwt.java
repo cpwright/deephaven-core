@@ -3,7 +3,6 @@
 //
 package io.deephaven.web.client.api.filter;
 
-import com.google.gwt.junit.client.GWTTestCase;
 import io.deephaven.web.client.api.AbstractAsyncGwtTestCase;
 import io.deephaven.web.client.api.Column;
 

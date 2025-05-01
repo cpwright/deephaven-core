@@ -4,7 +4,6 @@
 package io.deephaven.jpy.integration;
 
 import io.deephaven.jpy.BuiltinsModule;
-import io.deephaven.jpy.JpyModule;
 import io.deephaven.jpy.PythonTest;
 import io.deephaven.jpy.integration.DestructorModuleParent.OnDelete;
 import java.util.concurrent.CountDownLatch;

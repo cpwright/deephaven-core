@@ -15,7 +15,6 @@ import io.deephaven.parquet.base.ParquetUtils;
 import io.deephaven.parquet.table.location.ParquetColumnResolver;
 import io.deephaven.util.annotations.VisibleForTesting;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -6,7 +6,6 @@ package io.deephaven.util.datastructures.hash;
 import gnu.trove.iterator.TLongLongIterator;
 import gnu.trove.map.TLongLongMap;
 import gnu.trove.map.hash.TLongLongHashMap;
-import io.deephaven.util.datastructures.hash.*;
 import junit.framework.TestCase;
 import org.junit.Test;
 import org.junit.runner.RunWith;

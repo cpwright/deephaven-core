@@ -8,7 +8,6 @@ import elemental2.core.JsObject;
 import elemental2.core.JsSet;
 import elemental2.core.Uint8Array;
 import elemental2.promise.Promise;
-import io.deephaven.chunk.ChunkType;
 import io.deephaven.extensions.barrage.BarrageTypeInfo;
 import io.deephaven.javascript.proto.dhinternal.browserheaders.BrowserHeaders;
 import io.deephaven.javascript.proto.dhinternal.io.deephaven_core.proto.table_pb.ExportedTableCreationResponse;

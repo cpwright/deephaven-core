@@ -4,11 +4,8 @@
 package io.deephaven.chunk.util.pools;
 
 import io.deephaven.chunk.ResettableCharChunk;
-import io.deephaven.chunk.ResettableReadOnlyChunk;
 import io.deephaven.chunk.ResettableWritableCharChunk;
-import io.deephaven.chunk.ResettableWritableChunk;
 import io.deephaven.chunk.WritableCharChunk;
-import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.attributes.Any;
 import org.jetbrains.annotations.NotNull;
 

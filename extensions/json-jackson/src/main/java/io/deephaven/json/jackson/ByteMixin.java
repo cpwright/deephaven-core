@@ -10,7 +10,6 @@ import io.deephaven.chunk.WritableByteChunk;
 import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.sized.SizedByteChunk;
 import io.deephaven.json.ByteValue;
-import io.deephaven.json.Value;
 import io.deephaven.qst.type.Type;
 import io.deephaven.util.QueryConstants;
 

@@ -17,7 +17,6 @@ import io.deephaven.engine.table.TableUpdate;
 import io.deephaven.engine.table.impl.select.WhereFilter;
 import io.deephaven.engine.table.impl.select.WhereFilterImpl;
 import io.deephaven.engine.table.impl.sources.RowKeyColumnSource;
-import io.deephaven.engine.table.impl.sources.RowPositionColumnSource;
 import io.deephaven.engine.testutil.ControlledUpdateGraph;
 import io.deephaven.engine.testutil.EvalNugget;
 import io.deephaven.engine.testutil.EvalNuggetInterface;

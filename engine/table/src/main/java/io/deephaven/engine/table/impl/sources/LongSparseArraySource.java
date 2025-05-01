@@ -16,7 +16,6 @@ import java.time.LocalTime;
 import io.deephaven.base.verify.Require;
 import java.time.ZoneId;
 
-import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.impl.DefaultGetContext;
 import io.deephaven.chunk.*;

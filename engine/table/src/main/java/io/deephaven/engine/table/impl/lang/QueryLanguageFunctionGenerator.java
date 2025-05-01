@@ -8,7 +8,6 @@ import com.github.javaparser.ast.expr.BinaryExpr;
 
 import java.io.*;
 import java.text.*;
-import java.time.LocalDate;
 
 public class QueryLanguageFunctionGenerator {
 
