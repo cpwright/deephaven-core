@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static io.deephaven.replication.ReplicatePrimitiveCode.*;
 import static io.deephaven.replication.ReplicationUtils.*;
@@ -141,6 +142,9 @@ public class ReplicateRingBuffers {
 
                 lines = replaceRegion(lines, "non-byte-tests",
                         Collections.singletonList("    // Tests removed due to limitations of byte storage"));
+
+                lines = removeImport(lines, Random.class);
+
                 FileUtils.writeLines(objectFile, lines);
             }
         }

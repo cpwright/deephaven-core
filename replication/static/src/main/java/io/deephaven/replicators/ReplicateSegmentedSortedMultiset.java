@@ -126,7 +126,6 @@ public class ReplicateSegmentedSortedMultiset {
         final File longFile = new File(longPath);
         List<String> lines = FileUtils.readLines(longFile, Charset.defaultCharset());
         lines = addImport(lines,
-                "import io.deephaven.engine.table.impl.sources.LongAsInstantColumnSource;",
                 "import io.deephaven.engine.table.impl.by.ssmcountdistinct.InstantSsmSourceWrapper;");
         lines = addImport(lines, Instant.class);
         lines = replaceRegion(lines, "Constructor",

@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.PrimitiveIterator;
+import java.util.stream.IntStream;
 
 import static io.deephaven.replication.ReplicatePrimitiveCode.*;
 
@@ -96,6 +98,7 @@ public class ReplicatePrimitiveInterfaces {
         lines = ReplicationUtils.removeImport(lines,
                 "import io.deephaven.engine.primitive.function.IntToIntFunction;",
                 "import io.deephaven.engine.primitive.function.IntConsumer;");
+        lines = ReplicationUtils.removeImport(lines, PrimitiveIterator.class);
         lines = ReplicationUtils.addImport(lines,
                 "import java.util.function.IntConsumer;");
         lines = ReplicationUtils.replaceRegion(lines, "streamAsInt",
@@ -142,6 +145,7 @@ public class ReplicatePrimitiveInterfaces {
         lines = ReplicationUtils.removeImport(lines,
                 "import io.deephaven.engine.primitive.function.LongToIntFunction;",
                 "import io.deephaven.engine.primitive.function.LongConsumer;");
+        lines = ReplicationUtils.removeImport(lines, PrimitiveIterator.class, IntStream.class);
         lines = ReplicationUtils.addImport(lines,
                 "import java.util.stream.LongStream;",
                 "import java.util.function.LongConsumer;");
@@ -188,6 +192,7 @@ public class ReplicatePrimitiveInterfaces {
         lines = ReplicationUtils.removeImport(lines,
                 "import io.deephaven.engine.primitive.function.DoubleToIntFunction;",
                 "import io.deephaven.engine.primitive.function.DoubleConsumer;");
+        lines = ReplicationUtils.removeImport(lines, PrimitiveIterator.class, IntStream.class);
         lines = ReplicationUtils.addImport(lines,
                 "import java.util.stream.DoubleStream;",
                 "import java.util.function.DoubleConsumer;");

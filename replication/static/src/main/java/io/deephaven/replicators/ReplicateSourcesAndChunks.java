@@ -6,6 +6,7 @@ package io.deephaven.replicators;
 import io.deephaven.base.verify.Require;
 import io.deephaven.replication.ReplicatePrimitiveCode;
 import io.deephaven.replication.ReplicationUtils;
+import io.deephaven.util.QueryConstants;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -601,6 +602,8 @@ public class ReplicateSourcesAndChunks {
                 "    public final boolean isNull(int index) {",
                 "        return false;",
                 "    }"));
+        classLines = ReplicationUtils.removeRegion(classLines, "NotNullImport");
+        classLines = removeImport(classLines, QueryConstants.class);
         FileUtils.writeLines(classFile, classLines);
     }
 
@@ -630,7 +633,9 @@ public class ReplicateSourcesAndChunks {
                 "    }"));
         lines = ReplicationUtils.removeRegion(lines, "BufferImports");
         lines = ReplicationUtils.removeRegion(lines, "CopyToBuffer");
+        lines = ReplicationUtils.removeRegion(lines, "NotNullImport");
         lines = expandDowncast(lines, "ObjectChunk");
+        lines = removeImport(lines, QueryConstants.class);
         FileUtils.writeLines(classFile, lines);
     }
 
@@ -680,6 +685,7 @@ public class ReplicateSourcesAndChunks {
                 FileUtils.readLines(writableBooleanChunkClassFile, Charset.defaultCharset());
         writableBooleanChunkClassLines =
                 ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "BufferImports");
+        writableBooleanChunkClassLines = ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "NotNullImport");
         writableBooleanChunkClassLines =
                 ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "CopyFromBuffer");
         writableBooleanChunkClassLines =
@@ -708,6 +714,7 @@ public class ReplicateSourcesAndChunks {
         lines = ReplicationUtils.removeRegion(lines, "CopyFromBuffer");
         lines = ReplicationUtils.removeRegion(lines, "FillWithNullValueImports");
         lines = ReplicationUtils.removeRegion(lines, "BufferImports");
+        lines = ReplicationUtils.removeRegion(lines, "NotNullImport");
         lines = expandDowncast(lines, "WritableObjectChunk");
         lines = ReplicationUtils.replaceRegion(lines, "fillWithBoxedValue", Arrays.asList(
                 "    @Override",
@@ -715,7 +722,6 @@ public class ReplicateSourcesAndChunks {
                 "        fillWithValue(offset,size, (T)value);",
                 "    }"));
         lines = ReplicationUtils.addImport(lines,
-                "import io.deephaven.util.compare.ObjectComparisons;",
                 "import java.util.Comparator;");
         lines = ReplicationUtils.replaceRegion(lines, "sort", Arrays.asList(
                 "    private static final Comparator<Comparable<Object>> COMPARATOR = Comparator.nullsFirst(Comparator.naturalOrder());",

@@ -4,6 +4,8 @@
 package io.deephaven.replicators;
 
 import io.deephaven.base.verify.Assert;
+import io.deephaven.util.compare.ObjectComparisons;
+import io.deephaven.util.type.TypeUtils;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -62,7 +64,7 @@ public class ReplicateHashing {
     private static void fixupObjectChunkHasher(String objectPath) throws IOException {
         final File objectFile = new File(objectPath);
         List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
-        lines = addImport(lines, Objects.class);
+        lines = removeImport(lines, TypeUtils.class);
         FileUtils.writeLines(objectFile,
                 globalReplacements(fixupChunkAttributes(lines), "TypeUtils.unbox\\(\\(Object\\) value\\)", "value"));
     }
@@ -70,7 +72,7 @@ public class ReplicateHashing {
     private static void fixupObjectChunkEquals(String objectPath) throws IOException {
         final File objectFile = new File(objectPath);
         List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
-        lines = addImport(lines, Objects.class);
+        lines = removeRegion(lines, "NotNullImport");
         FileUtils.writeLines(objectFile, fixupChunkAttributes(lines));
     }
 
@@ -142,6 +144,7 @@ public class ReplicateHashing {
                 "name", "ObjectChunkEquals", "ObjectChunkIdentityEquals");
         lines = simpleFixup(lines,
                 "eq", "ObjectComparisons\\.eq\\(lhs, rhs\\)", "lhs == rhs");
+        lines = removeImport(lines, ObjectComparisons.class);
         FileUtils.writeLines(objectChunkIdentifyEqualsFileName, lines);
     }
 
@@ -155,6 +158,7 @@ public class ReplicateHashing {
         {
             List<String> lines = FileUtils.readLines(objectChunkDeepEqualsFileName, Charset.defaultCharset());
             lines = addImport(lines, Objects.class);
+            lines = removeImport(lines, ObjectComparisons.class);
             FileUtils.writeLines(objectChunkDeepEqualsFileName, simpleFixup(fixupChunkAttributes(lines),
                     "name", "ObjectChunkEquals", "ObjectChunkDeepEquals"));
         }
