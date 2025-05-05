@@ -6,6 +6,7 @@ package io.deephaven.replicators;
 import io.deephaven.replication.ReplicationUtils;
 import io.deephaven.util.QueryConstants;
 import io.deephaven.util.compare.CharComparisons;
+import io.deephaven.util.compare.ObjectComparisons;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -15,6 +16,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -333,7 +335,7 @@ public class ReplicateSortKernel {
 
         List<String> lines = FileUtils.readLines(file, Charset.defaultCharset());
 
-        lines = ReplicationUtils.addImport(lines, QueryConstants.class, CharComparisons.class);
+        lines = ReplicationUtils.addImport(lines, CharComparisons.class);
 
         lines = globalReplacements(fixupCharNullComparisons(lines, ascending), oldName, newName);
 
@@ -378,10 +380,13 @@ public class ReplicateSortKernel {
                 "        return ObjectComparisons.compare(rhs, lhs);",
                 "    }");
         lines = replaceRegion(lines, "comparison functions", ascending ? ascendingComparison : descendingComparison);
-        lines = simpleFixup(
-                lines,
-                "equality function", "lhs == rhs", "Objects.equals(lhs, rhs)");
-        return addImport(lines, "import java.util.Objects;", "import io.deephaven.util.compare.ObjectComparisons;");
+        if (lines.stream().anyMatch(ll -> ll.contains("equality function"))) {
+            lines = simpleFixup(
+                    lines,
+                    "equality function", "lhs == rhs", "Objects.equals(lhs, rhs)");
+            lines = addImport(lines, Objects.class);
+        }
+        return addImport(lines, ObjectComparisons.class);
     }
 
     public static List<String> invertComparisons(List<String> lines) {

@@ -4,6 +4,7 @@
 package io.deephaven.replicators;
 
 import gnu.trove.set.hash.THashSet;
+import io.deephaven.util.compare.ObjectComparisons;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static io.deephaven.replication.ReplicatePrimitiveCode.*;
@@ -125,8 +127,14 @@ public class ReplicateSegmentedSortedMultiset {
     private static void fixupLongKernelOperator(String longPath, String externalResultSetter) throws IOException {
         final File longFile = new File(longPath);
         List<String> lines = FileUtils.readLines(longFile, Charset.defaultCharset());
-        lines = addImport(lines,
-                "import io.deephaven.engine.table.impl.by.ssmcountdistinct.InstantSsmSourceWrapper;");
+        if (externalResultSetter.contains("InstantSsmSourceWrapper")) {
+            lines = addImport(lines,
+                    "import io.deephaven.engine.table.impl.by.ssmcountdistinct.InstantSsmSourceWrapper;");
+        }
+        else if (externalResultSetter.contains("LongAsInstantColumnSource")) {
+            lines = addImport(lines,
+                    "import io.deephaven.engine.table.impl.sources.LongAsInstantColumnSource;");
+        }
         lines = addImport(lines, Instant.class);
         lines = replaceRegion(lines, "Constructor",
                 indent(Collections.singletonList("Class<?> type,"), 12));
@@ -164,6 +172,7 @@ public class ReplicateSegmentedSortedMultiset {
         lines = ReplicateSortKernel.fixupObjectComparisons(lines);
         lines = replaceRegion(lines, "averageMedian",
                 indent(Collections.singletonList("throw new UnsupportedOperationException();"), 16));
+        lines = removeImport(lines, ObjectComparisons.class);
 
         if (mutators != null) {
             for (int i = 0; i < mutators.length; i++) {

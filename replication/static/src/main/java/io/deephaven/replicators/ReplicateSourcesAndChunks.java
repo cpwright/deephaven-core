@@ -7,7 +7,9 @@ import io.deephaven.base.verify.Require;
 import io.deephaven.replication.ReplicatePrimitiveCode;
 import io.deephaven.replication.ReplicationUtils;
 import io.deephaven.util.QueryConstants;
+import io.deephaven.util.type.TypeUtils;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -602,7 +604,7 @@ public class ReplicateSourcesAndChunks {
                 "    public final boolean isNull(int index) {",
                 "        return false;",
                 "    }"));
-        classLines = ReplicationUtils.removeRegion(classLines, "NotNullImport");
+        classLines = ReplicationUtils.removeImport(classLines, "import org.jetbrains.annotations.NotNull;");
         classLines = removeImport(classLines, QueryConstants.class);
         FileUtils.writeLines(classFile, classLines);
     }
@@ -633,7 +635,7 @@ public class ReplicateSourcesAndChunks {
                 "    }"));
         lines = ReplicationUtils.removeRegion(lines, "BufferImports");
         lines = ReplicationUtils.removeRegion(lines, "CopyToBuffer");
-        lines = ReplicationUtils.removeRegion(lines, "NotNullImport");
+        lines = ReplicationUtils.removeImport(lines, "import org.jetbrains.annotations.NotNull;");
         lines = expandDowncast(lines, "ObjectChunk");
         lines = removeImport(lines, QueryConstants.class);
         FileUtils.writeLines(classFile, lines);
@@ -685,7 +687,7 @@ public class ReplicateSourcesAndChunks {
                 FileUtils.readLines(writableBooleanChunkClassFile, Charset.defaultCharset());
         writableBooleanChunkClassLines =
                 ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "BufferImports");
-        writableBooleanChunkClassLines = ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "NotNullImport");
+        writableBooleanChunkClassLines = ReplicationUtils.removeImport(writableBooleanChunkClassLines, "import org.jetbrains.annotations.NotNull;");
         writableBooleanChunkClassLines =
                 ReplicationUtils.removeRegion(writableBooleanChunkClassLines, "CopyFromBuffer");
         writableBooleanChunkClassLines =
@@ -731,6 +733,8 @@ public class ReplicateSourcesAndChunks {
                 "        //noinspection unchecked",
                 "        Arrays.sort(data, offset + start, offset + start + length, (Comparator<? super T>) COMPARATOR);",
                 "    }"));
+        lines = ReplicationUtils.removeImport(lines, "import org.jetbrains.annotations.NotNull;");
+        lines = ReplicationUtils.removeImport(lines, TypeUtils.class);
         FileUtils.writeLines(classFile, lines);
     }
 

@@ -5,6 +5,7 @@ package io.deephaven.replicators;
 
 import io.deephaven.replication.ReplicatePrimitiveCode;
 import io.deephaven.replication.ReplicationUtils;
+import io.deephaven.util.compare.ObjectComparisons;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -22,8 +23,9 @@ public class ReplicateDupExpandKernel {
 
     private static void fixupObjectDupCompact(String objectPath) throws IOException {
         final File objectFile = new File(objectPath);
-        final List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
-        FileUtils.writeLines(objectFile,
-                ReplicateSortKernel.fixupObjectComparisons(ReplicationUtils.fixupChunkAttributes(lines)));
+        List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
+        lines = ReplicateSortKernel.fixupObjectComparisons(ReplicationUtils.fixupChunkAttributes(lines));
+        lines = ReplicationUtils.removeImport(lines, ObjectComparisons.class);
+        FileUtils.writeLines(objectFile, lines);
     }
 }
