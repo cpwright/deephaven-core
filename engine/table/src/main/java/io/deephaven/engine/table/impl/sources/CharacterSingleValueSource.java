@@ -6,7 +6,6 @@ package io.deephaven.engine.table.impl.sources;
 import io.deephaven.chunk.WritableCharChunk;
 import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.attributes.Values;
-import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.table.impl.MutableColumnSourceGetDefaults;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.chunk.CharChunk;

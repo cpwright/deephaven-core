@@ -8,11 +8,8 @@
 package io.deephaven.chunk.util.pools;
 
 import io.deephaven.chunk.ResettableBooleanChunk;
-import io.deephaven.chunk.ResettableReadOnlyChunk;
 import io.deephaven.chunk.ResettableWritableBooleanChunk;
-import io.deephaven.chunk.ResettableWritableChunk;
 import io.deephaven.chunk.WritableBooleanChunk;
-import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.attributes.Any;
 import org.jetbrains.annotations.NotNull;
 

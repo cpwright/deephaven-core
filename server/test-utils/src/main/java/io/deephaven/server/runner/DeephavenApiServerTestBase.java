@@ -12,7 +12,6 @@ import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.liveness.LivenessScope;
 import io.deephaven.engine.liveness.LivenessScopeStack;
 import io.deephaven.engine.updategraph.impl.PeriodicUpdateGraph;
-import io.deephaven.engine.util.AbstractScriptSession;
 import io.deephaven.engine.util.ScriptSession;
 import io.deephaven.io.logger.LogBuffer;
 import io.deephaven.io.logger.LogBufferGlobal;

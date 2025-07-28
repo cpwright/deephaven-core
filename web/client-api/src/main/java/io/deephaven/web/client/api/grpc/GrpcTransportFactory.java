@@ -9,7 +9,6 @@ import io.deephaven.javascript.proto.dhinternal.browserheaders.BrowserHeaders;
 import io.deephaven.javascript.proto.dhinternal.grpcweb.transports.transport.Transport;
 import io.deephaven.javascript.proto.dhinternal.grpcweb.transports.transport.TransportFactory;
 import jsinterop.annotations.JsIgnore;
-import jsinterop.annotations.JsOverlay;
 import jsinterop.annotations.JsProperty;
 import jsinterop.annotations.JsType;
 import jsinterop.base.Js;

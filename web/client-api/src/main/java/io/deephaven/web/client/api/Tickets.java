@@ -9,8 +9,6 @@ import elemental2.dom.DomGlobal;
 import io.deephaven.javascript.proto.dhinternal.io.deephaven_core.proto.table_pb.TableReference;
 import io.deephaven.javascript.proto.dhinternal.io.deephaven_core.proto.ticket_pb.Ticket;
 import io.deephaven.web.client.api.console.JsVariableDefinition;
-import jsinterop.annotations.JsMethod;
-import jsinterop.annotations.JsPackage;
 import jsinterop.base.Js;
 
 /**

@@ -19,7 +19,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.OverridingMethodsMustInvokeSuper;
 import java.io.IOException;
-import java.util.stream.LongStream;
 
 /**
  * This class is used for ShiftAwareListeners that represent "leaf" nodes in the update propagation tree.

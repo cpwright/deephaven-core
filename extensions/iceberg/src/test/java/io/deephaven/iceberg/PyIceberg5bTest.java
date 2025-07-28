@@ -7,12 +7,9 @@ import io.deephaven.engine.table.ColumnDefinition;
 import io.deephaven.engine.table.Table;
 import io.deephaven.engine.table.TableDefinition;
 import io.deephaven.engine.testutil.junit4.EngineCleanup;
-import io.deephaven.engine.util.TableTools;
 import io.deephaven.iceberg.sqlite.DbResource;
 import io.deephaven.iceberg.util.IcebergCatalogAdapter;
 import io.deephaven.iceberg.util.IcebergTableAdapter;
-import io.deephaven.iceberg.util.IcebergTableWriter;
-import io.deephaven.iceberg.util.IcebergWriteInstructions;
 import io.deephaven.iceberg.util.TableParquetWriterOptions;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -28,7 +25,6 @@ import java.time.LocalDateTime;
 import static io.deephaven.engine.testutil.TstUtils.assertTableEquals;
 import static io.deephaven.iceberg.PyIcebergTestUtils.EXPECTED_DATA;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 /**
  * This test verifies how DH interacts with Iceberg tables where we rename identity partition fields. See TESTING.md and

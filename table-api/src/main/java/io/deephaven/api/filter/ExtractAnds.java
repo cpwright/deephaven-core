@@ -11,7 +11,6 @@ import io.deephaven.api.literal.Literal;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 enum ExtractAnds implements Visitor<Collection<Filter>> {
     INSTANCE;

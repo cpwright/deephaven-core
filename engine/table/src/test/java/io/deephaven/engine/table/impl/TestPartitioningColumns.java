@@ -10,7 +10,6 @@ import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.table.*;
 import io.deephaven.engine.table.impl.dataindex.DataIndexUtils;
 import io.deephaven.engine.table.impl.indexer.DataIndexer;
-import io.deephaven.engine.table.impl.locations.TableLocationProvider;
 import io.deephaven.engine.table.impl.select.MatchFilter.MatchType;
 import io.deephaven.engine.table.iterators.ChunkedColumnIterator;
 import io.deephaven.engine.testutil.TstUtils;

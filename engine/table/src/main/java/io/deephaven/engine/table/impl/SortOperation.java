@@ -4,7 +4,6 @@
 package io.deephaven.engine.table.impl;
 
 import io.deephaven.base.verify.Assert;
-import io.deephaven.base.verify.Require;
 import io.deephaven.chunk.LongChunk;
 import io.deephaven.chunk.WritableLongChunk;
 import io.deephaven.engine.rowset.*;

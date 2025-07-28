@@ -27,7 +27,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.jetbrains.annotations.NotNull;
 

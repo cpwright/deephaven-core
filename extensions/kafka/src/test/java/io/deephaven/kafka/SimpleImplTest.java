@@ -15,7 +15,6 @@ import java.util.Map.Entry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
-import static org.assertj.core.api.Assertions.from;
 
 public class SimpleImplTest {
     @Test

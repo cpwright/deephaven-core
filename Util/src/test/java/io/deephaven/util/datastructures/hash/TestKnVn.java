@@ -4,9 +4,6 @@
 package io.deephaven.util.datastructures.hash;
 
 import gnu.trove.map.TLongLongMap;
-import io.deephaven.util.datastructures.hash.HashMapLockFreeK1V1;
-import io.deephaven.util.datastructures.hash.HashMapLockFreeK2V2;
-import io.deephaven.util.datastructures.hash.HashMapLockFreeK4V4;
 import junit.framework.TestCase;
 import org.junit.Assume;
 import org.junit.Test;

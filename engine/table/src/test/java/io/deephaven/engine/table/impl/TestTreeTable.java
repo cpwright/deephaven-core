@@ -4,18 +4,10 @@
 package io.deephaven.engine.table.impl;
 
 import io.deephaven.api.ColumnName;
-import io.deephaven.api.agg.Aggregation;
 import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.table.Table;
 import io.deephaven.engine.table.hierarchical.HierarchicalTable;
-import io.deephaven.engine.table.hierarchical.RollupTable;
 import io.deephaven.engine.table.hierarchical.TreeTable;
-import io.deephaven.engine.table.impl.select.WhereFilterFactory;
-import io.deephaven.engine.testutil.ColumnInfo;
-import io.deephaven.engine.testutil.EvalNuggetInterface;
-import io.deephaven.engine.testutil.TstUtils;
-import io.deephaven.engine.testutil.generator.IntGenerator;
-import io.deephaven.engine.testutil.generator.SetGenerator;
 import io.deephaven.engine.testutil.testcase.RefreshingTableTestCase;
 import io.deephaven.engine.util.TableTools;
 import io.deephaven.test.types.OutOfBandTest;
@@ -23,10 +15,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Random;
 
 import static io.deephaven.api.agg.Aggregation.*;
 import static io.deephaven.engine.testutil.HierarchicalTableTestTools.freeSnapshotTableChunks;
