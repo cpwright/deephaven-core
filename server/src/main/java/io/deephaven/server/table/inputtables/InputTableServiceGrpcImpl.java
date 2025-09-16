@@ -101,7 +101,7 @@ public class InputTableServiceGrpcImpl extends InputTableServiceGrpc.InputTableS
                                         "Invalid update request: " + exception.getMessage());
                             } else {
                                 com.google.rpc.Status status = com.google.rpc.Status.newBuilder()
-                                                .setCode(Code.INVALID_ARGUMENT.getNumber())
+                                        .setCode(Code.INVALID_ARGUMENT.getNumber())
                                         .setMessage(exception.getMessage())
                                         .addDetails(Any.pack(convertErrors(errors)))
                                         .build();
@@ -148,7 +148,8 @@ public class InputTableServiceGrpcImpl extends InputTableServiceGrpc.InputTableS
         }
     }
 
-    private InputTableValidationErrorList convertErrors(final Collection<InputTableValidationException.StructuredError> errors) {
+    private InputTableValidationErrorList convertErrors(
+            final Collection<InputTableValidationException.StructuredError> errors) {
         final InputTableValidationErrorList.Builder responseBuilder = InputTableValidationErrorList.newBuilder();
         errors.forEach(e -> responseBuilder.addValidationErrors(convertOneError(e)));
         return responseBuilder.build();

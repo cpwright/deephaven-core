@@ -55,7 +55,8 @@ class AddToInputTable extends FlightExampleBase {
             flight.session().publish("timestamp", timestampHandle).get(5, TimeUnit.SECONDS);
             flight.session().publish("timestampLastBy", timestampLastByHandle).get(5, TimeUnit.SECONDS);
 
-            flight.session().console("groovy").get().executeCode("tsv = io.deephaven.server.table.inputtables.RangeValidatingInputTable.make(timestamp, \"Int\", 0, 30)");
+            flight.session().console("groovy").get().executeCode(
+                    "tsv = io.deephaven.server.table.inputtables.RangeValidatingInputTable.make(timestamp, \"Int\", 0, 30)");
 
             final TableHandle tsv = flight.session().ticket(TicketTable.fromQueryScopeField("tsv").ticket());
 
@@ -63,19 +64,22 @@ class AddToInputTable extends FlightExampleBase {
 
             while (true) {
                 // Add a new row, at least once every second
-                final NewTable newRow = header.row(true, (byte) 42, 'a', (short) 32_000, rowCount++, 1234567890123L, 3.14f,
-                        3.14d, "Hello, World", Instant.now(), "abc".getBytes()).newTable();
+                final NewTable newRow =
+                        header.row(true, (byte) 42, 'a', (short) 32_000, rowCount++, 1234567890123L, 3.14f,
+                                3.14d, "Hello, World", Instant.now(), "abc".getBytes()).newTable();
                 try {
                     flight.addToInputTable(tsv, newRow, bufferAllocator).get(5, TimeUnit.SECONDS);
                 } catch (Exception e) {
                     Status status = StatusProto.fromThrowable(e);
                     System.out.println(Code.forNumber(status.getCode()) + ": " + status.getMessage());
-                    final String expected = "type.googleapis.com/" + InputTableValidationErrorList.getDescriptor().getFullName();
+                    final String expected =
+                            "type.googleapis.com/" + InputTableValidationErrorList.getDescriptor().getFullName();
                     int detailCount = status.getDetailsCount();
                     for (int di = 0; di < detailCount; ++di) {
                         Any x = status.getDetails(di);
                         if (x.getTypeUrl().equals(expected)) {
-                            final InputTableValidationErrorList errorList = x.unpack(InputTableValidationErrorList.class);
+                            final InputTableValidationErrorList errorList =
+                                    x.unpack(InputTableValidationErrorList.class);
                             System.out.println(errorList);
                         } else {
                             System.out.println("Unknown type: " + x);

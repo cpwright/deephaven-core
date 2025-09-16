@@ -1,3 +1,6 @@
+//
+// Copyright (c) 2016-2025 Deephaven Data Labs and Patent Pending
+//
 package io.deephaven.server.table.inputtables;
 
 import io.deephaven.engine.primitive.iterator.CloseablePrimitiveIteratorOfInt;
@@ -23,8 +26,8 @@ public class RangeValidatingInputTable implements InputTableUpdater {
     private final int max;
 
     public static Table make(Table input, final String column,
-                      final int min,
-                      final int max) {
+            final int min,
+            final int max) {
         final InputTableUpdater updater = (InputTableUpdater) input.getAttribute(Table.INPUT_TABLE_ATTRIBUTE);
         final RangeValidatingInputTable validatedUpdater = new RangeValidatingInputTable(updater, column, min, max);
         return input.withAttributes(Map.of(Table.INPUT_TABLE_ATTRIBUTE, validatedUpdater));
@@ -32,9 +35,9 @@ public class RangeValidatingInputTable implements InputTableUpdater {
 
 
     private RangeValidatingInputTable(InputTableUpdater wrapped,
-                                     final String column,
-                                     final int min,
-                                    final int max) {
+            final String column,
+            final int min,
+            final int max) {
         this.wrapped = wrapped;
         this.column = column;
         final Class<?> dataType = getTableDefinition().getColumn(column).getDataType();
@@ -72,7 +75,9 @@ public class RangeValidatingInputTable implements InputTableUpdater {
         try (final CloseablePrimitiveIteratorOfInt vals = tableToApply.integerColumnIterator(column)) {
             vals.forEachRemaining((int val) -> {
                 if (val < min || val > max) {
-                    errors.add(new StructuredErrorImpl("Value out of range: " + val + " must be between " + min + " and " + max + " inclusive", column, position.get()));
+                    errors.add(new StructuredErrorImpl(
+                            "Value out of range: " + val + " must be between " + min + " and " + max + " inclusive",
+                            column, position.get()));
                 }
                 position.increment();
             });
