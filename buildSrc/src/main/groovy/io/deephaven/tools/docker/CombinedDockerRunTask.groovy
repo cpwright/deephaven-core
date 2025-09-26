@@ -58,6 +58,9 @@ class CombinedDockerRunTask extends AbstractDockerRemoteApiTask {
 
     @Override
     void runRemoteCommand() {
+        final String usageBeforeDocker = "df -h".execute().text
+        System.out.println("Usage before docker command:\n" + usageBeforeDocker)
+
         String containerId;
         try {
             // Create the container
@@ -140,6 +143,9 @@ class CombinedDockerRunTask extends AbstractDockerRemoteApiTask {
                 // Failure is possible if some other part of the task failed
             }
         }
+
+        final String usageAfterDocker = "df -h".execute().text
+        System.out.println("Usage after docker command:\n" + usageAfterDocker)
     }
 
     private ResultCallback.Adapter<Frame> createCallback() {
