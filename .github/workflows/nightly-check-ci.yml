@@ -86,6 +86,10 @@ jobs:
           .github/scripts/gradle-properties.sh >> gradle.properties
           cat gradle.properties
 
+      - name: Run df -h
+        run: |
+          df -h
+
       - name: Run gradle ${{ matrix.gradle-task }} on java ${{ matrix.test-jvm-version }} with coverage=${{ env.COVER }}
         run: ./gradlew --scan --continue --rerun-tasks ${{ matrix.gradle-task }} -PtestRuntimeVersion=${{ matrix.test-jvm-version }} -Pcoverage.enabled=$COVER $JETTY_FLAG
         
