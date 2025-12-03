@@ -68,7 +68,7 @@ public class ChunkedOperatorAggregationHelper {
             @Nullable final Table initialKeys,
             @NotNull final Collection<? extends ColumnName> groupByColumns) {
         return aggregation(AggregationControl.DEFAULT,
-                aggregationContextFactory, input, preserveEmpty, initialKeys, groupByColumns);
+                aggregationContextFactory, input, preserveEmpty, initialKeys, true, groupByColumns);
     }
 
     private static void checkGroupByColumns(String context, TableDefinition tableDefinition, String[] keyNames) {
@@ -90,6 +90,7 @@ public class ChunkedOperatorAggregationHelper {
             @NotNull final QueryTable input,
             final boolean preserveEmpty,
             @Nullable final Table initialKeys,
+            final boolean removeUnusedStates,
             @NotNull final Collection<? extends ColumnName> groupByColumns) {
         final String[] keyNames = groupByColumns.stream().map(ColumnName::name).toArray(String[]::new);
         checkGroupByColumns("input table", input.getDefinition(), keyNames);
@@ -128,7 +129,7 @@ public class ChunkedOperatorAggregationHelper {
                     "by(" + aggregationContextFactory + ", " + groupByColumns + ")", snapshotControl,
                     (usePrev, beforeClockValue) -> {
                         resultHolder.setValue(aggregation(control, snapshotControl, aggregationContextFactory,
-                                input, dataIndex, preserveEmpty, initialKeys, keyNames, usePrev));
+                                input, dataIndex, preserveEmpty, initialKeys, removeUnusedStates, keyNames, usePrev));
                         return true;
                     });
             return resultHolder.getValue();
@@ -143,6 +144,7 @@ public class ChunkedOperatorAggregationHelper {
             @Nullable final BasicDataIndex dataIndex,
             final boolean preserveEmpty,
             @Nullable final Table initialKeys,
+            boolean removeUnusedStates,
             @NotNull final String[] keyNames,
             final boolean usePrev) {
         if (keyNames.length == 0) {
@@ -188,7 +190,7 @@ public class ChunkedOperatorAggregationHelper {
         final MutableInt outputPosition = new MutableInt();
         final Supplier<OperatorAggregationStateManager> stateManagerSupplier =
                 () -> makeStateManager(control, input, keySources, reinterpretedKeySources, ac,
-                        useSymbolTable ? symbolTable : null);
+                        useSymbolTable ? symbolTable : null, removeUnusedStates);
         final OperatorAggregationStateManager stateManager;
         if (initialKeys == null) {
             stateManager = stateManagerSupplier.get();
@@ -316,14 +318,23 @@ public class ChunkedOperatorAggregationHelper {
             @NotNull final AggregationControl control, @NotNull final QueryTable input,
             @NotNull final ColumnSource<?>[] keySources, @NotNull final ColumnSource<?>[] reinterpretedKeySources,
             @NotNull final AggregationContext ac,
-            @Nullable final Table symbolTableToUse) {
+            @Nullable final Table symbolTableToUse,
+            final boolean removeUnusedStates) {
         final OperatorAggregationStateManager stateManager;
         if (input.isRefreshing()) {
-            stateManager = TypedHasherFactory.make(
-                    IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBase.class,
-                    reinterpretedKeySources,
-                    keySources, control.initialHashTableSize(input), control.getMaximumLoadFactor(),
-                    control.getTargetLoadFactor());
+            if (removeUnusedStates) {
+                stateManager = TypedHasherFactory.make(
+                        IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
+                        reinterpretedKeySources,
+                        keySources, control.initialHashTableSize(input), control.getMaximumLoadFactor(),
+                        control.getTargetLoadFactor());
+            } else {
+                stateManager = TypedHasherFactory.make(
+                        IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBase.class,
+                        reinterpretedKeySources,
+                        keySources, control.initialHashTableSize(input), control.getMaximumLoadFactor(),
+                        control.getTargetLoadFactor());
+            }
         } else {
             if (symbolTableToUse != null) {
                 stateManager = new StaticSymbolTableChunkedOperatorAggregationStateManager(reinterpretedKeySources[0],

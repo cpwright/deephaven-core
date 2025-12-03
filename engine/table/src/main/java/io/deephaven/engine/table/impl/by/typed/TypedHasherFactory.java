@@ -175,6 +175,21 @@ public class TypedHasherFactory {
 
             builder.addBuild(new HasherConfig.BuildSpec("build", "outputPosition", false, true,
                     true, TypedAggregationFactory::buildFound, TypedAggregationFactory::buildInsertIncremental));
+        } else if (baseClass.equals(IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class)) {
+            configureAggregation(builder);
+            builder.supportTombstones(true);
+            builder.tombstoneStateName("TOMBSTONE_STATE");
+            builder.classPrefix("IncrementalAggOpenHasherWithTombstone").packageMiddle("incopenaggts");
+            builder.overflowOrAlternateStateName("alternateOutputPosition");
+            builder.moveMainFull(TypedAggregationFactory::incAggMoveMain);
+            builder.moveMainAlternate(TypedAggregationFactory::incAggMoveMain);
+            builder.alwaysMoveMain(true);
+
+            builder.addProbe(new HasherConfig.ProbeSpec("probe", "outputPosition", false,
+                    TypedAggregationFactory::probeFound, TypedAggregationFactory::probeMissing));
+
+            builder.addBuild(new HasherConfig.BuildSpec("build", "outputPosition", false, true,
+                    true, TypedAggregationFactory::buildFound, TypedAggregationFactory::buildInsertIncremental));
         } else if (baseClass.equals(StaticNaturalJoinStateManagerTypedBase.class)) {
             builder.classPrefix("StaticNaturalJoinHasher").packageGroup("naturaljoin").packageMiddle("staticopen")
                     .openAddressedAlternate(false)

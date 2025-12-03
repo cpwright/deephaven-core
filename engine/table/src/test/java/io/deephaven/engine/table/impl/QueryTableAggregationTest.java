@@ -145,7 +145,7 @@ public class QueryTableAggregationTest {
             final Table aggregatedInput = ChunkedOperatorAggregationHelper.aggregation(
                     aggregationControl == null ? AggregationControl.DEFAULT : aggregationControl,
                     makeGroupByACF(adjustedInput, keyColumns),
-                    (QueryTable) adjustedInput, false, null, ColumnName.from(keyColumns));
+                    (QueryTable) adjustedInput, false, null, true, ColumnName.from(keyColumns));
             actualKeys = keyColumns.length == 0
                     ? aggregatedInput.dropColumns(aggregatedInput.getDefinition().getColumnNamesArray())
                     : aggregatedInput.view(keyColumns);
@@ -269,10 +269,10 @@ public class QueryTableAggregationTest {
         public final Table get() {
             if (firstTime.compareAndSet(true, false)) {
                 return ChunkedOperatorAggregationHelper
-                        .aggregation(control, acf, input, false, null, ColumnName.from(columns)).sort(columns);
+                        .aggregation(control, acf, input, false, null, true, ColumnName.from(columns)).sort(columns);
             }
             return ChunkedOperatorAggregationHelper
-                    .aggregation(control, acf, (QueryTable) input.silent(), false, null, ColumnName.from(columns))
+                    .aggregation(control, acf, (QueryTable) input.silent(), false, null, true, ColumnName.from(columns))
                     .sort(columns);
         }
     }
@@ -4311,6 +4311,22 @@ public class QueryTableAggregationTest {
         });
 
         // Without the fix, the prev state for the distinct table would be incorrect here and the TUV would fail.
+    }
+
+    @Test
+    public void testEmptyState() {
+        final QueryTable table = testRefreshingTable(intCol("x", 0), stringCol("Key", "Apple"));
+        final Table summed = table.sumBy("Key");
+
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            addToTable(table, i(1), intCol("x", 1), stringCol("Key", "Banana"));
+            removeRows(table, i(0));
+            table.notifyListeners(i(1), i(0), i());
+        });
+
+        TableTools.showWithRowSet(summed);
     }
 
     private void diskBackedTestHarness(Consumer<Table> testFunction) throws IOException {
