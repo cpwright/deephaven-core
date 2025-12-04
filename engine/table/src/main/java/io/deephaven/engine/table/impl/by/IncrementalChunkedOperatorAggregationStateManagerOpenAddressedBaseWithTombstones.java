@@ -9,9 +9,13 @@ import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.rowset.RowSequence;
+import io.deephaven.engine.rowset.RowSet;
+import io.deephaven.engine.rowset.RowSetFactory;
+import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.WritableColumnSource;
+import io.deephaven.engine.table.impl.TableUpdateImpl;
 import io.deephaven.engine.table.impl.by.alternatingcolumnsource.AlternatingColumnSource;
 import io.deephaven.engine.table.impl.sources.InMemoryColumnSource;
 import io.deephaven.engine.table.impl.sources.IntegerArraySource;
@@ -24,6 +28,7 @@ import io.deephaven.engine.table.impl.util.TypedHasherUtil.BuildOrProbeContext.P
 import io.deephaven.util.QueryConstants;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.mutable.MutableInt;
+import io.deephaven.util.mutable.MutableLong;
 import org.jetbrains.annotations.NotNull;
 
 import static io.deephaven.engine.table.impl.util.TypedHasherUtil.getKeyChunks;
@@ -69,7 +74,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     protected final WritableColumnSource[] mainKeySources;
 
     /** The keys for our hash entries, for the old alternative smaller table. */
-    protected final ColumnSource[] alternateKeySources;
+    protected final WritableColumnSource[] alternateKeySources;
 
 
     /** Our state value used when nothing is there. */
@@ -99,6 +104,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     /** Output alternating column sources. */
     protected AlternatingColumnSource[] alternatingColumnSources;
 
+    protected final WritableRowSet freeOutputPositions = RowSetFactory.empty();
+
     /**
      * The mask for insertion into the main table (this tells our alternating column sources which of the two sources to
      * access for a given key).
@@ -115,7 +122,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         Require.inRange(maximumLoadFactor, 0.0, 0.95, "maximumLoadFactor");
 
         mainKeySources = new WritableColumnSource[tableKeySources.length];
-        alternateKeySources = new ColumnSource[tableKeySources.length];
+        alternateKeySources = new WritableColumnSource[tableKeySources.length];
 
         for (int ii = 0; ii < tableKeySources.length; ++ii) {
             mainKeySources[ii] = InMemoryColumnSource.getImmutableMemoryColumnSource(tableSize,
@@ -390,6 +397,53 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         }
 
         return keyHashTableSources;
+    }
+
+    public void clearOutputPosition(long outputPosition) {
+        // we never actually delete anything from the output position table
+        final int hashSlot = outputPositionToHashSlot.getInt(outputPosition);
+        freeOutputPositions.insert(outputPosition);
+        if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
+            final int mainSlot = hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK;
+
+            // we need to clear from the main table
+            // TODO: only necessary for objects, otherwise the tombstone should be enough
+            for (int cc = 0; cc < mainKeySources.length; ++cc) {
+                try {
+                    mainKeySources[cc].setNull(mainSlot);
+                } catch (ArrayIndexOutOfBoundsException arrayIndexOutOfBoundsException) {
+                    arrayIndexOutOfBoundsException.printStackTrace();
+                }
+            }
+            mainOutputPosition.set(mainSlot, TOMBSTONE_STATE);
+            liveEntries--;
+        } else {
+            final int alternateSlot = hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK;
+
+            // we need to clear from the alternate table
+            // TODO: only necessary for objects, otherwise the tombstone should be enough
+            for (int cc = 0; cc < alternateKeySources.length; ++cc) {
+                alternateKeySources[cc].setNull(alternateSlot);
+            }
+            alternateOutputPosition.set(alternateSlot, TOMBSTONE_STATE);
+            liveEntries--;
+        }
+    }
+
+    @Override
+    public void reclaimFreedRows(TableUpdateImpl downstream) {
+        final MutableLong previouslyFreed = new MutableLong();
+        final MutableLong shiftedValues = new MutableLong();
+        freeOutputPositions.forEachRowKeyRange((long start, long end) -> {
+            final long length = (end - start) + 1L;
+//            System.out.println("Shift necessary: " + start + ", " + end  + " prev=" + previouslyFreed.get());
+            previouslyFreed.add(length);
+            if (shiftedValues.get() >= CHUNK_SIZE) {
+                return false;
+            }
+            return true;
+        });
+//        freeOutputPositions.clear();
     }
 
     @Override

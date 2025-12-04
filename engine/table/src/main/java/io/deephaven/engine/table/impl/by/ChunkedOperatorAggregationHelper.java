@@ -290,7 +290,11 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
-                    result.getRowSet().writableCast().update(downstream.added(), downstream.removed());
+                    //noinspection resource
+                    final TrackingWritableRowSet resultRowset = result.getRowSet().writableCast();
+                    resultRowset.remove(downstream.removed());
+                    downstream.shifted().apply(resultRowset);
+                    resultRowset.insert(downstream.added());
                     result.notifyListeners(downstream);
                 }
 
@@ -653,6 +657,10 @@ public class ChunkedOperatorAggregationHelper {
                     downstream.added().writableCast().remove(addedBack);
                     downstream.removed().writableCast().remove(addedBack);
 
+                    if (downstream.removed.isNonempty()) {
+                        removeStates(downstream.removed);
+                    }
+
                     if (newStates.isNonempty()) {
                         downstream.added().writableCast().insert(newStates);
                         copyKeyColumns(keyColumnsRaw, keyColumnsCopied, newStates);
@@ -669,7 +677,14 @@ public class ChunkedOperatorAggregationHelper {
             extractDownstreamModifiedColumnSet(downstream, resultModifiedColumnSet, modifiedOperators,
                     updateUpstreamModifiedColumnSet, resultModifiedColumnSetFactories);
 
+            // TODO: collapse the free results
+            incrementalStateManager.reclaimFreedRows(downstream);
+
             return downstream;
+        }
+
+        private void removeStates(RowSet removed) {
+            removed.forAllRowKeys(incrementalStateManager::clearOutputPosition);
         }
 
         private void doRemoves(@NotNull final RowSequence keyIndicesToRemove) {

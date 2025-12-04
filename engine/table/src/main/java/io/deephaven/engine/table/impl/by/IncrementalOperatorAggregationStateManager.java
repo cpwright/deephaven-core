@@ -7,6 +7,7 @@ import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.engine.rowset.RowSequence;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.ColumnSource;
+import io.deephaven.engine.table.impl.TableUpdateImpl;
 import io.deephaven.util.SafeCloseable;
 
 /**
@@ -29,4 +30,8 @@ public interface IncrementalOperatorAggregationStateManager extends OperatorAggr
 
     void findModifications(SafeCloseable pc, RowSequence rowSequence, ColumnSource<?>[] sources,
             WritableIntChunk<RowKeys> outputPositions);
+
+    void clearOutputPosition(long outputPosition);
+
+    void reclaimFreedRows(TableUpdateImpl downstream);
 }
