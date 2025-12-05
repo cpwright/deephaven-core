@@ -274,12 +274,16 @@ public class ChunkedOperatorAggregationHelper {
                     if (upstreamToUse.empty()) {
                         return;
                     }
+
+                    final TrackingWritableRowSet resultRowset = result.getRowSet().writableCast();
+
                     final TableUpdate downstream;
                     try (final KeyedUpdateContext kuc = new KeyedUpdateContext(ac, incrementalStateManager,
                             reinterpretedKeySources, permuteKernels, keysUpstreamModifiedColumnSet,
                             operatorInputModifiedColumnSets, stateChangeRecorder, upstreamToUse,
                             outputPosition)) {
                         downstream = kuc.computeDownstreamIndicesAndCopyKeys(input.getRowSet(),
+                                resultRowset,
                                 keyColumnsRaw,
                                 keyColumnsCopied,
                                 result.getModifiedColumnSetForUpdates(), resultModifiedColumnSetFactories);
@@ -290,8 +294,6 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
-                    //noinspection resource
-                    final TrackingWritableRowSet resultRowset = result.getRowSet().writableCast();
                     resultRowset.remove(downstream.removed());
                     downstream.shifted().apply(resultRowset);
                     resultRowset.insert(downstream.added());
@@ -547,6 +549,7 @@ public class ChunkedOperatorAggregationHelper {
 
         private TableUpdate computeDownstreamIndicesAndCopyKeys(
                 @NotNull final RowSet upstreamIndex,
+                TrackingWritableRowSet resultRowset,
                 @NotNull final ColumnSource<?>[] keyColumnsRaw,
                 @NotNull final WritableColumnSource<?>[] keyColumnsCopied,
                 @NotNull final ModifiedColumnSet resultModifiedColumnSet,
@@ -658,7 +661,7 @@ public class ChunkedOperatorAggregationHelper {
                     downstream.removed().writableCast().remove(addedBack);
 
                     if (downstream.removed.isNonempty()) {
-                        removeStates(downstream.removed);
+                        incrementalStateManager.removeStates(downstream.removed);
                     }
 
                     if (newStates.isNonempty()) {
@@ -677,14 +680,9 @@ public class ChunkedOperatorAggregationHelper {
             extractDownstreamModifiedColumnSet(downstream, resultModifiedColumnSet, modifiedOperators,
                     updateUpstreamModifiedColumnSet, resultModifiedColumnSetFactories);
 
-            // TODO: collapse the free results
-            incrementalStateManager.reclaimFreedRows(downstream);
+            incrementalStateManager.reclaimFreedRows(resultRowset, downstream, outputPosition, upstream.added().size() + upstream.modified().size() + upstream.removed().size(), ac.operators);
 
             return downstream;
-        }
-
-        private void removeStates(RowSet removed) {
-            removed.forAllRowKeys(incrementalStateManager::clearOutputPosition);
         }
 
         private void doRemoves(@NotNull final RowSequence keyIndicesToRemove) {

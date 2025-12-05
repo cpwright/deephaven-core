@@ -9,6 +9,8 @@ import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.rowset.RowSequence;
+import io.deephaven.engine.rowset.RowSet;
+import io.deephaven.engine.rowset.TrackingWritableRowSet;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.WritableColumnSource;
@@ -432,12 +434,12 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     public void startTrackingPrevValues() {}
 
     @Override
-    public void clearOutputPosition(long outputPosition) {
+    public void removeStates(RowSet removed) {
         // we never actually delete anything from the output position table
     }
 
     @Override
-    public void reclaimFreedRows(TableUpdateImpl downstream) {
+    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt outputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
         // we never actually delete anything, so there is no need to reclaim anything
     }
 }

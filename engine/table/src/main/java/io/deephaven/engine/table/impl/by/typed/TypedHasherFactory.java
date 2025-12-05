@@ -184,6 +184,41 @@ public class TypedHasherFactory {
             builder.moveMainFull(TypedAggregationFactory::incAggMoveMain);
             builder.moveMainAlternate(TypedAggregationFactory::incAggMoveMain);
             builder.alwaysMoveMain(true);
+            builder.addExtraMethod((hc, cts) -> {
+                final MethodSpec.Builder mb =  MethodSpec.methodBuilder("maybeNullMain");
+                mb.addModifiers(Modifier.PROTECTED);
+                mb.addParameter(ParameterSpec.builder(RowSet.class, "rows").build());
+                mb.addAnnotation(Override.class);
+                for (int ii = 0; ii < cts.length; ++ii) {
+                    if (cts[ii] == ChunkType.Object) {
+                        mb.addStatement("this.mainKeySource$L.setNull(rows)", ii);
+                    }
+                }
+                return mb.build();
+            });
+            builder.addExtraMethod((hc, cts) -> {
+                final MethodSpec.Builder mb =  MethodSpec.methodBuilder("maybeNullAlternate");
+                mb.addModifiers(Modifier.PROTECTED);
+                mb.addAnnotation(Override.class);
+                mb.addParameter(ParameterSpec.builder(RowSet.class, "rows", Modifier.FINAL).build());
+                boolean first = true;
+                for (int ii = 0; ii < cts.length; ++ii) {
+                    if (cts[ii] == ChunkType.Object) {
+                        if (first) {
+                            mb.beginControlFlow("if (rows.isNonempty())", ii);
+                            first = false;
+                        }
+                        mb.addStatement("this.alternateKeySource$L.setNull(rows)", ii);
+                    }
+                }
+                if (!first) {
+                    mb.endControlFlow();
+                }
+                return mb.build();
+            });
+
+//            final ParameterSpec nextOutputPosition = ParameterSpec.builder(MutableInt.class, "nextOutputPosition").build();
+//            final ParameterSpec outputPositions = ParameterSpec.builder(ParameterizedTypeName.get(ClassName.get(WritableIntChunk.class), TypeName.get(RowKeys.class)), "outputPositions").build();
 
             builder.addProbe(new HasherConfig.ProbeSpec("probe", "outputPosition", false,
                     TypedAggregationFactory::probeFound, TypedAggregationFactory::probeMissing));
@@ -514,12 +549,12 @@ public class TypedHasherFactory {
     /**
      * Produce a hasher for the given base class and column sources.
      *
-     * @param hasherConfig the configuration of the class to generate
-     * @param tableKeySources the key sources
-     * @param tableSize the initial table size
+     * @param hasherConfig      the configuration of the class to generate
+     * @param tableKeySources   the key sources
+     * @param tableSize         the initial table size
      * @param maximumLoadFactor the maximum load factor of the for the table
-     * @param targetLoadFactor the load factor that we will rehash to
-     * @param <T> the base class
+     * @param targetLoadFactor  the load factor that we will rehash to
+     * @param <T>               the base class
      * @return an instantiated hasher
      */
     public static <T> T make(HasherConfig<T> hasherConfig, ColumnSource<?>[] tableKeySources,

@@ -4329,6 +4329,28 @@ public class QueryTableAggregationTest {
         TableTools.showWithRowSet(summed);
     }
 
+    @Test
+    public void testEmptyState2() {
+        final QueryTable table = testRefreshingTable(intCol("x", 0, 1, 2), stringCol("Key", "Apple", "Banana", "Cherry"));
+        final Table summed = table.sumBy("Key");
+        TableTools.showWithRowSet(summed);
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(table, i(1, 2));
+            table.notifyListeners(i(), i(1, 2), i());
+        });
+
+        TableTools.showWithRowSet(summed);
+
+        // we should be able to fill in where the old value was
+        updateGraph.runWithinUnitTestCycle(() -> {
+            addToTable(table, i(4), intCol("x", 4), stringCol("Key", "Dragonfruit"));
+            table.notifyListeners(i(4), i(), i());
+        });
+        TableTools.showWithRowSet(summed);
+    }
+
     private void diskBackedTestHarness(Consumer<Table> testFunction) throws IOException {
         final File directory = Files.createTempDirectory("QueryTableAggregationTest").toFile();
 

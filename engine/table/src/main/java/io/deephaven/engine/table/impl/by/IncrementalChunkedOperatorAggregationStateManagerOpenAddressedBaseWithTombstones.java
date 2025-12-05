@@ -8,10 +8,8 @@ import io.deephaven.base.verify.Require;
 import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.attributes.Values;
-import io.deephaven.engine.rowset.RowSequence;
-import io.deephaven.engine.rowset.RowSet;
-import io.deephaven.engine.rowset.RowSetFactory;
-import io.deephaven.engine.rowset.WritableRowSet;
+import io.deephaven.configuration.Configuration;
+import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.WritableColumnSource;
@@ -36,6 +34,10 @@ import static io.deephaven.engine.table.impl.util.TypedHasherUtil.getPrevKeyChun
 
 public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones
         implements IncrementalOperatorAggregationStateManager {
+    private static final double MAX_PERMITTED_FREE_PERCENTAGE = Configuration.getInstance().getDoubleForClassWithDefault(
+            IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
+            "maxPermittedFreePercentage", 0.1);
+
     public static final int CHUNK_SIZE = ChunkedOperatorAggregationHelper.CHUNK_SIZE;
     private static final long MAX_TABLE_SIZE = 1 << 30; // maximum array size
 
@@ -399,52 +401,130 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         return keyHashTableSources;
     }
 
-    public void clearOutputPosition(long outputPosition) {
-        // we never actually delete anything from the output position table
-        final int hashSlot = outputPositionToHashSlot.getInt(outputPosition);
-        freeOutputPositions.insert(outputPosition);
-        if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
-            final int mainSlot = hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK;
+    @Override
+    public void removeStates(RowSet removed) {
+        liveEntries -= removed.intSize();
+        final RowSetBuilderRandom mainBuilder = RowSetFactory.builderRandom();
+        final RowSetBuilderRandom alternateBuilder = RowSetFactory.builderRandom();
 
-            // we need to clear from the main table
-            // TODO: only necessary for objects, otherwise the tombstone should be enough
-            for (int cc = 0; cc < mainKeySources.length; ++cc) {
-                try {
-                    mainKeySources[cc].setNull(mainSlot);
-                } catch (ArrayIndexOutOfBoundsException arrayIndexOutOfBoundsException) {
-                    arrayIndexOutOfBoundsException.printStackTrace();
-                }
-            }
-            mainOutputPosition.set(mainSlot, TOMBSTONE_STATE);
-            liveEntries--;
-        } else {
-            final int alternateSlot = hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK;
+        removed.forAllRowKeys(outputPosition -> {
+            // we never actually delete anything from the output position table
+            final int hashSlot = outputPositionToHashSlot.getInt(outputPosition);
+            freeOutputPositions.insert(outputPosition);
 
-            // we need to clear from the alternate table
-            // TODO: only necessary for objects, otherwise the tombstone should be enough
-            for (int cc = 0; cc < alternateKeySources.length; ++cc) {
-                alternateKeySources[cc].setNull(alternateSlot);
+            final int slot = Math.toIntExact(hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK);
+            if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
+                mainBuilder.addKey(slot);
+                mainOutputPosition.set(slot, TOMBSTONE_STATE);
+            } else {
+                alternateBuilder.addKey(slot);
+                alternateOutputPosition.set(slot, TOMBSTONE_STATE);
             }
-            alternateOutputPosition.set(alternateSlot, TOMBSTONE_STATE);
-            liveEntries--;
-        }
+        });
+
+        maybeNullMain(mainBuilder.build());
+        maybeNullAlternate(alternateBuilder.build());
     }
 
     @Override
-    public void reclaimFreedRows(TableUpdateImpl downstream) {
+    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt nextOutputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
+        if (freeOutputPositions.isEmpty()) {
+            return;
+        }
+
+        // we can easily reclaim anything past the end of the table
+        final RowSet.SearchIterator revit = freeOutputPositions.reverseIterator();;
+        while (revit.hasNext()) {
+            final long lastFreePosition = revit.nextLong();
+            if (lastFreePosition + 1 == nextOutputPosition.get()) {
+                nextOutputPosition.set(Math.toIntExact(lastFreePosition));
+            } else {
+                break;
+            }
+        }
+        // no longer free, we'll just use them as necessary
+        freeOutputPositions.removeRange(nextOutputPosition.get(), Long.MAX_VALUE);
+
+//        long totalRows = nextOutputPosition.get();
+//        long zombieRows = freeOutputPositions.size();
+//        long permittedZombies = Math.max((long)(MAX_PERMITTED_FREE_PERCENTAGE * totalRows), ArrayBackedColumnSource.BLOCK_SIZE);
+//        if (permittedZombies > zombieRows) {
+//            return;
+//        }
+
+        final long slotsToCollapse = Math.max(maxShiftedStates, CHUNK_SIZE);
+
+        // we should only bother with freeing empty slots if we are actually wasting space; and we should be willing
+        // to do it up to the number of rows that were modified in our input
         final MutableLong previouslyFreed = new MutableLong();
         final MutableLong shiftedValues = new MutableLong();
-        freeOutputPositions.forEachRowKeyRange((long start, long end) -> {
-            final long length = (end - start) + 1L;
-//            System.out.println("Shift necessary: " + start + ", " + end  + " prev=" + previouslyFreed.get());
-            previouslyFreed.add(length);
-            if (shiftedValues.get() >= CHUNK_SIZE) {
-                return false;
+        final MutableLong lastFreeKey = new MutableLong();
+
+        try (final WritableRowSet effectiveRowSet = resultRowset.copy()) {
+            effectiveRowSet.insert(downstream.added);
+            effectiveRowSet.removeRange(nextOutputPosition.get(), Long.MAX_VALUE);
+
+            final RowSet.RangeIterator rangeIterator = effectiveRowSet.rangeIterator();
+
+            final RowSetShiftData.Builder shiftDataBuilder = new RowSetShiftData.Builder();
+
+            freeOutputPositions.forEachRowKeyRange((long start, long end) -> {
+                final long length = (end - start) + 1L;
+
+                if (!rangeIterator.advance(end + 1)) {
+                    throw new IllegalStateException("Free output positions went past the end of the result rowset!");
+                }
+                final long firstToShift = rangeIterator.currentRangeStart();
+                long lastToShift = rangeIterator.currentRangeEnd();
+
+                final long permittedShift = maxShiftedStates - shiftedValues.get();
+                if (lastToShift - firstToShift > permittedShift) {
+                    lastToShift = firstToShift + permittedShift;
+                }
+
+                previouslyFreed.add(length);
+
+                shiftDataBuilder.shiftRange(firstToShift, lastToShift, -previouslyFreed.get());
+                shiftedValues.add(lastToShift - firstToShift);
+                lastFreeKey.set(end);
+
+                if (shiftedValues.get() >= slotsToCollapse) {
+                    return false;
+                }
+                return true;
+            });
+
+            // we've figured out what we should shift, let's do it now
+            downstream.shifted = shiftDataBuilder.build();
+
+            // shift the key column sources
+            RowSetShiftData.Iterator ai = downstream.shifted.applyIterator();
+            while (ai.hasNext()) {
+                ai.next();
+                final long begin = ai.beginRange();
+                final long end = ai.endRange();
+                final long delta = ai.shiftDelta();
+                for (long pos = begin; pos <= end; pos++) {
+                    outputPositionToHashSlot.set(pos + delta, outputPositionToHashSlot.get(pos));
+                }
             }
-            return true;
-        });
-//        freeOutputPositions.clear();
+
+            for (int oi = 0; oi < operators.length; ++oi) {
+                operators[oi].shift(downstream.shifted);
+            }
+
+            // shift the indices
+            downstream.shifted.apply(resultRowset.writableCast());
+            downstream.shifted.apply(downstream.added.writableCast());
+            downstream.shifted.apply(downstream.modified.writableCast());
+
+            // we've actually freed these positions now
+            freeOutputPositions.removeRange(0, lastFreeKey.get());
+        }
     }
+
+    abstract protected void maybeNullMain(RowSet rows);
+    abstract protected void maybeNullAlternate(RowSet rows);
 
     @Override
     public void beginUpdateCycle() {
