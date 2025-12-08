@@ -74,7 +74,7 @@ class FormulaMultiColumnChunkedOperator implements IterativeChunkedAggregationOp
         this.selectColumn = selectColumn;
         this.inputKeyColumns = inputKeyColumns;
 
-        resultColumn = (ArrayBackedColumnSource)ArrayBackedColumnSource.getMemoryColumnSource(
+        resultColumn = (ArrayBackedColumnSource) ArrayBackedColumnSource.getMemoryColumnSource(
                 0, selectColumn.getReturnedType(), selectColumn.getReturnedComponentType());
     }
 

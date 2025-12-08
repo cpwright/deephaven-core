@@ -502,7 +502,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
 
                 if (lastToShift == effectiveRowSet.lastRowKey()) {
                     // don't leave a useless gap at the end
-                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 -previouslyFreed.get()));
+                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 - previouslyFreed.get()));
                 }
 
                 if (shiftedValues.get() >= slotsToCollapse) {

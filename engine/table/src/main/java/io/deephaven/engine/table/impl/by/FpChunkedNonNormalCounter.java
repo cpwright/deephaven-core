@@ -229,6 +229,7 @@ abstract class FpChunkedNonNormalCounter {
         }
         return results;
     }
+
     private static class WrappedLongArraySource extends AbstractColumnSource<Long>
             implements MutableColumnSourceGetDefaults.ForLong {
         final Supplier<LongArraySource> sourceSupplier;

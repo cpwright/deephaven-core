@@ -640,4 +640,9 @@ public final class GroupByChunkedOperator implements IterativeChunkedAggregation
     public void shift(RowSetShiftData shiftData) {
         rowSets.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        rowSets.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

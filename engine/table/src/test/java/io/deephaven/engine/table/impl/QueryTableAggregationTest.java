@@ -2565,8 +2565,7 @@ public class QueryTableAggregationTest {
         }
 
         final EvalNuggetInterface[] en = new EvalNuggetInterface[] {
-                EvalNugget.Sorted.from(() -> queryTable.view("Sym", "shortCol").maxBy("Sym"), "Sym"),
-                EvalNugget.from(() -> queryTable.sort("Sym").maxBy("Sym")),
+                EvalNugget.Sorted.from(() -> queryTable.maxBy("Sym"), "Sym"),
                 EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").maxBy("intCol").sort("intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym", "intCol").maxBy("Sym", "intCol").sort("Sym", "intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").maxBy("Sym").sort("Sym")),
@@ -2577,7 +2576,7 @@ public class QueryTableAggregationTest {
                 EvalNugget.from(() -> queryTable.sort("Sym",
                         "intCol").update("x=intCol+1").maxBy("Sym").sort("Sym")),
                 EvalNugget.from(() -> queryTable.minBy("Sym").sort("Sym")),
-                EvalNugget.from(() -> queryTable.sort("Sym").minBy("Sym")),
+                EvalNugget.Sorted.from(() -> queryTable.minBy("Sym"), "Sym"),
                 EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").minBy("intCol").sort("intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym", "intCol").minBy("Sym", "intCol").sort("Sym", "intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym").update("x=intCol+1").minBy("Sym").sort("Sym")),
@@ -4319,7 +4318,7 @@ public class QueryTableAggregationTest {
                 testRefreshingTable(intCol("x", 0, 1, 2), stringCol("Key", "Apple", "Banana", "Cherry"));
         final Table summed = table.sumBy("Key");
 
-        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyStateAtEnd", (QueryTable)summed);
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyStateAtEnd", (QueryTable) summed);
         final FailureListener failureListener = new FailureListener();
         validated.getResultTable().addUpdateListener(failureListener);
 
@@ -4339,10 +4338,11 @@ public class QueryTableAggregationTest {
     @Test
     public void testEmptyState() {
         final QueryTable table =
-                testRefreshingTable(intCol("x", 0, 1, 2, 3 , 4), stringCol("Key", "Apple", "Banana", "Cherry", "Dragonfruit", "Eggplant"));
+                testRefreshingTable(intCol("x", 0, 1, 2, 3, 4),
+                        stringCol("Key", "Apple", "Banana", "Cherry", "Dragonfruit", "Eggplant"));
         final Table summed = table.sumBy("Key");
 
-        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable)summed);
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable) summed);
         final FailureListener failureListener = new FailureListener();
         validated.getResultTable().addUpdateListener(failureListener);
 
@@ -4356,12 +4356,13 @@ public class QueryTableAggregationTest {
     @Test
     public void testShiftedMin() {
         final QueryTable table =
-                testRefreshingTable(intCol("x", 0, 1, 2, 3 , 4), stringCol("Key", "Apple", "Banana", "Cherry", "Banana", "Cherry"));
+                testRefreshingTable(intCol("x", 0, 1, 2, 3, 4),
+                        stringCol("Key", "Apple", "Banana", "Cherry", "Banana", "Cherry"));
         final Table min = table.minBy("Key");
 
         final PrintListener printListener = new PrintListener("min", (QueryTable) min, 10);
 
-        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable)min);
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable) min);
         final FailureListener failureListener = new FailureListener();
         validated.getResultTable().addUpdateListener(failureListener);
 

@@ -452,6 +452,11 @@ public class FirstOrLastChunkedOperator
         public void shift(RowSetShiftData shiftData) {
             // nothing to do, our enclosing class has shifted our result
         }
+
+        @Override
+        public void clear(long firstOutputPosition, long lastOutputPosition) {
+            // nothing to do, our enclosing class has cleared our result
+        }
     }
 
     private class ComplementaryOperator implements IterativeChunkedAggregationOperator {
@@ -631,6 +636,11 @@ public class FirstOrLastChunkedOperator
         @Override
         public void shift(RowSetShiftData shiftData) {
             redirections.shift(shiftData);
+        }
+
+        @Override
+        public void clear(long firstOutputPosition, long lastOutputPosition) {
+            redirections.setNull(firstOutputPosition, lastOutputPosition);
         }
     }
 

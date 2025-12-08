@@ -242,7 +242,7 @@ public class ChunkedOperatorAggregationHelper {
         if (input.isRefreshing()) {
             copyKeyColumns(keyColumnsRaw, keyColumnsCopied, resultRowSet);
             if (removeUnusedStates) {
-                //noinspection DataFlowIssue
+                // noinspection DataFlowIssue
                 for (ShiftableColumnSource<?> shiftableColumnSource : keyColumnsCopied) {
                     shiftableColumnSource.startTrackingPrevValues();
                 }
@@ -302,7 +302,8 @@ public class ChunkedOperatorAggregationHelper {
                     }
 
                     if (resultRowset.lastRowKey() + 1 != outputPosition.get()) {
-                        throw new IllegalStateException("nextOutputPosition: " + outputPosition.get() + ", lastRowKey: " + resultRowset.lastRowKey());
+                        throw new IllegalStateException("nextOutputPosition: " + outputPosition.get() + ", lastRowKey: "
+                                + resultRowset.lastRowKey());
                     }
 
                     result.notifyListeners(downstream);

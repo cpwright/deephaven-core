@@ -72,10 +72,11 @@ public class SsmChunkedPercentileOperator implements IterativeChunkedAggregation
                     default:
                         // for things that are not int, long, double, or float we do not actually average the median;
                         // we just do the standard 50-%tile thing. It might be worth defining this to be friendlier.
-                        internalResult = (ShiftableColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
+                        internalResult =
+                                (ShiftableColumnSource<?>) ArrayBackedColumnSource.getMemoryColumnSource(0, type);
                 }
             } else {
-                internalResult = (ShiftableColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
+                internalResult = (ShiftableColumnSource<?>) ArrayBackedColumnSource.getMemoryColumnSource(0, type);
             }
             externalResult = internalResult;
         }

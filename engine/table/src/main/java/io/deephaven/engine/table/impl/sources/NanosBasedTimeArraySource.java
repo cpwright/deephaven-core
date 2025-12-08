@@ -23,7 +23,8 @@ import java.time.*;
 
 public abstract class NanosBasedTimeArraySource<TIME_TYPE> extends AbstractColumnSource<TIME_TYPE>
         implements FillUnordered<Values>, WritableColumnSource<TIME_TYPE>,
-        InMemoryColumnSource, WritableSourceWithPrepareForParallelPopulation, ConvertibleTimeSource, ShiftableColumnSource<TIME_TYPE> {
+        InMemoryColumnSource, WritableSourceWithPrepareForParallelPopulation, ConvertibleTimeSource,
+        ShiftableColumnSource<TIME_TYPE> {
 
     protected final LongArraySource nanoSource;
 

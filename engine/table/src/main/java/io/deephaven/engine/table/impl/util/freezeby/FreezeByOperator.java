@@ -140,4 +140,9 @@ public class FreezeByOperator implements IterativeChunkedAggregationOperator {
     public void shift(RowSetShiftData shiftData) {
         resultSource.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultSource.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

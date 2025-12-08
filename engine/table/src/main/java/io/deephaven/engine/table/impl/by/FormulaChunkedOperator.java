@@ -502,4 +502,11 @@ class FormulaChunkedOperator implements IterativeChunkedAggregationOperator {
             resultColumn.shift(shiftData);
         }
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
+            resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        }
+    }
 }

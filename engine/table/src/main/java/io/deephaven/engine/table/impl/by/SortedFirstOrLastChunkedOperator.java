@@ -539,4 +539,10 @@ public class SortedFirstOrLastChunkedOperator
         ssas.shift(shiftData);
         redirections.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        ssas.setNull(firstOutputPosition, lastOutputPosition);
+        redirections.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

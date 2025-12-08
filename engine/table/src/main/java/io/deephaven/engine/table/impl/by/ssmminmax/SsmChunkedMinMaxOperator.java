@@ -47,7 +47,7 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         this.name = name;
         this.ssms = new ObjectArraySource<>(SegmentedSortedMultiSet.class);
         // region resultColumn initialization
-        this.resultColumn = (ShiftableColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
+        this.resultColumn = (ShiftableColumnSource<?>) ArrayBackedColumnSource.getMemoryColumnSource(0, type);
         // endregion resultColumn initialization
         if (type == Instant.class) {
             chunkType = ChunkType.Long;
@@ -494,6 +494,11 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         @Override
         public void shift(RowSetShiftData shiftData) {
             resultColumn.shift(shiftData);
+        }
+
+        @Override
+        public void clear(long firstOutputPosition, long lastOutputPosition) {
+            resultColumn.setNull(firstOutputPosition, lastOutputPosition);
         }
     }
 
