@@ -4314,27 +4314,14 @@ public class QueryTableAggregationTest {
     }
 
     @Test
-    public void testEmptyState() {
-        final QueryTable table = testRefreshingTable(intCol("x", 0), stringCol("Key", "Apple"));
-        final Table summed = table.sumBy("Key");
-
-
-        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
-        updateGraph.runWithinUnitTestCycle(() -> {
-            addToTable(table, i(1), intCol("x", 1), stringCol("Key", "Banana"));
-            removeRows(table, i(0));
-            table.notifyListeners(i(1), i(0), i());
-        });
-
-        TableTools.showWithRowSet(summed);
-    }
-
-    @Test
-    public void testEmptyState2() {
+    public void testEmptyStateAtEnd() {
         final QueryTable table =
                 testRefreshingTable(intCol("x", 0, 1, 2), stringCol("Key", "Apple", "Banana", "Cherry"));
         final Table summed = table.sumBy("Key");
-        TableTools.showWithRowSet(summed);
+
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyStateAtEnd", (QueryTable)summed);
+        final FailureListener failureListener = new FailureListener();
+        validated.getResultTable().addUpdateListener(failureListener);
 
         final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
         updateGraph.runWithinUnitTestCycle(() -> {
@@ -4342,14 +4329,28 @@ public class QueryTableAggregationTest {
             table.notifyListeners(i(), i(1, 2), i());
         });
 
-        TableTools.showWithRowSet(summed);
-
         // we should be able to fill in where the old value was
         updateGraph.runWithinUnitTestCycle(() -> {
             addToTable(table, i(4), intCol("x", 4), stringCol("Key", "Dragonfruit"));
             table.notifyListeners(i(4), i(), i());
         });
-        TableTools.showWithRowSet(summed);
+    }
+
+    @Test
+    public void testEmptyState() {
+        final QueryTable table =
+                testRefreshingTable(intCol("x", 0, 1, 2, 3 , 4), stringCol("Key", "Apple", "Banana", "Cherry", "Dragonfruit", "Eggplant"));
+        final Table summed = table.sumBy("Key");
+
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable)summed);
+        final FailureListener failureListener = new FailureListener();
+        validated.getResultTable().addUpdateListener(failureListener);
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(table, i(0, 2, 3));
+            table.notifyListeners(i(), i(0, 2, 3), i());
+        });
     }
 
     private void diskBackedTestHarness(Consumer<Table> testFunction) throws IOException {

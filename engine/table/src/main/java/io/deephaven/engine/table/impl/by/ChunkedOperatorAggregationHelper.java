@@ -29,6 +29,7 @@ import io.deephaven.engine.table.impl.sort.permute.PermuteKernel;
 import io.deephaven.engine.table.impl.sort.timsort.IntIntTimsortKernel;
 import io.deephaven.engine.table.impl.sources.ArrayBackedColumnSource;
 import io.deephaven.engine.table.impl.sources.ReinterpretUtils;
+import io.deephaven.engine.table.impl.sources.ShiftableColumnSource;
 import io.deephaven.engine.table.impl.sources.regioned.SymbolTableSource;
 import io.deephaven.engine.table.impl.util.ChunkUtils;
 import io.deephaven.engine.table.impl.util.UpdateSizeCalculator;
@@ -215,8 +216,8 @@ public class ChunkedOperatorAggregationHelper {
 
         // Gather the result key columns
         final ColumnSource[] keyColumnsRaw = new ColumnSource[keyHashTableSources.length];
-        final WritableColumnSource[] keyColumnsCopied =
-                input.isRefreshing() ? new WritableColumnSource[keyHashTableSources.length] : null;
+        final ShiftableColumnSource[] keyColumnsCopied =
+                input.isRefreshing() ? new ShiftableColumnSource[keyHashTableSources.length] : null;
         for (int kci = 0; kci < keyHashTableSources.length; ++kci) {
             ColumnSource<?> resultKeyColumnSource = keyHashTableSources[kci];
             if (keySources[kci] != reinterpretedKeySources[kci]) {
@@ -240,6 +241,12 @@ public class ChunkedOperatorAggregationHelper {
                 : initialRowsBuilder.build()).toTracking();
         if (input.isRefreshing()) {
             copyKeyColumns(keyColumnsRaw, keyColumnsCopied, resultRowSet);
+            if (removeUnusedStates) {
+                //noinspection DataFlowIssue
+                for (ShiftableColumnSource<?> shiftableColumnSource : keyColumnsCopied) {
+                    shiftableColumnSource.startTrackingPrevValues();
+                }
+            }
         }
 
         // Construct the result table
@@ -548,7 +555,7 @@ public class ChunkedOperatorAggregationHelper {
                 @NotNull final RowSet upstreamIndex,
                 TrackingWritableRowSet resultRowset,
                 @NotNull final ColumnSource<?>[] keyColumnsRaw,
-                @NotNull final WritableColumnSource<?>[] keyColumnsCopied,
+                @NotNull final ShiftableColumnSource<?>[] keyColumnsCopied,
                 @NotNull final ModifiedColumnSet resultModifiedColumnSet,
                 @NotNull final UnaryOperator<ModifiedColumnSet>[] resultModifiedColumnSetFactories) {
             final int firstStateToAdd = outputPosition.get();
@@ -679,6 +686,11 @@ public class ChunkedOperatorAggregationHelper {
 
             incrementalStateManager.reclaimFreedRows(resultRowset, downstream, outputPosition,
                     upstream.added().size() + upstream.modified().size() + upstream.removed().size(), ac.operators);
+            if (downstream.shifted.nonempty()) {
+                for (ShiftableColumnSource<?> keyColumn : keyColumnsCopied) {
+                    keyColumn.shift(downstream.shifted());
+                }
+            }
 
             return downstream;
         }
