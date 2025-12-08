@@ -23,12 +23,12 @@ import java.util.Collections;
 import java.util.Map;
 
 public class FreezeByOperator implements IterativeChunkedAggregationOperator {
-    private final ArrayBackedColumnSource<?> resultSource;
+    private final ShiftableColumnSource<?> resultSource;
     private final String name;
     private final FreezeByHelper helper;
 
     public FreezeByOperator(Class<?> type, String resultName, FreezeByCountOperator freezeByCountOperator) {
-        resultSource = (ArrayBackedColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
+        resultSource = ArrayBackedColumnSource.getMemoryColumnSource(0, type);
         name = resultName;
         helper = makeHelper(resultSource, freezeByCountOperator);
     }

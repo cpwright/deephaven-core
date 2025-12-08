@@ -15,6 +15,7 @@ import io.deephaven.engine.table.impl.sources.ArrayBackedColumnSource;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.chunk.*;
+import io.deephaven.engine.table.impl.sources.ShiftableColumnSource;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 
@@ -29,7 +30,7 @@ import java.util.function.Supplier;
 public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOperator {
     private static final int NODE_SIZE =
             Configuration.getInstance().getIntegerWithDefault("SsmChunkedMinMaxOperator.nodeSize", 4096);
-    private final ArrayBackedColumnSource<?> resultColumn;
+    private final ShiftableColumnSource<?> resultColumn;
     private final ObjectArraySource<SegmentedSortedMultiSet> ssms;
     private final String name;
     private final CompactKernel compactAndCountKernel;
@@ -46,7 +47,7 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         this.name = name;
         this.ssms = new ObjectArraySource<>(SegmentedSortedMultiSet.class);
         // region resultColumn initialization
-        this.resultColumn = (ArrayBackedColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
+        this.resultColumn = (ShiftableColumnSource<?>)ArrayBackedColumnSource.getMemoryColumnSource(0, type);
         // endregion resultColumn initialization
         if (type == Instant.class) {
             chunkType = ChunkType.Long;
@@ -405,13 +406,13 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
     }
 
     private class SecondaryOperator implements IterativeChunkedAggregationOperator {
-        private final ArrayBackedColumnSource<?> resultColumn;
+        private final ShiftableColumnSource<?> resultColumn;
         private final String resultName;
         private final SetResult setResult;
 
         private SecondaryOperator(boolean isMinimum, String resultName) {
             // noinspection unchecked
-            this.resultColumn = (ArrayBackedColumnSource<?>) ArrayBackedColumnSource.getMemoryColumnSource(0,
+            this.resultColumn = (ShiftableColumnSource<?>) ArrayBackedColumnSource.getMemoryColumnSource(0,
                     SsmChunkedMinMaxOperator.this.resultColumn.getType());
             setResult = makeSetResult(chunkType, resultColumn.getType(), isMinimum, resultColumn);
             this.resultName = resultName;

@@ -294,9 +294,6 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
-                    resultRowset.remove(downstream.removed());
-                    downstream.shifted().apply(resultRowset);
-                    resultRowset.insert(downstream.added());
                     result.notifyListeners(downstream);
                 }
 

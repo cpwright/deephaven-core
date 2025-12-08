@@ -441,6 +441,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     @Override
     public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream,
             MutableInt outputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
-        // we never actually delete anything, so there is no need to reclaim anything
+        // we never actually delete anything, so there is no need to reclaim anything, but we do need to update the resultRowset
+        resultRowset.update(downstream.added(), downstream.removed());
     }
 }

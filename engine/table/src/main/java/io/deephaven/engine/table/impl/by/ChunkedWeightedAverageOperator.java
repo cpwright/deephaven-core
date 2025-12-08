@@ -472,7 +472,9 @@ class ChunkedWeightedAverageOperator implements IterativeChunkedAggregationOpera
     @Override
     public void shift(RowSetShiftData shiftData) {
         normalCount.shift(shiftData);
-        nanCount.shift(shiftData);
+        if (nanCount != null) {
+            nanCount.shift(shiftData);
+        }
         sumOfWeights.shift(shiftData);
         weightedSum.shift(shiftData);
         resultColumn.shift(shiftData);

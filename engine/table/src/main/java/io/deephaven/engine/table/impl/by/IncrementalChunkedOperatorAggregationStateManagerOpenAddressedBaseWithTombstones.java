@@ -464,7 +464,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         final MutableLong lastFreeKey = new MutableLong();
 
         try (final WritableRowSet effectiveRowSet = resultRowset.copy()) {
+            // we need the added positions to be accounted for
             effectiveRowSet.insert(downstream.added);
+            // and the free positions to be removed, so that we know the leftover ranges
+            effectiveRowSet.remove(freeOutputPositions);
+            // and we already removed things that were at the end
             effectiveRowSet.removeRange(nextOutputPosition.get(), Long.MAX_VALUE);
 
             final RowSet.RangeIterator rangeIterator = effectiveRowSet.rangeIterator();
@@ -517,9 +521,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             }
 
             // shift the indices
-            downstream.shifted.apply(resultRowset.writableCast());
-            downstream.shifted.apply(downstream.added.writableCast());
-            downstream.shifted.apply(downstream.modified.writableCast());
+            resultRowset.remove(downstream.removed());
+            downstream.shifted().apply(resultRowset.writableCast());
+            downstream.shifted().apply(downstream.added.writableCast());
+            resultRowset.insert(downstream.added());
+            downstream.shifted().apply(downstream.modified.writableCast());
 
             // we've actually freed these positions now
             freeOutputPositions.removeRange(0, lastFreeKey.get());
