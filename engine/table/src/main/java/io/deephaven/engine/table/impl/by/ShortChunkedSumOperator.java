@@ -224,16 +224,7 @@ public class ShortChunkedSumOperator implements IterativeChunkedAggregationOpera
 
     @Override
     public void shift(RowSetShiftData shiftData) {
-        shiftData.apply((s, e, d) -> {
-            if (d < 0) {
-                for (long ii = s; ii <= e; ++ii) {
-                    resultColumn.set(ii + d, resultColumn.get(ii));
-                }
-            } else {
-                for (long ii = e; ii >= s; --ii) {
-                    resultColumn.set(ii + d, resultColumn.get(ii));
-                }
-            }
-        });
+        resultColumn.shift(shiftData);
+        nonNullCount.shift(shiftData);
     }
 }

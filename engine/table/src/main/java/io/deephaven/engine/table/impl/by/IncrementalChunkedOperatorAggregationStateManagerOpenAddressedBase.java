@@ -439,7 +439,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     }
 
     @Override
-    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt outputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
+    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream,
+            MutableInt outputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
         // we never actually delete anything, so there is no need to reclaim anything
     }
 }

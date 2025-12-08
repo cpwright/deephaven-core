@@ -7,6 +7,7 @@ import io.deephaven.base.verify.Require;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetFactory;
@@ -446,6 +447,11 @@ public class FirstOrLastChunkedOperator
         public void ensureCapacity(long tableSize) {
             // nothing to do, our enclosing class has ensured our capacity
         }
+
+        @Override
+        public void shift(RowSetShiftData shiftData) {
+            // nothing to do, our enclosing class has shifted our result
+        }
     }
 
     private class ComplementaryOperator implements IterativeChunkedAggregationOperator {
@@ -620,5 +626,17 @@ public class FirstOrLastChunkedOperator
         public BucketedContext makeBucketedContext(int size) {
             return null;
         }
+
+
+        @Override
+        public void shift(RowSetShiftData shiftData) {
+            redirections.shift(shiftData);
+        }
+    }
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        redirections.shift(shiftData);
+        rowSets.shift(shiftData);
     }
 }

@@ -635,4 +635,9 @@ public final class GroupByChunkedOperator implements IterativeChunkedAggregation
     boolean getSomeKeyHasModifies() {
         return someKeyHasModifies;
     }
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        rowSets.shift(shiftData);
+    }
 }

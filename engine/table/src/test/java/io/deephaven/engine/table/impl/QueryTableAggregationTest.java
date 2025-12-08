@@ -4331,7 +4331,8 @@ public class QueryTableAggregationTest {
 
     @Test
     public void testEmptyState2() {
-        final QueryTable table = testRefreshingTable(intCol("x", 0, 1, 2), stringCol("Key", "Apple", "Banana", "Cherry"));
+        final QueryTable table =
+                testRefreshingTable(intCol("x", 0, 1, 2), stringCol("Key", "Apple", "Banana", "Cherry"));
         final Table summed = table.sumBy("Key");
         TableTools.showWithRowSet(summed);
 

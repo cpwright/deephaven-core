@@ -11,6 +11,7 @@ import io.deephaven.base.verify.Assert;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.impl.sources.DoubleArraySource;
 import io.deephaven.chunk.*;
@@ -182,5 +183,13 @@ class LongChunkedVarOperator implements IterativeChunkedAggregationOperator {
             sum2Source.startTrackingPrevValues();
             nonNullCounter.startTrackingPrevValues();
         }
+    }
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        resultColumn.shift(shiftData);
+        sumSource.shift(shiftData);
+        sum2Source.shift(shiftData);
+        nonNullCounter.shift(shiftData);
     }
 }

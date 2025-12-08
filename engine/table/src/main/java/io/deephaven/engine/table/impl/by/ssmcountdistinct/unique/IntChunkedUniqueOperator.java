@@ -8,6 +8,7 @@
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.unique;
 
 import io.deephaven.engine.context.ExecutionContext;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetFactory;
@@ -354,4 +355,10 @@ public class IntChunkedUniqueOperator implements IterativeChunkedAggregationOper
         return resultChanged || (exposeInternal && (ssm.getAddedSize() > 0 || ssm.getRemovedSize() > 0));
     }
     // endregion
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        internalResult.shift(shiftData);
+        ssms.shift(shiftData);
+    }
 }

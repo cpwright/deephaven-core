@@ -38,12 +38,13 @@ public interface IncrementalOperatorAggregationStateManager extends OperatorAggr
      * Reclaim any rows that are free in the result table (depending on thresholds)
      *
      * @param resultRowset
-     * @param downstream       the downstream update, which may need to be changed to reflect the reclaimed rows
+     * @param downstream the downstream update, which may need to be changed to reflect the reclaimed rows
      * @param outputPosition
      * @param maxShiftedStates the maximum number of rows that can be shifted as part of reclamation
      * @param operators
      */
-    void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt outputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators);
+    void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt outputPosition,
+            long maxShiftedStates, IterativeChunkedAggregationOperator[] operators);
 
     void removeStates(RowSet removed);
 }

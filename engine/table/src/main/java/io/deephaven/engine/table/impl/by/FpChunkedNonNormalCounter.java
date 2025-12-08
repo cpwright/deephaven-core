@@ -4,6 +4,7 @@
 package io.deephaven.engine.table.impl.by;
 
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.table.ChunkSource;
 import io.deephaven.engine.table.impl.AbstractColumnSource;
 import io.deephaven.engine.table.impl.DefaultGetContext;
@@ -349,6 +350,18 @@ abstract class FpChunkedNonNormalCounter {
             } else {
                 return longArraySource.getPrevChunk(context, firstKey, lastKey);
             }
+        }
+    }
+
+    public void shift(RowSetShiftData shiftData) {
+        if (nanCount != null) {
+            nanCount.shift(shiftData);
+        }
+        if (positiveInfinityCount != null) {
+            positiveInfinityCount.shift(shiftData);
+        }
+        if (negativeInfinityCount != null) {
+            negativeInfinityCount.shift(shiftData);
         }
     }
 }

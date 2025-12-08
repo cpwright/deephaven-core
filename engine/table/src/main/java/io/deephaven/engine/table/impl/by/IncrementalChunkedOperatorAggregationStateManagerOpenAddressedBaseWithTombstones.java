@@ -34,9 +34,10 @@ import static io.deephaven.engine.table.impl.util.TypedHasherUtil.getPrevKeyChun
 
 public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones
         implements IncrementalOperatorAggregationStateManager {
-    private static final double MAX_PERMITTED_FREE_PERCENTAGE = Configuration.getInstance().getDoubleForClassWithDefault(
-            IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
-            "maxPermittedFreePercentage", 0.1);
+    private static final double MAX_PERMITTED_FREE_PERCENTAGE =
+            Configuration.getInstance().getDoubleForClassWithDefault(
+                    IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
+                    "maxPermittedFreePercentage", 0.1);
 
     public static final int CHUNK_SIZE = ChunkedOperatorAggregationHelper.CHUNK_SIZE;
     private static final long MAX_TABLE_SIZE = 1 << 30; // maximum array size
@@ -427,7 +428,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     }
 
     @Override
-    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream, MutableInt nextOutputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
+    public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream,
+            MutableInt nextOutputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
         if (freeOutputPositions.isEmpty()) {
             return;
         }
@@ -445,12 +447,13 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         // no longer free, we'll just use them as necessary
         freeOutputPositions.removeRange(nextOutputPosition.get(), Long.MAX_VALUE);
 
-//        long totalRows = nextOutputPosition.get();
-//        long zombieRows = freeOutputPositions.size();
-//        long permittedZombies = Math.max((long)(MAX_PERMITTED_FREE_PERCENTAGE * totalRows), ArrayBackedColumnSource.BLOCK_SIZE);
-//        if (permittedZombies > zombieRows) {
-//            return;
-//        }
+        // long totalRows = nextOutputPosition.get();
+        // long zombieRows = freeOutputPositions.size();
+        // long permittedZombies = Math.max((long)(MAX_PERMITTED_FREE_PERCENTAGE * totalRows),
+        // ArrayBackedColumnSource.BLOCK_SIZE);
+        // if (permittedZombies > zombieRows) {
+        // return;
+        // }
 
         final long slotsToCollapse = Math.max(maxShiftedStates, CHUNK_SIZE);
 
@@ -524,6 +527,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     }
 
     abstract protected void maybeNullMain(RowSet rows);
+
     abstract protected void maybeNullAlternate(RowSet rows);
 
     @Override

@@ -4,6 +4,7 @@
 package io.deephaven.engine.table.impl.by;
 
 import io.deephaven.base.verify.Assert;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.util.QueryConstants;
 import io.deephaven.engine.util.NullSafeAddition;
 import io.deephaven.engine.table.ColumnSource;
@@ -414,5 +415,14 @@ class DoubleChunkedWeightedSumOperator implements IterativeChunkedAggregationOpe
     @Override
     public SingletonContext makeSingletonContext(int size) {
         return new Context(size);
+    }
+
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        normalCount.shift(shiftData);
+        nanCount.shift(shiftData);
+        weightedSum.shift(shiftData);
+        resultColumn.shift(shiftData);
     }
 }

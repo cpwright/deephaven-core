@@ -3,6 +3,7 @@
 //
 package io.deephaven.engine.table.impl.sources;
 
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.table.impl.AbstractColumnSource;
 import io.deephaven.engine.table.impl.DefaultGetContext;
 import io.deephaven.engine.table.WritableColumnSource;
@@ -637,4 +638,6 @@ public abstract class ArrayBackedColumnSource<T>
     public boolean providesFillUnordered() {
         return true;
     }
+
+    abstract public void shift(RowSetShiftData shiftData);
 }

@@ -7,6 +7,7 @@ import io.deephaven.base.verify.Assert;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.util.QueryConstants;
@@ -468,4 +469,12 @@ class ChunkedWeightedAverageOperator implements IterativeChunkedAggregationOpera
         return new Context(size);
     }
 
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        normalCount.shift(shiftData);
+        nanCount.shift(shiftData);
+        sumOfWeights.shift(shiftData);
+        weightedSum.shift(shiftData);
+        resultColumn.shift(shiftData);
+    }
 }

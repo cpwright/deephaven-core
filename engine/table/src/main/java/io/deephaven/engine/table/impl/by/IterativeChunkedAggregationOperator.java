@@ -362,5 +362,5 @@ public interface IterativeChunkedAggregationOperator {
     interface SingletonContext extends SafeCloseable {
     }
 
-    default void shift(RowSetShiftData shiftData) {}
+    void shift(RowSetShiftData shiftData);
 }

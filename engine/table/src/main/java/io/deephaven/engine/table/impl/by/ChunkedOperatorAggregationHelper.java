@@ -680,7 +680,8 @@ public class ChunkedOperatorAggregationHelper {
             extractDownstreamModifiedColumnSet(downstream, resultModifiedColumnSet, modifiedOperators,
                     updateUpstreamModifiedColumnSet, resultModifiedColumnSetFactories);
 
-            incrementalStateManager.reclaimFreedRows(resultRowset, downstream, outputPosition, upstream.added().size() + upstream.modified().size() + upstream.removed().size(), ac.operators);
+            incrementalStateManager.reclaimFreedRows(resultRowset, downstream, outputPosition,
+                    upstream.added().size() + upstream.modified().size() + upstream.removed().size(), ac.operators);
 
             return downstream;
         }

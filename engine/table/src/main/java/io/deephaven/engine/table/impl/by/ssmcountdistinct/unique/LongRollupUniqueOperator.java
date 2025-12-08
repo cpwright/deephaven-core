@@ -13,6 +13,7 @@ import io.deephaven.engine.table.impl.sources.LongAsInstantColumnSource;
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.InstantSsmSourceWrapper;
 
 import io.deephaven.engine.context.ExecutionContext;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetFactory;
@@ -614,4 +615,9 @@ public class LongRollupUniqueOperator implements IterativeChunkedAggregationOper
     }
 
     // endregion
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+    }
 }

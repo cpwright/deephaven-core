@@ -585,4 +585,9 @@ public class CountWhereOperator implements IterativeChunkedAggregationOperator {
     public SingletonContext makeSingletonContext(int size) {
         return new CountWhereSingletonContext(size, filters);
     }
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        resultColumnSource.shift(shiftData);
+    }
 }

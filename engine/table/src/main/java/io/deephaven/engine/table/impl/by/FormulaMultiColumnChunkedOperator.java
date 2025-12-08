@@ -10,6 +10,7 @@ import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.liveness.LivenessReferent;
 import io.deephaven.engine.rowset.RowSequence;
 import io.deephaven.engine.rowset.RowSet;
+import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.ChunkSink.FillFromContext;
 import io.deephaven.engine.table.*;
@@ -37,7 +38,7 @@ class FormulaMultiColumnChunkedOperator implements IterativeChunkedAggregationOp
     private final GroupByChunkedOperator groupBy;
     private final boolean delegateToBy;
     private final SelectColumn selectColumn;
-    private final WritableColumnSource<?> resultColumn;
+    private final ArrayBackedColumnSource<?> resultColumn;
     private final String[] inputKeyColumns;
 
     private ChunkSource<Values> formulaDataSource;
@@ -73,7 +74,7 @@ class FormulaMultiColumnChunkedOperator implements IterativeChunkedAggregationOp
         this.selectColumn = selectColumn;
         this.inputKeyColumns = inputKeyColumns;
 
-        resultColumn = ArrayBackedColumnSource.getMemoryColumnSource(
+        resultColumn = (ArrayBackedColumnSource)ArrayBackedColumnSource.getMemoryColumnSource(
                 0, selectColumn.getReturnedType(), selectColumn.getReturnedComponentType());
     }
 
@@ -407,5 +408,10 @@ class FormulaMultiColumnChunkedOperator implements IterativeChunkedAggregationOp
 
     private static long calculateContainingBlockLastKey(final long firstKey) {
         return (firstKey / BLOCK_SIZE) * BLOCK_SIZE + BLOCK_SIZE - 1;
+    }
+
+    @Override
+    public void shift(RowSetShiftData shiftData) {
+        resultColumn.shift(shiftData);
     }
 }
