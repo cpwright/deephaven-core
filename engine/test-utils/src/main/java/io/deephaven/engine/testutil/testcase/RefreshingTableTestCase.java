@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 abstract public class RefreshingTableTestCase extends BaseArrayTestCase implements UpdateErrorReporter {
     public static boolean printTableUpdates = Configuration.getInstance()
-            .getBooleanForClassWithDefault(RefreshingTableTestCase.class, "printTableUpdates", false);
+            .getBooleanForClassWithDefault(RefreshingTableTestCase.class, "printTableUpdates", true);
     private static final boolean ENABLE_QUERY_COMPILER_LOGGING = Configuration.getInstance()
             .getBooleanForClassWithDefault(RefreshingTableTestCase.class, "QueryCompile.logEnabled", false);
 

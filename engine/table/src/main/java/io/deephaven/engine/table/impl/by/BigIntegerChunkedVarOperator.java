@@ -189,11 +189,17 @@ class BigIntegerChunkedVarOperator implements IterativeChunkedAggregationOperato
 
     @Override
     public void shift(RowSetShiftData shiftData) {
-        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+        resultColumn.shift(shiftData);
+        sumSource.shift(shiftData);
+        sum2Source.shift(shiftData);
+        nonNullCounter.shift(shiftData);
     }
 
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
-        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        sumSource.setNull(firstOutputPosition, lastOutputPosition);
+        sum2Source.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCounter.clear(firstOutputPosition, lastOutputPosition);
     }
 }

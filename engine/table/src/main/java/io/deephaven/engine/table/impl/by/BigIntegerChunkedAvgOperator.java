@@ -150,11 +150,15 @@ class BigIntegerChunkedAvgOperator implements IterativeChunkedAggregationOperato
 
     @Override
     public void shift(RowSetShiftData shiftData) {
-        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+        resultColumn.shift(shiftData);
+        runningSum.shift(shiftData);
+        nonNullCount.shift(shiftData);
     }
 
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
-        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        runningSum.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCount.clear(firstOutputPosition, lastOutputPosition);
     }
 }

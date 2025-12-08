@@ -421,7 +421,9 @@ class DoubleChunkedWeightedSumOperator implements IterativeChunkedAggregationOpe
     @Override
     public void shift(RowSetShiftData shiftData) {
         normalCount.shift(shiftData);
-        nanCount.shift(shiftData);
+        if (nanCount != null) {
+            nanCount.shift(shiftData);
+        }
         weightedSum.shift(shiftData);
         resultColumn.shift(shiftData);
     }
@@ -429,7 +431,9 @@ class DoubleChunkedWeightedSumOperator implements IterativeChunkedAggregationOpe
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
         normalCount.setNull(firstOutputPosition, lastOutputPosition);
-        nanCount.setNull(firstOutputPosition, lastOutputPosition);
+        if (nanCount != null) {
+            nanCount.setNull(firstOutputPosition, lastOutputPosition);
+        }
         weightedSum.setNull(firstOutputPosition, lastOutputPosition);
         resultColumn.setNull(firstOutputPosition, lastOutputPosition);
     }

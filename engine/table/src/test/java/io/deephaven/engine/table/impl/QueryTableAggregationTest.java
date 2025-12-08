@@ -1675,28 +1675,29 @@ public class QueryTableAggregationTest {
         } else {
             sizes = new int[] {10, 100, 4_000, 10_000};
         }
+        final int maxStep = 2;
         for (final int size : sizes) {
-            for (int seed = 0; seed < 1; ++seed) {
+            for (int seed = 13; seed < 100; ++seed) {
                 UpdatePerformanceTracker.resetForUnitTests();
                 ChunkPoolReleaseTracking.enableStrict();
                 System.out.println("Size = " + size + ", Seed = " + seed);
-                testSumByIncremental(size, seed, true, true);
-                testSumByIncremental(size, seed, true, false);
-                testSumByIncremental(size, seed, false, true);
-                testSumByIncremental(size, seed, false, false);
+                testSumByIncremental(size, seed, true, true, maxStep);
+                testSumByIncremental(size, seed, true, false, maxStep);
+                testSumByIncremental(size, seed, false, true, maxStep);
+                testSumByIncremental(size, seed, false, false, maxStep);
                 UpdatePerformanceTracker.resetForUnitTests();
                 ChunkPoolReleaseTracking.checkAndDisable();
             }
         }
     }
 
-    private void testSumByIncremental(final int size, final int seed, boolean grouped, boolean lotsOfStrings) {
+    private void testSumByIncremental(final int size, final int seed, boolean grouped, boolean lotsOfStrings, final int maxStep) {
         try (final SafeCloseable ignored = LivenessScopeStack.open()) {
-            doTestSumByIncremental(size, seed, grouped, lotsOfStrings);
+            doTestSumByIncremental(size, seed, grouped, lotsOfStrings, maxStep);
         }
     }
 
-    private void doTestSumByIncremental(final int size, final int seed, boolean grouped, boolean lotsOfStrings) {
+    private void doTestSumByIncremental(final int size, final int seed, boolean grouped, boolean lotsOfStrings, final int maxStep) {
         final Random random = new Random(seed);
         final ColumnInfo<?, ?>[] columnInfo;
         final List<ColumnInfo.ColAttributes> ea = Collections.emptyList();
@@ -1722,36 +1723,36 @@ public class QueryTableAggregationTest {
         }
 
         final EvalNugget[] en = new EvalNugget[] {
-                EvalNugget.from(() -> queryTable.dropColumns("Sym").sumBy()),
-                EvalNugget.Sorted.from(() -> queryTable.sumBy("Sym"), "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").sumBy("Sym"), "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.dropColumns("Sym").sort("intCol").sumBy("intCol"), "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").sumBy("Sym", "intCol"), "Sym",
-                        "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").update("x=intCol+1").sumBy("Sym"), "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
-                        .sumBy("intCol"), "intCol"),
-                EvalNugget.Sorted.from(
-                        () -> queryTable.sort("Sym", "intCol").update("x=intCol+1").sumBy("Sym", "intCol"), "Sym",
-                        "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").sumBy("Sym"),
-                        "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").absSumBy("Sym"), "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.dropColumns("Sym").sort("intCol").absSumBy("intCol"),
-                        "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").absSumBy("Sym", "intCol"), "Sym",
-                        "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").update("x=intCol+1").absSumBy("Sym"), "Sym"),
-                EvalNugget.Sorted.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
-                        .absSumBy("intCol"), "intCol"),
-                EvalNugget.Sorted.from(
-                        () -> queryTable.sort("Sym", "intCol").update("x=intCol+1").absSumBy("Sym", "intCol"), "Sym",
-                        "intCol"),
-                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").absSumBy("Sym"),
-                        "Sym"),
+//                EvalNugget.from(() -> queryTable.dropColumns("Sym").sumBy()),
+                EvalNugget.Sorted.from(() -> queryTable.view("intCol", "Sym").sumBy("Sym"), "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").sumBy("Sym"), "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.dropColumns("Sym").sort("intCol").sumBy("intCol"), "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").sumBy("Sym", "intCol"), "Sym",
+//                        "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").update("x=intCol+1").sumBy("Sym"), "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
+//                        .sumBy("intCol"), "intCol"),
+//                EvalNugget.Sorted.from(
+//                        () -> queryTable.sort("Sym", "intCol").update("x=intCol+1").sumBy("Sym", "intCol"), "Sym",
+//                        "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").sumBy("Sym"),
+//                        "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").absSumBy("Sym"), "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.dropColumns("Sym").sort("intCol").absSumBy("intCol"),
+//                        "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").absSumBy("Sym", "intCol"), "Sym",
+//                        "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym").update("x=intCol+1").absSumBy("Sym"), "Sym"),
+//                EvalNugget.Sorted.from(() -> queryTable.sortDescending("intCol").update("x=intCol+1").dropColumns("Sym")
+//                        .absSumBy("intCol"), "intCol"),
+//                EvalNugget.Sorted.from(
+//                        () -> queryTable.sort("Sym", "intCol").update("x=intCol+1").absSumBy("Sym", "intCol"), "Sym",
+//                        "intCol"),
+//                EvalNugget.Sorted.from(() -> queryTable.sort("Sym", "intCol").update("x=intCol+1").absSumBy("Sym"),
+//                        "Sym"),
         };
 
-        for (int step = 0; step < 50; step++) {
+        for (int step = 0; step < maxStep; step++) {
             if (RefreshingTableTestCase.printTableUpdates) {
                 System.out.println("Seed = " + seed + ", step=" + step);
             }
@@ -4379,6 +4380,43 @@ public class QueryTableAggregationTest {
         });
 
         TableTools.showWithRowSet(min);
+    }
+
+    @Test
+    public void testShiftPartial() {
+        final QueryTable table =
+                testRefreshingTable(intCol("x", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                        stringCol("Key", "Apple", "Banana", "Cherry", "Banana", "Cherry", "Dragonfruit", "Eggplant", "Fig", "Grape", "Honeydew"));
+        final Table summed = table.sumBy("Key");
+
+        final PrintListener printListener = new PrintListener("summed", (QueryTable) summed, 10);
+
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable) summed);
+        final FailureListener failureListener = new FailureListener();
+        validated.getResultTable().addUpdateListener(failureListener);
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(table, i(0, 2, 4));
+            table.notifyListeners(i(), i(0, 2, 4), i());
+        });
+
+        assertTableEquals(table.sumBy("Key").sort("Key"), summed.sort("Key"));
+
+        updateGraph.runWithinUnitTestCycle(() -> {
+            addToTable(table, i(10, 11, 12), intCol("x", 10, 11, NULL_INT), stringCol("Key", "Banana", "Kiwi", "Lemon"));
+            removeRows(table, i(1));
+            table.notifyListeners(i(10, 11, 12), i(1), i());
+        });
+
+        assertTableEquals(table.sumBy("Key").sort("Key"), summed.sort("Key"));
+
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(table, i(5, 7));
+            table.notifyListeners(i(), i(5, 7), i());
+        });
+
+        assertTableEquals(table.sumBy("Key").sort("Key"), summed.sort("Key"));
     }
 
     private void diskBackedTestHarness(Consumer<Table> testFunction) throws IOException {

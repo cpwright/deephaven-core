@@ -460,13 +460,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         // return;
         // }
 
-        final long slotsToCollapse = Math.max(maxShiftedStates, CHUNK_SIZE);
-
         // we should only bother with freeing empty slots if we are actually wasting space; and we should be willing
         // to do it up to the number of rows that were modified in our input
-        final MutableLong previouslyFreed = new MutableLong();
         final MutableLong shiftedValues = new MutableLong();
         final MutableLong lastFreeKey = new MutableLong();
+        final MutableLong firstFreeKey = new MutableLong(freeOutputPositions.firstRowKey());
 
         try (final WritableRowSet effectiveRowSet = resultRowset.copy()) {
             // we need the added positions to be accounted for
@@ -480,9 +478,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
 
             final RowSetShiftData.Builder shiftDataBuilder = new RowSetShiftData.Builder();
 
-            freeOutputPositions.forEachRowKeyRange((long start, long end) -> {
-                final long length = (end - start) + 1L;
-
+            final boolean completed = freeOutputPositions.forEachRowKeyRange((long start, long end) -> {
                 if (!rangeIterator.advance(end + 1)) {
                     throw new IllegalStateException("Free output positions went past the end of the result rowset!");
                 }
@@ -494,21 +490,19 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                     lastToShift = firstToShift + permittedShift;
                 }
 
-                previouslyFreed.add(length);
-
-                shiftDataBuilder.shiftRange(firstToShift, lastToShift, -previouslyFreed.get());
-                shiftedValues.add(lastToShift - firstToShift);
+                // we want to fill in the free destination
+                final long shiftDelta = firstFreeKey.get() - firstToShift;
+                shiftDataBuilder.shiftRange(firstToShift, lastToShift, shiftDelta);
+                shiftedValues.add(lastToShift - firstToShift + 1);
                 lastFreeKey.set(end);
+                firstFreeKey.set(lastToShift + shiftDelta + 1);
 
                 if (lastToShift == effectiveRowSet.lastRowKey()) {
                     // don't leave a useless gap at the end
-                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 - previouslyFreed.get()));
+                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 - shiftDelta));
                 }
 
-                if (shiftedValues.get() >= slotsToCollapse) {
-                    return false;
-                }
-                return true;
+                return shiftedValues.get() < maxShiftedStates;
             });
 
             // we've figured out what we should shift, let's do it now
@@ -551,6 +545,10 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             downstream.shifted().apply(downstream.added.writableCast());
             resultRowset.insert(downstream.added());
             downstream.shifted().apply(downstream.modified.writableCast());
+
+            if (completed) {
+                Assert.assertion(resultRowset.isFlat(), "resultRowset.isFlat()");
+            }
 
             // we've actually freed these positions now
             freeOutputPositions.removeRange(0, lastFreeKey.get());

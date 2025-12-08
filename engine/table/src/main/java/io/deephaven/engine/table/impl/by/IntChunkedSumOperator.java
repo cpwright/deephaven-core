@@ -232,9 +232,10 @@ public class IntChunkedSumOperator implements IterativeChunkedAggregationOperato
 
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
-        for (long ii = firstOutputPosition; ii <= lastOutputPosition; ++ii) {
-            resultColumn.set(firstOutputPosition, 0L);
-        }
+//        for (long ii = firstOutputPosition; ii <= lastOutputPosition; ++ii) {
+//            resultColumn.set(firstOutputPosition, 0L);
+//        }
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
         nonNullCount.clear(firstOutputPosition, lastOutputPosition);
     }
 }
