@@ -390,4 +390,9 @@ public class TDigestPercentileOperator implements IterativeChunkedAggregationOpe
             resultColumn.shift(shiftData);
         }
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        digests.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

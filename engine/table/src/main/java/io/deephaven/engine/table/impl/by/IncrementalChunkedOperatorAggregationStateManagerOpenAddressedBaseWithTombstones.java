@@ -431,8 +431,13 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     public void reclaimFreedRows(TrackingWritableRowSet resultRowset, TableUpdateImpl downstream,
             MutableInt nextOutputPosition, long maxShiftedStates, IterativeChunkedAggregationOperator[] operators) {
         if (freeOutputPositions.isEmpty()) {
+            resultRowset.remove(downstream.removed());
+            resultRowset.insert(downstream.added());
             return;
         }
+
+        // we need to clear out the results if we are freeing slots
+        final int originalLastSlot = nextOutputPosition.get() - 1;
 
         // we can easily reclaim anything past the end of the table
         final RowSet.SearchIterator revit = freeOutputPositions.reverseIterator();;
@@ -495,6 +500,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 shiftedValues.add(lastToShift - firstToShift);
                 lastFreeKey.set(end);
 
+                if (lastToShift == effectiveRowSet.lastRowKey()) {
+                    // don't leave a useless gap at the end
+                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 -previouslyFreed.get()));
+                }
+
                 if (shiftedValues.get() >= slotsToCollapse) {
                     return false;
                 }
@@ -512,12 +522,27 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 final long end = ai.endRange();
                 final long delta = ai.shiftDelta();
                 for (long pos = begin; pos <= end; pos++) {
-                    outputPositionToHashSlot.set(pos + delta, outputPositionToHashSlot.get(pos));
+                    final int hashSlot = outputPositionToHashSlot.getUnsafe(pos);
+                    final int newOutputPosition = Math.toIntExact(pos + delta);
+                    outputPositionToHashSlot.set(newOutputPosition, hashSlot);
+                    // we need to update the table to reflect the new output position
+
+                    final int slot = Math.toIntExact(hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK);
+                    if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
+                        mainOutputPosition.set(slot, newOutputPosition);
+                    } else {
+                        alternateOutputPosition.set(slot, newOutputPosition);
+                    }
                 }
             }
 
             for (int oi = 0; oi < operators.length; ++oi) {
                 operators[oi].shift(downstream.shifted);
+            }
+            if (nextOutputPosition.get() <= originalLastSlot) {
+                for (int oi = 0; oi < operators.length; ++oi) {
+                    operators[oi].clear(nextOutputPosition.get(), originalLastSlot);
+                }
             }
 
             // shift the indices

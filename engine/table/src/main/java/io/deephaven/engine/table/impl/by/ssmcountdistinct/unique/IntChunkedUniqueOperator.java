@@ -361,4 +361,10 @@ public class IntChunkedUniqueOperator implements IterativeChunkedAggregationOper
         internalResult.shift(shiftData);
         ssms.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        internalResult.setNull(firstOutputPosition, lastOutputPosition);
+        ssms.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

@@ -106,4 +106,8 @@ public class ObjectSsmBackedSource extends AbstractColumnSource<ObjectVector>
     public void shift(RowSetShiftData shiftData) {
         underlying.shift(shiftData);
     }
+
+    public void clear(long firstKey, long lastKey) {
+        underlying.setNull(firstKey, lastKey);
+    }
 }

@@ -127,4 +127,9 @@ abstract class BaseAddOnlyFirstOrLastChunkedOperator
     public void shift(RowSetShiftData shiftData) {
         redirections.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        redirections.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

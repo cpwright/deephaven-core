@@ -567,4 +567,10 @@ public class SsmChunkedPercentileOperator implements IterativeChunkedAggregation
         ssms.shift(shiftData);
         internalResult.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        ssms.setNull(firstOutputPosition, lastOutputPosition);
+        internalResult.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

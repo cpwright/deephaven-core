@@ -204,4 +204,11 @@ class DoubleChunkedAvgOperator extends FpChunkedNonNormalCounter implements Iter
         runningSum.shift(shiftData);
         nonNullCounter.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        super.clear(firstOutputPosition, lastOutputPosition);
+        runningSum.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCounter.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

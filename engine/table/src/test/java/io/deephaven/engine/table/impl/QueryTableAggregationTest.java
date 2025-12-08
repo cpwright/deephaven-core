@@ -2565,7 +2565,7 @@ public class QueryTableAggregationTest {
         }
 
         final EvalNuggetInterface[] en = new EvalNuggetInterface[] {
-                EvalNugget.Sorted.from(() -> queryTable.maxBy("Sym"), "Sym"),
+                EvalNugget.Sorted.from(() -> queryTable.view("Sym", "shortCol").maxBy("Sym"), "Sym"),
                 EvalNugget.from(() -> queryTable.sort("Sym").maxBy("Sym")),
                 EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").maxBy("intCol").sort("intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym", "intCol").maxBy("Sym", "intCol").sort("Sym", "intCol")),
@@ -4351,6 +4351,33 @@ public class QueryTableAggregationTest {
             removeRows(table, i(0, 2, 3));
             table.notifyListeners(i(), i(0, 2, 3), i());
         });
+    }
+
+    @Test
+    public void testShiftedMin() {
+        final QueryTable table =
+                testRefreshingTable(intCol("x", 0, 1, 2, 3 , 4), stringCol("Key", "Apple", "Banana", "Cherry", "Banana", "Cherry"));
+        final Table min = table.minBy("Key");
+
+        final PrintListener printListener = new PrintListener("min", (QueryTable) min, 10);
+
+        final TableUpdateValidator validated = TableUpdateValidator.make("testEmptyState", (QueryTable)min);
+        final FailureListener failureListener = new FailureListener();
+        validated.getResultTable().addUpdateListener(failureListener);
+
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+        updateGraph.runWithinUnitTestCycle(() -> {
+            removeRows(table, i(0, 2, 4));
+            table.notifyListeners(i(), i(0, 2, 4), i());
+        });
+
+        updateGraph.runWithinUnitTestCycle(() -> {
+            addToTable(table, i(5), intCol("x", 5), stringCol("Key", "Banana"));
+            removeRows(table, i(1));
+            table.notifyListeners(i(5), i(1), i());
+        });
+
+        TableTools.showWithRowSet(min);
     }
 
     private void diskBackedTestHarness(Consumer<Table> testFunction) throws IOException {

@@ -247,4 +247,13 @@ final class DoubleChunkedVarOperator extends FpChunkedNonNormalCounter implement
         sum2Source.shift(shiftData);
         nonNullCounter.shift(shiftData);
     }
+
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        super.clear(firstOutputPosition, lastOutputPosition);
+        sumSource.setNull(firstOutputPosition, lastOutputPosition);
+        sum2Source.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCounter.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

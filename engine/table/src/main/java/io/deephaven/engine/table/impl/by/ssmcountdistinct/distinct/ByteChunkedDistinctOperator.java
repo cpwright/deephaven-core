@@ -335,4 +335,9 @@ public class ByteChunkedDistinctOperator implements IterativeChunkedAggregationO
     public void shift(RowSetShiftData shiftData) {
         internalResult.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        internalResult.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

@@ -349,4 +349,10 @@ public class ObjectChunkedCountDistinctOperator implements IterativeChunkedAggre
         ssms.shift(shiftData);
         resultColumn.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        ssms.clear(firstOutputPosition, lastOutputPosition);
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

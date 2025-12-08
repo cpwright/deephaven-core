@@ -174,4 +174,9 @@ public abstract class BaseBlinkFirstOrLastChunkedOperator
     public void shift(RowSetShiftData shiftData) {
         resultColumns.values().forEach(cs -> cs.shift(shiftData));
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultColumns.values().forEach(cs -> cs.setNull(firstOutputPosition, lastOutputPosition));
+    }
 }

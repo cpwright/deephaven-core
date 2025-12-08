@@ -502,4 +502,10 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         resultColumn.shift(shiftData);
         ssms.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        ssms.setNull(firstOutputPosition, lastOutputPosition);
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

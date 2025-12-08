@@ -301,6 +301,10 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
+                    if (resultRowset.lastRowKey() + 1 != outputPosition.get()) {
+                        throw new IllegalStateException("nextOutputPosition: " + outputPosition.get() + ", lastRowKey: " + resultRowset.lastRowKey());
+                    }
+
                     result.notifyListeners(downstream);
                 }
 

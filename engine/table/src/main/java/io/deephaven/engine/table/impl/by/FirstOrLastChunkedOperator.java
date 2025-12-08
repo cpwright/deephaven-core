@@ -639,4 +639,10 @@ public class FirstOrLastChunkedOperator
         redirections.shift(shiftData);
         rowSets.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        redirections.setNull(firstOutputPosition, lastOutputPosition);
+        rowSets.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

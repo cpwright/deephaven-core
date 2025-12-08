@@ -4,7 +4,10 @@
 package io.deephaven.engine.table.impl.by;
 
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSequenceFactory;
+import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.RowSetShiftData;
+import io.deephaven.engine.rowset.chunkattributes.OrderedRowKeys;
 import io.deephaven.engine.table.ChunkSource;
 import io.deephaven.engine.table.impl.AbstractColumnSource;
 import io.deephaven.engine.table.impl.DefaultGetContext;
@@ -226,7 +229,6 @@ abstract class FpChunkedNonNormalCounter {
         }
         return results;
     }
-
     private static class WrappedLongArraySource extends AbstractColumnSource<Long>
             implements MutableColumnSourceGetDefaults.ForLong {
         final Supplier<LongArraySource> sourceSupplier;
@@ -362,6 +364,19 @@ abstract class FpChunkedNonNormalCounter {
         }
         if (negativeInfinityCount != null) {
             negativeInfinityCount.shift(shiftData);
+        }
+    }
+
+
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        if (nanCount != null) {
+            nanCount.setNull(firstOutputPosition, lastOutputPosition);
+        }
+        if (positiveInfinityCount != null) {
+            positiveInfinityCount.setNull(firstOutputPosition, lastOutputPosition);
+        }
+        if (negativeInfinityCount != null) {
+            negativeInfinityCount.setNull(firstOutputPosition, lastOutputPosition);
         }
     }
 }

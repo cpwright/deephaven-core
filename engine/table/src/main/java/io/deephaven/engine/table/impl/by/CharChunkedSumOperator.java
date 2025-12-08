@@ -6,6 +6,8 @@ package io.deephaven.engine.table.impl.by;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSequenceFactory;
+import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.table.ChunkSource;
 import io.deephaven.engine.table.SharedContext;
@@ -222,5 +224,13 @@ public class CharChunkedSumOperator implements IterativeChunkedAggregationOperat
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
         nonNullCount.shift(shiftData);
+    }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        for (long ii = firstOutputPosition; ii <= lastOutputPosition; ++ii) {
+            resultColumn.set(firstOutputPosition, 0L);
+        }
+        nonNullCount.clear(firstOutputPosition, lastOutputPosition);
     }
 }

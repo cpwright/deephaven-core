@@ -318,4 +318,11 @@ class LongChunkedWeightedSumOperator implements IterativeChunkedAggregationOpera
         weightedSum.shift(shiftData);
         resultColumn.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        normalCount.setNull(firstOutputPosition, lastOutputPosition);
+        weightedSum.setNull(firstOutputPosition, lastOutputPosition);
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

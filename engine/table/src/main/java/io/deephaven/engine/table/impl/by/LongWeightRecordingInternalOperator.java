@@ -136,4 +136,9 @@ class LongWeightRecordingInternalOperator implements IterativeChunkedAggregation
     public void shift(RowSetShiftData shiftData) {
         // nothing to do
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        // nothing to do
+    }
 }

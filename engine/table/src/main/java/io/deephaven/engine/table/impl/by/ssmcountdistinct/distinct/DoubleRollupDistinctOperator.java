@@ -573,4 +573,8 @@ public class DoubleRollupDistinctOperator implements IterativeChunkedAggregation
         throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
     }
 
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
+    }
 }

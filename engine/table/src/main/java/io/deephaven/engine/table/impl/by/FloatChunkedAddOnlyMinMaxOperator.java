@@ -202,4 +202,9 @@ class FloatChunkedAddOnlyMinMaxOperator implements IterativeChunkedAggregationOp
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

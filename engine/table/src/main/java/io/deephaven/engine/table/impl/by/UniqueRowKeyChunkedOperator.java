@@ -225,4 +225,9 @@ public class UniqueRowKeyChunkedOperator
     public void shift(RowSetShiftData shiftData) {
         rowKeys.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        rowKeys.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

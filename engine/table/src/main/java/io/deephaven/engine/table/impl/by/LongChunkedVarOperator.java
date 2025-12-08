@@ -192,4 +192,12 @@ class LongChunkedVarOperator implements IterativeChunkedAggregationOperator {
         sum2Source.shift(shiftData);
         nonNullCounter.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        sumSource.setNull(firstOutputPosition, lastOutputPosition);
+        sum2Source.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCounter.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

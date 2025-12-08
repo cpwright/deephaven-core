@@ -155,4 +155,11 @@ class ShortChunkedAvgOperator implements IterativeChunkedAggregationOperator {
         runningSum.shift(shiftData);
         nonNullCount.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        runningSum.setNull(firstOutputPosition, lastOutputPosition);
+        nonNullCount.clear(firstOutputPosition, lastOutputPosition);
+    }
 }

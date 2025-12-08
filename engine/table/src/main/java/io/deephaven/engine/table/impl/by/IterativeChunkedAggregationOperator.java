@@ -363,4 +363,6 @@ public interface IterativeChunkedAggregationOperator {
     }
 
     void shift(RowSetShiftData shiftData);
+
+    void clear(long firstOutputPosition, long lastOutputPosition);
 }

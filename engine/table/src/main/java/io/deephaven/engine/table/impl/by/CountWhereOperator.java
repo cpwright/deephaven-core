@@ -590,4 +590,9 @@ public class CountWhereOperator implements IterativeChunkedAggregationOperator {
     public void shift(RowSetShiftData shiftData) {
         resultColumnSource.shift(shiftData);
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        resultColumnSource.setNull(firstOutputPosition, lastOutputPosition);
+    }
 }

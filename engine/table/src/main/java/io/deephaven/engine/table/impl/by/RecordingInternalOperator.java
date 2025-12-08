@@ -165,4 +165,9 @@ class RecordingInternalOperator implements IterativeChunkedAggregationOperator {
     public void shift(RowSetShiftData shiftData) {
         // nothing to do, because we don't actually have any output
     }
+
+    @Override
+    public void clear(long firstOutputPosition, long lastOutputPosition) {
+        // nothing to do, because we don't actually have any output
+    }
 }
