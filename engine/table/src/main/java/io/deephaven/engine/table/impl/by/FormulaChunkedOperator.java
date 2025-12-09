@@ -498,20 +498,23 @@ class FormulaChunkedOperator implements IterativeChunkedAggregationOperator {
 
     @Override
     public boolean canReclaimStates() {
-        return true;
+        // the group by operator does not reclaim states, so we cannot either
+        return groupBy.canReclaimStates();
     }
 
     @Override
     public void shift(RowSetShiftData shiftData) {
-        for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
-            resultColumn.shift(shiftData);
-        }
+        // for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
+        // resultColumn.shift(shiftData);
+        // }
+        throw new UnsupportedOperationException("Formulas cannot reclaim states.");
     }
 
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
-        for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
-            resultColumn.setNull(firstOutputPosition, lastOutputPosition);
-        }
+        // for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
+        // resultColumn.setNull(firstOutputPosition, lastOutputPosition);
+        // }
+        throw new UnsupportedOperationException("Formulas cannot reclaim states.");
     }
 }
