@@ -1673,12 +1673,11 @@ public class QueryTableAggregationTest {
         if (SHORT_TESTS) {
             sizes = new int[] {100, 1_000};
         } else {
-            // sizes = new int[] {10, 100, 4_000, 10_000};
-            sizes = new int[] {4_000};
+             sizes = new int[] {10, 100, 4_000, 10_000};
         }
-        final int maxStep = 2;
+        final int maxStep = 50;
         for (final int size : sizes) {
-            for (int seed = 30; seed < 100; ++seed) {
+            for (int seed = 0; seed < 1; ++seed) {
                 UpdatePerformanceTracker.resetForUnitTests();
                 ChunkPoolReleaseTracking.enableStrict();
                 System.out.println("Size = " + size + ", Seed = " + seed);

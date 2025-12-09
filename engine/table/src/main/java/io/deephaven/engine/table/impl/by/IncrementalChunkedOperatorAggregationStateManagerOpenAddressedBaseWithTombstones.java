@@ -169,13 +169,16 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             // noinspection unchecked
             final Chunk<Values>[] sourceKeyChunks = new Chunk[buildSources.length];
 
+
             while (rsIt.hasMore()) {
+
                 final RowSequence chunkOk = rsIt.getNextRowSequenceWithLength(bc.chunkSize);
                 final int nextChunkSize = chunkOk.intSize();
                 outputPositionToHashSlot.ensureCapacity(nextOutputPosition.get() + nextChunkSize, false);
                 while (doRehash(bc.rehashCredits, nextChunkSize)) {
                     migrateFront();
                 }
+
 
                 getKeyChunks(buildSources, bc.getContexts, sourceKeyChunks, chunkOk);
 
@@ -185,6 +188,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 // if we actually added anything, then take away from the "equity" we've built up rehashing, otherwise
                 // don't penalize this build call with additional rehashing
                 bc.rehashCredits.subtract(Math.toIntExact(entriesAdded));
+
 
                 bc.resetSharedContexts();
             }
@@ -257,6 +261,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             }
         }
 
+
         if (oldTableSize == tableSize) {
             return false;
         }
@@ -269,7 +274,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         if (fullRehash) {
             // if we are doing a full rehash, we need to ditch the alternate
             if (rehashPointer > 0) {
-                rehashInternalPartial((int) numEntries);
+                // TODO: this change probably belongs in the non-tombstone version as well!
+                rehashInternalPartial((int) alternateEntries);
                 clearAlternate();
             }
 
@@ -291,6 +297,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     protected abstract void adviseNewAlternate();
 
     protected void clearAlternate() {
+        Assert.eqZero(alternateEntries, "alternateEntries");
         for (int ii = 0; ii < mainKeySources.length; ++ii) {
             alternateKeySources[ii] = null;
         }
@@ -307,7 +314,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     protected abstract void rehashInternalFull(int oldSize);
 
     public boolean rehashRequired(int nextChunkSize) {
-        return (numEntries + nextChunkSize) > (tableSize * maximumLoadFactor);
+        return (numEntries + alternateEntries + nextChunkSize) > (tableSize * maximumLoadFactor);
     }
 
     protected int hashToTableLocation(int hash) {
@@ -334,6 +341,9 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         if (numEntries > 0) {
             rehashPointer = alternateTableSize;
         }
+
+        alternateEntries = numEntries;
+        numEntries = 0;
 
         alternateOutputPosition = mainOutputPosition;
         mainOutputPosition = new ImmutableIntArraySource();
