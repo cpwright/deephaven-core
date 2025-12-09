@@ -71,7 +71,7 @@ public class TestFreezeBy extends RefreshingTableTestCase {
         });
         showWithRowSet(frozen);
 
-        assertTableEquals(TableTools.newTable(stringCol("Key", "A", "B", "C", "D"), intCol("Sentinel", 6, 2, 3, 5))
+        assertTableEquals(TableTools.newTable(stringCol("Key", "B", "C", "D", "A"), intCol("Sentinel", 2, 3, 5, 6))
                 .updateView(Selectable.from(updates)), frozen);
 
         // swap two keys
@@ -81,7 +81,7 @@ public class TestFreezeBy extends RefreshingTableTestCase {
         });
         showWithRowSet(frozen);
 
-        assertTableEquals(TableTools.newTable(stringCol("Key", "A", "B", "C", "D"), intCol("Sentinel", 6, 2, 3, 5))
+        assertTableEquals(TableTools.newTable(stringCol("Key", "B", "C", "D", "A"), intCol("Sentinel", 2, 3, 5, 6))
                 .updateView(Selectable.from(updates)), frozen);
 
         QueryScope.addParam("freezeByTimeBase", null);

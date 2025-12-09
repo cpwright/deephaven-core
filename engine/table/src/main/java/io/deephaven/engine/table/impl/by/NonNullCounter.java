@@ -94,7 +94,7 @@ public final class NonNullCounter {
 
     public void clear(long firstOutputPosition, long lastOutputPosition) {
         for (long ii = firstOutputPosition; ii <= lastOutputPosition; ++ii) {
-            nonNullCount.set(firstOutputPosition, 0L);
+            nonNullCount.set(ii, 0L);
         }
     }
 }
