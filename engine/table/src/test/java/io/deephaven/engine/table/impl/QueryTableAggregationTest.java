@@ -2524,12 +2524,12 @@ public class QueryTableAggregationTest {
         final int[] sizes = {10, 20, 50, 200};
         for (final int size : sizes) {
             for (int seed = 0; seed < 1; ++seed) {
-                testMinMaxByIncremental(size, seed);
+                testMinMaxByIncremental(size, seed, 50);
             }
         }
     }
 
-    private void testMinMaxByIncremental(int size, int seed) {
+    private void testMinMaxByIncremental(int size, int seed, final int maxSteps) {
         final Random random = new Random(seed);
         final ColumnInfo<?, ?>[] columnInfo;
         final QueryTable queryTable = getTable(size, random,
@@ -2566,6 +2566,7 @@ public class QueryTableAggregationTest {
         }
 
         final EvalNuggetInterface[] en = new EvalNuggetInterface[] {
+                EvalNugget.Sorted.from(() -> queryTable.maxBy("intCol"), "intCol"),
                 EvalNugget.Sorted.from(() -> queryTable.maxBy("Sym"), "Sym"),
                 EvalNugget.from(() -> queryTable.dropColumns("Sym").sort("intCol").maxBy("intCol").sort("intCol")),
                 EvalNugget.from(() -> queryTable.sort("Sym", "intCol").maxBy("Sym", "intCol").sort("Sym", "intCol")),
@@ -2593,7 +2594,7 @@ public class QueryTableAggregationTest {
                         queryTable.groupBy("Sym").update(minQueryStrings).sort("Sym")),
         };
         TstUtils.validate(en);
-        for (int step = 0; step < 50; step++) {
+        for (int step = 0; step < maxSteps; step++) {
             if (RefreshingTableTestCase.printTableUpdates) {
                 System.out.println("Seed = " + seed + ", size=" + size + ", step=" + step);
             }
@@ -4414,6 +4415,14 @@ public class QueryTableAggregationTest {
         updateGraph.runWithinUnitTestCycle(() -> {
             removeRows(table, i(5, 7));
             table.notifyListeners(i(), i(5, 7), i());
+        });
+
+        assertTableEquals(table.sumBy("Key").sort("Key"), summed.sort("Key"));
+
+        updateGraph.runWithinUnitTestCycle(() -> {
+            addToTable(table, i(13, 14), intCol("x", 13, 14), stringCol("Key", "Mango", "Nectarine"));
+            removeRows(table, i(9, 11, 12));
+            table.notifyListeners(i(13, 14), i(9, 11, 12), i());
         });
 
         assertTableEquals(table.sumBy("Key").sort("Key"), summed.sort("Key"));

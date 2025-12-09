@@ -27,6 +27,7 @@ import io.deephaven.util.QueryConstants;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.mutable.MutableInt;
 import io.deephaven.util.mutable.MutableLong;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.NotNull;
 
 import static io.deephaven.engine.table.impl.util.TypedHasherUtil.getKeyChunks;
@@ -463,7 +464,6 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         // we should only bother with freeing empty slots if we are actually wasting space; and we should be willing
         // to do it up to the number of rows that were modified in our input
         final MutableLong shiftedValues = new MutableLong();
-        final MutableLong lastFreeKey = new MutableLong();
         final MutableLong firstFreeKey = new MutableLong(freeOutputPositions.firstRowKey());
 
         try (final WritableRowSet effectiveRowSet = resultRowset.copy()) {
@@ -484,6 +484,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 }
                 final long firstToShift = rangeIterator.currentRangeStart();
                 long lastToShift = rangeIterator.currentRangeEnd();
+                // we've exhausted the effective rowset, so have nothing left to do on subsequent
+                final boolean exhaustedResultRowset = lastToShift == effectiveRowSet.lastRowKey();
 
                 final long permittedShift = maxShiftedStates - shiftedValues.get();
                 if (lastToShift - firstToShift > permittedShift) {
@@ -494,15 +496,15 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 final long shiftDelta = firstFreeKey.get() - firstToShift;
                 shiftDataBuilder.shiftRange(firstToShift, lastToShift, shiftDelta);
                 shiftedValues.add(lastToShift - firstToShift + 1);
-                lastFreeKey.set(end);
                 firstFreeKey.set(lastToShift + shiftDelta + 1);
 
-                if (lastToShift == effectiveRowSet.lastRowKey()) {
+                boolean noMoreShifts = lastToShift == effectiveRowSet.lastRowKey();
+                if (noMoreShifts) {
                     // don't leave a useless gap at the end
-                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 - shiftDelta));
+                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 + shiftDelta));
                 }
 
-                return shiftedValues.get() < maxShiftedStates;
+                return shiftedValues.get() < maxShiftedStates && !exhaustedResultRowset;
             });
 
             // we've figured out what we should shift, let's do it now
@@ -551,7 +553,8 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             }
 
             // we've actually freed these positions now
-            freeOutputPositions.removeRange(0, lastFreeKey.get());
+            final RowSet toFree = RowSetFactory.flat(resultRowset.lastRowKey() + 1).minus(resultRowset);
+            freeOutputPositions.resetTo(toFree);
         }
     }
 
