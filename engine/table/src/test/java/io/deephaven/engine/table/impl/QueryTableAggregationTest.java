@@ -1673,7 +1673,7 @@ public class QueryTableAggregationTest {
         if (SHORT_TESTS) {
             sizes = new int[] {100, 1_000};
         } else {
-             sizes = new int[] {10, 100, 4_000, 10_000};
+            sizes = new int[] {10, 100, 4_000, 10_000};
         }
         final int maxStep = 50;
         for (final int size : sizes) {
