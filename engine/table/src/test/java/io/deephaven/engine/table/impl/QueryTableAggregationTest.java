@@ -2728,12 +2728,14 @@ public class QueryTableAggregationTest {
     public void testMedianByIncremental() {
         final int[] sizes = {10, 50, 200};
         for (int size : sizes) {
-            testMedianByIncremental(size);
+            for (int seed = 0; seed < 1; ++seed) {
+                testMedianByIncremental(size, seed, 50);
+            }
         }
     }
 
-    private void testMedianByIncremental(int size) {
-        final Random random = new Random(0);
+    private void testMedianByIncremental(int size, final int seed, final int maxSteps) {
+        final Random random = new Random(seed);
         final ColumnInfo<?, ?>[] columnInfo;
         final QueryTable queryTable = getTable(size, random,
                 columnInfo =
@@ -2784,9 +2786,9 @@ public class QueryTableAggregationTest {
                 new TableComparator(withoutFloats.aggAllBy(percentile(0.75), "Sym").sort("Sym"),
                         withoutFloats.groupBy("Sym").update(percentile_075_QueryStrings).sort("Sym")),
         };
-        for (int step = 0; step < 50; step++) {
+        for (int step = 0; step < maxSteps; step++) {
             if (RefreshingTableTestCase.printTableUpdates) {
-                System.out.println("size=" + size + ", step=" + step);
+                System.out.println("seed=" + seed + ", size=" + size + ", step=" + step);
             }
             RefreshingTableTestCase.simulateShiftAwareStep(size, random, queryTable, columnInfo, en);
         }
