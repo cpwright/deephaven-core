@@ -221,6 +221,11 @@ public class CharChunkedSumOperator implements IterativeChunkedAggregationOperat
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
         nonNullCount.shift(shiftData);
@@ -228,9 +233,6 @@ public class CharChunkedSumOperator implements IterativeChunkedAggregationOperat
 
     @Override
     public void clear(long firstOutputPosition, long lastOutputPosition) {
-//        for (long ii = firstOutputPosition; ii <= lastOutputPosition; ++ii) {
-//            resultColumn.set(firstOutputPosition, 0L);
-//        }
         resultColumn.setNull(firstOutputPosition, lastOutputPosition);
         nonNullCount.clear(firstOutputPosition, lastOutputPosition);
     }

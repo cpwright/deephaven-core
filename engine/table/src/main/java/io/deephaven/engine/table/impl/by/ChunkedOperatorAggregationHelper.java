@@ -301,9 +301,14 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
-                    if (resultRowset.lastRowKey() + 1 != outputPosition.get()) {
-                        throw new IllegalStateException("nextOutputPosition: " + outputPosition.get() + ", lastRowKey: "
-                                + resultRowset.lastRowKey());
+                    if (removeUnusedStates && resultRowset.lastRowKey() + 1 != outputPosition.get()) {
+                        final boolean canReclaim = Arrays.stream(ac.operators)
+                                .allMatch(IterativeChunkedAggregationOperator::canReclaimStates);
+                        if (canReclaim) {
+                            throw new IllegalStateException(
+                                    "nextOutputPosition: " + outputPosition.get() + ", lastRowKey: "
+                                            + resultRowset.lastRowKey());
+                        }
                     }
 
                     result.notifyListeners(downstream);
@@ -337,7 +342,9 @@ public class ChunkedOperatorAggregationHelper {
             final boolean removeUnusedStates) {
         final OperatorAggregationStateManager stateManager;
         if (input.isRefreshing()) {
-            if (removeUnusedStates) {
+            final boolean canReclaim =
+                    Arrays.stream(ac.operators).allMatch(IterativeChunkedAggregationOperator::canReclaimStates);
+            if (removeUnusedStates && canReclaim) {
                 stateManager = TypedHasherFactory.make(
                         IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
                         reinterpretedKeySources,

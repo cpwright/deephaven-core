@@ -186,6 +186,11 @@ class LongChunkedVarOperator implements IterativeChunkedAggregationOperator {
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
         sumSource.shift(shiftData);

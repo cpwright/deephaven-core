@@ -535,6 +535,11 @@ public class SortedFirstOrLastChunkedOperator
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         ssas.shift(shiftData);
         redirections.shift(shiftData);

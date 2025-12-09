@@ -155,6 +155,11 @@ class BigDecimalChunkedReAvgOperator implements IterativeChunkedAggregationOpera
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return false;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
     }

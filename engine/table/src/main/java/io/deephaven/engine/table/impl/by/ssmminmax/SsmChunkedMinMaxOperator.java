@@ -492,6 +492,11 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         }
 
         @Override
+        public boolean canReclaimStates() {
+            return true;
+        }
+
+        @Override
         public void shift(RowSetShiftData shiftData) {
             resultColumn.shift(shiftData);
         }
@@ -500,6 +505,11 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         public void clear(long firstOutputPosition, long lastOutputPosition) {
             resultColumn.setNull(firstOutputPosition, lastOutputPosition);
         }
+    }
+
+    @Override
+    public boolean canReclaimStates() {
+        return true;
     }
 
     @Override

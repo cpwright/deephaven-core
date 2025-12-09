@@ -152,6 +152,11 @@ class BooleanChunkedAddOnlyMinMaxOperator implements IterativeChunkedAggregation
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
     }

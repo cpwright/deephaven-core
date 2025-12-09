@@ -332,6 +332,11 @@ public class FloatChunkedDistinctOperator implements IterativeChunkedAggregation
     // endregion
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         internalResult.shift(shiftData);
     }

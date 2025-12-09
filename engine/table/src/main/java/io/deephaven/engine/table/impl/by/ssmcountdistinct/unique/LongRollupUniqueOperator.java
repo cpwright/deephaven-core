@@ -617,6 +617,11 @@ public class LongRollupUniqueOperator implements IterativeChunkedAggregationOper
     // endregion
 
     @Override
+    public boolean canReclaimStates() {
+        return false;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         throw new UnsupportedOperationException("rollups cannot reclaim deleted states!");
     }

@@ -342,6 +342,10 @@ public class LongChunkedCountDistinctOperator implements IterativeChunkedAggrega
     }
     // endregion
 
+    @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
 
     @Override
     public void shift(RowSetShiftData shiftData) {

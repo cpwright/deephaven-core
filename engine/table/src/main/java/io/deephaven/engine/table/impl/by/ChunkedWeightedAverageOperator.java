@@ -470,6 +470,11 @@ class ChunkedWeightedAverageOperator implements IterativeChunkedAggregationOpera
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         normalCount.shift(shiftData);
         if (nanCount != null) {

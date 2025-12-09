@@ -222,6 +222,11 @@ public class UniqueRowKeyChunkedOperator
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         rowKeys.shift(shiftData);
     }

@@ -313,6 +313,11 @@ class LongChunkedWeightedSumOperator implements IterativeChunkedAggregationOpera
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         normalCount.shift(shiftData);
         weightedSum.shift(shiftData);

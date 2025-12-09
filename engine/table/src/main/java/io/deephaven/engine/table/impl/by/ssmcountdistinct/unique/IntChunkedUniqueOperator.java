@@ -357,6 +357,11 @@ public class IntChunkedUniqueOperator implements IterativeChunkedAggregationOper
     // endregion
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         internalResult.shift(shiftData);
         ssms.shift(shiftData);

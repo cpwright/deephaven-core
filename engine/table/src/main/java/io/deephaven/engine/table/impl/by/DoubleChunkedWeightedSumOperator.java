@@ -417,6 +417,10 @@ class DoubleChunkedWeightedSumOperator implements IterativeChunkedAggregationOpe
         return new Context(size);
     }
 
+    @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
 
     @Override
     public void shift(RowSetShiftData shiftData) {

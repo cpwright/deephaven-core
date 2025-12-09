@@ -124,6 +124,11 @@ abstract class BaseAddOnlyFirstOrLastChunkedOperator
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         redirections.shift(shiftData);
     }

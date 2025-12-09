@@ -497,6 +497,11 @@ class FormulaChunkedOperator implements IterativeChunkedAggregationOperator {
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         for (ArrayBackedColumnSource<?> resultColumn : resultColumns) {
             resultColumn.shift(shiftData);

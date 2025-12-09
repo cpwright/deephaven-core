@@ -342,6 +342,10 @@ public class ByteChunkedCountDistinctOperator implements IterativeChunkedAggrega
     }
     // endregion
 
+    @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
 
     @Override
     public void shift(RowSetShiftData shiftData) {

@@ -199,6 +199,11 @@ class FloatChunkedAddOnlyMinMaxOperator implements IterativeChunkedAggregationOp
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
     }

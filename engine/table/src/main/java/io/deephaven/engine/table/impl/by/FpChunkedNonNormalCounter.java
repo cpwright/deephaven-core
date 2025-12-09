@@ -356,6 +356,10 @@ abstract class FpChunkedNonNormalCounter {
         }
     }
 
+    public boolean canReclaimStates() {
+        return true;
+    }
+
     public void shift(RowSetShiftData shiftData) {
         if (nanCount != null) {
             nanCount.shift(shiftData);

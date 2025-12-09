@@ -378,6 +378,11 @@ public class TDigestPercentileOperator implements IterativeChunkedAggregationOpe
         }
 
         @Override
+        public boolean canReclaimStates() {
+            return true;
+        }
+
+        @Override
         public void shift(RowSetShiftData shiftData) {
             resultColumn.shift(shiftData);
         }
@@ -386,6 +391,11 @@ public class TDigestPercentileOperator implements IterativeChunkedAggregationOpe
         public void clear(long firstOutputPosition, long lastOutputPosition) {
             resultColumn.setNull(firstOutputPosition, lastOutputPosition);
         }
+    }
+
+    @Override
+    public boolean canReclaimStates() {
+        return true;
     }
 
     @Override

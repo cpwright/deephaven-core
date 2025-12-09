@@ -364,6 +364,7 @@ public interface IterativeChunkedAggregationOperator {
 
     /**
      * Can this operator reclaim states (i.e. does it support shift and clear).
+     * 
      * @return true if this operator can reclaim states, false otherwise
      */
     boolean canReclaimStates();

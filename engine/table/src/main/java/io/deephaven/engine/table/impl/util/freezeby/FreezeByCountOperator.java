@@ -109,6 +109,11 @@ public class FreezeByCountOperator implements IterativeChunkedAggregationOperato
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         rowCount.shift(shiftData);
     }

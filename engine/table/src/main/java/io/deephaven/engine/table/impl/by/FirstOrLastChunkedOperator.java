@@ -449,6 +449,11 @@ public class FirstOrLastChunkedOperator
         }
 
         @Override
+        public boolean canReclaimStates() {
+            return true;
+        }
+
+        @Override
         public void shift(RowSetShiftData shiftData) {
             // nothing to do, our enclosing class has shifted our result
         }
@@ -632,6 +637,10 @@ public class FirstOrLastChunkedOperator
             return null;
         }
 
+        @Override
+        public boolean canReclaimStates() {
+            return true;
+        }
 
         @Override
         public void shift(RowSetShiftData shiftData) {
@@ -642,6 +651,11 @@ public class FirstOrLastChunkedOperator
         public void clear(long firstOutputPosition, long lastOutputPosition) {
             redirections.setNull(firstOutputPosition, lastOutputPosition);
         }
+    }
+
+    @Override
+    public boolean canReclaimStates() {
+        return true;
     }
 
     @Override

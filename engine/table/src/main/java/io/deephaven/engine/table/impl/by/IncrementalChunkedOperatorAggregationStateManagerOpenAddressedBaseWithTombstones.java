@@ -498,12 +498,6 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 shiftedValues.add(lastToShift - firstToShift + 1);
                 firstFreeKey.set(lastToShift + shiftDelta + 1);
 
-                boolean noMoreShifts = lastToShift == effectiveRowSet.lastRowKey();
-                if (noMoreShifts) {
-                    // don't leave a useless gap at the end
-                    nextOutputPosition.set(Math.toIntExact(lastToShift + 1 + shiftDelta));
-                }
-
                 return shiftedValues.get() < maxShiftedStates && !exhaustedResultRowset;
             });
 
@@ -532,15 +526,6 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 }
             }
 
-            for (int oi = 0; oi < operators.length; ++oi) {
-                operators[oi].shift(downstream.shifted);
-            }
-            if (nextOutputPosition.get() <= originalLastSlot) {
-                for (int oi = 0; oi < operators.length; ++oi) {
-                    operators[oi].clear(nextOutputPosition.get(), originalLastSlot);
-                }
-            }
-
             // shift the indices
             resultRowset.remove(downstream.removed());
             downstream.shifted().apply(resultRowset.writableCast());
@@ -548,8 +533,21 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
             resultRowset.insert(downstream.added());
             downstream.shifted().apply(downstream.modified.writableCast());
 
+
             if (completed) {
                 Assert.assertion(resultRowset.isFlat(), "resultRowset.isFlat()");
+            }
+
+            // don't leave a useless gap at the end
+            nextOutputPosition.set(Math.toIntExact(resultRowset.lastRowKey() + 1));
+            // fix up the operators
+            for (int oi = 0; oi < operators.length; ++oi) {
+                operators[oi].shift(downstream.shifted);
+            }
+            if (nextOutputPosition.get() <= originalLastSlot) {
+                for (int oi = 0; oi < operators.length; ++oi) {
+                    operators[oi].clear(nextOutputPosition.get(), originalLastSlot);
+                }
             }
 
             // we've actually freed these positions now

@@ -149,6 +149,11 @@ class BigIntegerChunkedAvgOperator implements IterativeChunkedAggregationOperato
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return false;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumn.shift(shiftData);
         runningSum.shift(shiftData);

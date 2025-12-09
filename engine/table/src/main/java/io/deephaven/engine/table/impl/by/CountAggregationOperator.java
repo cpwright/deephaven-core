@@ -146,6 +146,11 @@ class CountAggregationOperator extends BasicStateChangeRecorder implements Itera
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         countColumnSource.shift(shiftData);
     }

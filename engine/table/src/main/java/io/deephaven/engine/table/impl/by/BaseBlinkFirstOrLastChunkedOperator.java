@@ -172,6 +172,11 @@ public abstract class BaseBlinkFirstOrLastChunkedOperator
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         resultColumns.values().forEach(cs -> cs.shift(shiftData));
     }

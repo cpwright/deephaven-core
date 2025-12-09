@@ -162,6 +162,11 @@ class RecordingInternalOperator implements IterativeChunkedAggregationOperator {
     }
 
     @Override
+    public boolean canReclaimStates() {
+        return true;
+    }
+
+    @Override
     public void shift(RowSetShiftData shiftData) {
         // nothing to do, because we don't actually have any output
     }
