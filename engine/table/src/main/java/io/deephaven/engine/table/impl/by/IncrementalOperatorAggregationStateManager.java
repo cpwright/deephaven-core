@@ -35,6 +35,13 @@ public interface IncrementalOperatorAggregationStateManager extends OperatorAggr
             WritableIntChunk<RowKeys> outputPositions);
 
     /**
+     * Can this state manager actually reclaim states?
+     * 
+     * @return true if this state manager is capable of reclaiming states, false otherwise
+     */
+    boolean canReclaim();
+
+    /**
      * Reclaim any rows that are free in the result table (depending on thresholds)
      *
      * @param resultRowset

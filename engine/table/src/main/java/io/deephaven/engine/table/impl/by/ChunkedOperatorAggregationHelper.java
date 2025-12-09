@@ -61,6 +61,8 @@ public class ChunkedOperatorAggregationHelper {
             Configuration.getInstance().getBooleanWithDefault("ChunkedOperatorAggregationHelper.skipRunFind", false);
     static final boolean HASHED_RUN_FIND =
             Configuration.getInstance().getBooleanWithDefault("ChunkedOperatorAggregationHelper.hashedRunFind", true);
+    public static boolean RECLAIM_STATES =
+            Configuration.getInstance().getBooleanWithDefault("ChunkedOperatorAggregationHelper.reclaimStates", true);
 
     public static QueryTable aggregation(
             @NotNull final AggregationContextFactory aggregationContextFactory,
@@ -301,14 +303,11 @@ public class ChunkedOperatorAggregationHelper {
                         return;
                     }
 
-                    if (removeUnusedStates && resultRowset.lastRowKey() + 1 != outputPosition.get()) {
-                        final boolean canReclaim = Arrays.stream(ac.operators)
-                                .allMatch(IterativeChunkedAggregationOperator::canReclaimStates);
-                        if (canReclaim) {
-                            throw new IllegalStateException(
-                                    "nextOutputPosition: " + outputPosition.get() + ", lastRowKey: "
-                                            + resultRowset.lastRowKey());
-                        }
+                    if (((IncrementalOperatorAggregationStateManager) stateManager).canReclaim()
+                            && resultRowset.lastRowKey() + 1 != outputPosition.get()) {
+                        throw new IllegalStateException(
+                                "nextOutputPosition: " + outputPosition.get() + ", lastRowKey: "
+                                        + resultRowset.lastRowKey());
                     }
 
                     result.notifyListeners(downstream);
@@ -342,7 +341,7 @@ public class ChunkedOperatorAggregationHelper {
             final boolean removeUnusedStates) {
         final OperatorAggregationStateManager stateManager;
         if (input.isRefreshing()) {
-            final boolean canReclaim =
+            final boolean canReclaim = RECLAIM_STATES &&
                     Arrays.stream(ac.operators).allMatch(IterativeChunkedAggregationOperator::canReclaimStates);
             if (removeUnusedStates && canReclaim) {
                 stateManager = TypedHasherFactory.make(

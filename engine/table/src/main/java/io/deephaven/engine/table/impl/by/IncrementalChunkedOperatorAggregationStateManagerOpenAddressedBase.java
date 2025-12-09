@@ -434,6 +434,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     public void startTrackingPrevValues() {}
 
     @Override
+    public boolean canReclaim() {
+        return false;
+    }
+
+    @Override
     public void removeStates(RowSet removed) {
         // we never actually delete anything from the output position table
     }

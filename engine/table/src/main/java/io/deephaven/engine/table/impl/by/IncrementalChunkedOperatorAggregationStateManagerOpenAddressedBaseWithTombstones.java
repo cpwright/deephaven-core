@@ -404,6 +404,11 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
     }
 
     @Override
+    public boolean canReclaim() {
+        return true;
+    }
+
+    @Override
     public void removeStates(RowSet removed) {
         liveEntries -= removed.intSize();
         final RowSetBuilderRandom mainBuilder = RowSetFactory.builderRandom();
