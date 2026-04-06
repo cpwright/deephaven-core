@@ -55,6 +55,9 @@ public abstract class RedefinableTable<IMPL_TYPE extends RedefinableTable<IMPL_T
             final List<String> usedColumnNames = new ArrayList<>(
                     selectColumn.initDef(allColumns, compilationProcessor));
             if (selectColumn.hasVirtualRowVariables() || !selectColumn.getColumnArrays().isEmpty()) {
+                // It is not strictly necessary to coalesce; we could instead mark that we have views with a row
+                // variable or array. But if we were to ever filter the table, we would be required to coalesce
+                // at that point to get correct handling of the pre-filtered rowset in the formula.
                 if (isUpdate) {
                     return coalesce().updateView(selectables);
                 } else {
