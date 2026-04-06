@@ -54,6 +54,13 @@ public abstract class RedefinableTable<IMPL_TYPE extends RedefinableTable<IMPL_T
         for (final SelectColumn selectColumn : columns) {
             final List<String> usedColumnNames = new ArrayList<>(
                     selectColumn.initDef(allColumns, compilationProcessor));
+            if (selectColumn.hasVirtualRowVariables() || !selectColumn.getColumnArrays().isEmpty()) {
+                if (isUpdate) {
+                    return coalesce().updateView(selectables);
+                } else {
+                    return coalesce().view(selectables);
+                }
+            }
             usedColumnNames.addAll(selectColumn.getColumnArrays());
             resultColumnsInternal.addAll(usedColumnNames.stream()
                     .filter(usedColumnName -> !resultColumnsExternal.containsKey(usedColumnName))
