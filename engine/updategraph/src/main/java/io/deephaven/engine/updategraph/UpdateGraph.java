@@ -11,6 +11,7 @@ import io.deephaven.util.function.ThrowingSupplier;
 import io.deephaven.util.locks.AwareFunctionalLock;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Instant;
 import java.util.concurrent.locks.Condition;
 import java.util.function.Supplier;
 
@@ -37,6 +38,23 @@ public interface UpdateGraph extends UpdateSourceRegistrar, NotificationQueue, N
      * @return The {@link LogicalClock} to use with this update graph
      */
     LogicalClock clock();
+
+    /**
+     * Get the {@link System#nanoTime() monotonic time} at the start of the current or most recently completed refresh
+     * cycle. This value is suitable for measuring elapsed time relative to the cycle start, but not for deriving wall
+     * clock times.
+     *
+     * @return The {@link System#nanoTime()} value recorded at the start of the current or most recently completed
+     *         refresh cycle
+     */
+    long cycleStartNanoTime();
+
+    /**
+     * Get the wall clock {@link Instant} at the start of the current or most recently completed refresh cycle.
+     *
+     * @return The {@link Instant} recorded at the start of the current or most recently completed refresh cycle
+     */
+    Instant cycleStartTime();
 
     /**
      * Retrieve the number of independent update propagation tasks this UpdateGraph can process concurrently.

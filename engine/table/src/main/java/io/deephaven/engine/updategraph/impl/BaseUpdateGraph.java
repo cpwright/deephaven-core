@@ -33,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.ref.WeakReference;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -230,6 +231,16 @@ public abstract class BaseUpdateGraph implements UpdateGraph, LogOutputAppendabl
     final LogicalClockImpl logicalClock = new LogicalClockImpl();
 
     /**
+     * The {@link System#nanoTime()} value recorded at the start of the most recent refresh cycle.
+     */
+    private volatile long cycleStartNanoTime;
+
+    /**
+     * The wall clock {@link Instant} recorded at the start of the most recent refresh cycle.
+     */
+    private volatile Instant cycleStartInstant = Instant.EPOCH;
+
+    /**
      * Encapsulates locking support.
      */
     private final UpdateGraphLock lock;
@@ -288,6 +299,17 @@ public abstract class BaseUpdateGraph implements UpdateGraph, LogOutputAppendabl
     public LogicalClock clock() {
         return logicalClock;
     }
+
+    @Override
+    public long cycleStartNanoTime() {
+        return cycleStartNanoTime;
+    }
+
+    @Override
+    public Instant cycleStartTime() {
+        return cycleStartInstant;
+    }
+
     // region Accessors for the shared and exclusive locks
 
     /**
@@ -944,6 +966,8 @@ public abstract class BaseUpdateGraph implements UpdateGraph, LogOutputAppendabl
             Assert.eqNull(refreshScope, "refreshScope");
             refreshScope = new LivenessScope();
             final long updatingCycleValue = logicalClock.startUpdateCycle();
+            cycleStartNanoTime = System.nanoTime();
+            cycleStartInstant = Instant.now();
             logDependencies().append("Beginning UpdateGraph cycle step=")
                     .append(logicalClock.currentStep()).endl();
             try (final SafeCloseable ignored = LivenessScopeStack.open(refreshScope, true)) {
