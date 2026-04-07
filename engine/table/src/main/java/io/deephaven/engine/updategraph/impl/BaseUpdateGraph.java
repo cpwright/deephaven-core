@@ -23,6 +23,7 @@ import io.deephaven.io.log.LogEntry;
 import io.deephaven.io.log.impl.LogOutputStringImpl;
 import io.deephaven.io.logger.Logger;
 import io.deephaven.util.SafeCloseable;
+import io.deephaven.util.QueryConstants;
 import io.deephaven.util.annotations.TestUseOnly;
 import io.deephaven.util.datastructures.SimpleReferenceManager;
 import io.deephaven.util.datastructures.linked.IntrusiveDoublyLinkedNode;
@@ -233,12 +234,12 @@ public abstract class BaseUpdateGraph implements UpdateGraph, LogOutputAppendabl
     /**
      * The {@link System#nanoTime()} value recorded at the start of the most recent refresh cycle.
      */
-    private volatile long cycleStartNanoTime;
+    private volatile long cycleStartNanoTime = QueryConstants.NULL_LONG;
 
     /**
      * The wall clock {@link Instant} recorded at the start of the most recent refresh cycle.
      */
-    private volatile Instant cycleStartInstant = Instant.EPOCH;
+    private volatile Instant cycleStartInstant;
 
     /**
      * Encapsulates locking support.

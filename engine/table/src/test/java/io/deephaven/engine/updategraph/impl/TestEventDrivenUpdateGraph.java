@@ -23,6 +23,7 @@ import io.deephaven.engine.updategraph.TerminalNotification;
 import io.deephaven.engine.updategraph.UpdateGraph;
 import io.deephaven.engine.util.TableTools;
 import io.deephaven.util.SafeCloseable;
+import io.deephaven.util.QueryConstants;
 import io.deephaven.util.annotations.ReflexiveUse;
 import junit.framework.TestCase;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -40,6 +41,7 @@ import java.util.concurrent.*;
 import static io.deephaven.engine.context.TestExecutionContext.OPERATION_INITIALIZATION;
 import static io.deephaven.engine.util.TableTools.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TestEventDrivenUpdateGraph {
@@ -298,8 +300,8 @@ public class TestEventDrivenUpdateGraph {
                 EventDrivenUpdateGraph.newBuilder("TestCycleStartTime").build();
 
         // Before any cycle has been executed, the sentinel values should be returned
-        assertEquals(0L, eventDrivenUpdateGraph.cycleStartNanoTime());
-        assertEquals(Instant.EPOCH, eventDrivenUpdateGraph.cycleStartTime());
+        assertEquals(QueryConstants.NULL_LONG, eventDrivenUpdateGraph.cycleStartNanoTime());
+        assertNull(eventDrivenUpdateGraph.cycleStartTime());
 
         // We will capture the cycle start times observed from a regular notification, a terminal notification,
         // and the main thread after the cycle completes.

@@ -10,6 +10,7 @@ import io.deephaven.util.annotations.FinalDefault;
 import io.deephaven.util.function.ThrowingSupplier;
 import io.deephaven.util.locks.AwareFunctionalLock;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.concurrent.locks.Condition;
@@ -42,20 +43,21 @@ public interface UpdateGraph extends UpdateSourceRegistrar, NotificationQueue, N
     /**
      * Get the {@link System#nanoTime() monotonic time} at the start of the current or most recently completed refresh
      * cycle. This value is suitable for measuring elapsed time relative to the cycle start, but not for deriving wall
-     * clock times. Before any cycle has started, returns {@code 0L}.
+     * clock times. Before any cycle has started, returns {@link io.deephaven.util.QueryConstants#NULL_LONG}.
      *
      * @return The {@link System#nanoTime()} value recorded at the start of the current or most recently completed
-     *         refresh cycle, or {@code 0L} if no cycle has started
+     *         refresh cycle, or {@code io.deephaven.util.QueryConstants#NULL_LONG} if no cycle has started
      */
     long cycleStartNanoTime();
 
     /**
      * Get the wall clock {@link Instant} at the start of the current or most recently completed refresh cycle. Before
-     * any cycle has started, returns {@link Instant#EPOCH}.
+     * any cycle has started, returns {@code null}.
      *
      * @return The {@link Instant} recorded at the start of the current or most recently completed refresh cycle, or
-     *         {@link Instant#EPOCH} if no cycle has started
+     *         {@code null} if no cycle has started
      */
+    @Nullable
     Instant cycleStartTime();
 
     /**
