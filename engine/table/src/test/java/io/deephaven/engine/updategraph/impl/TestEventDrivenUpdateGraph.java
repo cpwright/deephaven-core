@@ -293,7 +293,7 @@ public class TestEventDrivenUpdateGraph {
     }
 
     @Test
-    public void testCycleStartTime() {
+    public void testCycleStartTime() throws InterruptedException {
         final EventDrivenUpdateGraph eventDrivenUpdateGraph =
                 EventDrivenUpdateGraph.newBuilder("TestCycleStartTime").build();
 
@@ -336,7 +336,12 @@ public class TestEventDrivenUpdateGraph {
         final long beforeNanos = System.nanoTime();
         final Instant beforeInstant = Instant.now();
 
+        // Sleep briefly so that the cycle start times are distinguishable from the bounds
+        Thread.sleep(1);
+
         eventDrivenUpdateGraph.requestRefresh();
+
+        Thread.sleep(1);
 
         final long afterNanos = System.nanoTime();
         final Instant afterInstant = Instant.now();

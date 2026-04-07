@@ -42,17 +42,19 @@ public interface UpdateGraph extends UpdateSourceRegistrar, NotificationQueue, N
     /**
      * Get the {@link System#nanoTime() monotonic time} at the start of the current or most recently completed refresh
      * cycle. This value is suitable for measuring elapsed time relative to the cycle start, but not for deriving wall
-     * clock times.
+     * clock times. Before any cycle has started, returns {@code 0L}.
      *
      * @return The {@link System#nanoTime()} value recorded at the start of the current or most recently completed
-     *         refresh cycle
+     *         refresh cycle, or {@code 0L} if no cycle has started
      */
     long cycleStartNanoTime();
 
     /**
-     * Get the wall clock {@link Instant} at the start of the current or most recently completed refresh cycle.
+     * Get the wall clock {@link Instant} at the start of the current or most recently completed refresh cycle. Before
+     * any cycle has started, returns {@link Instant#EPOCH}.
      *
-     * @return The {@link Instant} recorded at the start of the current or most recently completed refresh cycle
+     * @return The {@link Instant} recorded at the start of the current or most recently completed refresh cycle, or
+     *         {@link Instant#EPOCH} if no cycle has started
      */
     Instant cycleStartTime();
 
