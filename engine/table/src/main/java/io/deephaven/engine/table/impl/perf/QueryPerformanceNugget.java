@@ -29,11 +29,21 @@ public class QueryPerformanceNugget extends BasePerformanceEntry implements Safe
     private static final int MAX_DESCRIPTION_LENGTH = 16 << 10;
 
     /**
-     * A re-usable "dummy" nugget which will never collect any information or be recorded.
+     * A re-usable "dummy" nugget that will never collect any information or be recorded.
      */
     static final QueryPerformanceNugget DUMMY_NUGGET = new QueryPerformanceNugget() {
         @Override
         public void accumulate(@NotNull BasePerformanceEntry entry) {
+            // non-synchronized no-op override
+        }
+
+        @Override
+        public void recordRead(final long nanos, final int count, @Nullable final String source) {
+            // non-synchronized no-op override
+        }
+
+        @Override
+        public void recordMetadataOperation(final long nanos, @Nullable final String source) {
             // non-synchronized no-op override
         }
 

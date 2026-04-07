@@ -8,8 +8,8 @@ import io.deephaven.engine.table.impl.locations.impl.TableLocationKeyFinder;
 import io.deephaven.parquet.base.ParquetUtils;
 import io.deephaven.parquet.table.ParquetInstructions;
 import io.deephaven.parquet.table.location.ParquetTableLocationKey;
+import io.deephaven.parquet.table.ParquetChannelProviderFactory;
 import io.deephaven.util.channel.SeekableChannelsProvider;
-import io.deephaven.util.channel.SeekableChannelsProviderLoader;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -41,8 +41,8 @@ public final class ParquetFlatPartitionedLayout implements TableLocationKeyFinde
             @NotNull final ParquetInstructions readInstructions) {
         this.tableRootDirectory = tableRootDirectoryURI;
         this.cache = Collections.synchronizedMap(new HashMap<>());
-        this.channelsProvider = SeekableChannelsProviderLoader.getInstance()
-                .load(tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
+        this.channelsProvider = ParquetChannelProviderFactory.create(
+                tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
     }
 
     public String toString() {

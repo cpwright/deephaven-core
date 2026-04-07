@@ -38,6 +38,9 @@ class QueryPerformanceStreamPublisher implements StreamPublisher {
             ColumnDefinition.ofLong("CollectionTimeNanos"),
             ColumnDefinition.ofLong("AllocatedBytes"),
             ColumnDefinition.ofLong("PoolAllocatedBytes"),
+            ColumnDefinition.ofLong("DataReadNanos"),
+            ColumnDefinition.ofLong("DataReadCount"),
+            ColumnDefinition.ofLong("MetadataReadNanos"),
             ColumnDefinition.ofBoolean("WasInterrupted"),
             ColumnDefinition.ofString("Exception"),
             ColumnDefinition.ofString("AuthContext"));
@@ -117,14 +120,23 @@ class QueryPerformanceStreamPublisher implements StreamPublisher {
         // ColumnDefinition.ofLong("PoolAllocatedBytes")
         chunks[16].asWritableLongChunk().add(nugget.getPoolAllocatedBytes());
 
+        // ColumnDefinition.ofLong("DataReadNanos")
+        chunks[17].asWritableLongChunk().add(nugget.getDataReadNanos());
+
+        // ColumnDefinition.ofLong("DataReadCount")
+        chunks[18].asWritableLongChunk().add(nugget.getDataReadCount());
+
+        // ColumnDefinition.ofLong("MetadataReadNanos")
+        chunks[19].asWritableLongChunk().add(nugget.getMetadataReadNanos());
+
         // ColumnDefinition.ofBoolean("WasInterrupted")
-        chunks[17].asWritableByteChunk().add(BooleanUtils.booleanAsByte(nugget.wasInterrupted()));
+        chunks[20].asWritableByteChunk().add(BooleanUtils.booleanAsByte(nugget.wasInterrupted()));
 
         // ColumnDefinition.ofString("Exception")
-        chunks[18].<String>asWritableObjectChunk().add(exception == null ? null : exception.getMessage());
+        chunks[21].<String>asWritableObjectChunk().add(exception == null ? null : exception.getMessage());
 
         // ColumnDefinition.ofString("AuthContext")
-        chunks[19].<String>asWritableObjectChunk().add(Objects.toString(nugget.getAuthContext()));
+        chunks[22].<String>asWritableObjectChunk().add(Objects.toString(nugget.getAuthContext()));
 
         if (chunks[0].size() == CHUNK_SIZE) {
             flushInternal();

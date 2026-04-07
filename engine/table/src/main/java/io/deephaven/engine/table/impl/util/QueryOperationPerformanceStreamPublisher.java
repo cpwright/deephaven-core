@@ -43,6 +43,9 @@ class QueryOperationPerformanceStreamPublisher implements StreamPublisher {
             ColumnDefinition.ofLong("AllocatedBytes"),
             ColumnDefinition.ofLong("PoolAllocatedBytes"),
             ColumnDefinition.ofLong("InputSizeLong"),
+            ColumnDefinition.ofLong("DataReadNanos"),
+            ColumnDefinition.ofLong("DataReadCount"),
+            ColumnDefinition.ofLong("MetadataReadNanos"),
             ColumnDefinition.ofBoolean("WasInterrupted"),
             ColumnDefinition.ofString("AuthContext"));
     private static final int CHUNK_SIZE = ArrayBackedColumnSource.BLOCK_SIZE;
@@ -137,11 +140,20 @@ class QueryOperationPerformanceStreamPublisher implements StreamPublisher {
         // ColumnDefinition.ofLong("InputSizeLong"),
         chunks[22].asWritableLongChunk().add(nugget.getInputSize());
 
+        // ColumnDefinition.ofLong("DataReadNanos"),
+        chunks[23].asWritableLongChunk().add(nugget.getDataReadNanos());
+
+        // ColumnDefinition.ofLong("DataReadCount"),
+        chunks[24].asWritableLongChunk().add(nugget.getDataReadCount());
+
+        // ColumnDefinition.ofLong("MetadataReadNanos"),
+        chunks[25].asWritableLongChunk().add(nugget.getMetadataReadNanos());
+
         // ColumnDefinition.ofBoolean("WasInterrupted")
-        chunks[23].asWritableByteChunk().add(BooleanUtils.booleanAsByte(nugget.wasInterrupted()));
+        chunks[26].asWritableByteChunk().add(BooleanUtils.booleanAsByte(nugget.wasInterrupted()));
 
         // ColumnDefinition.ofString("AuthContext")
-        chunks[24].<String>asWritableObjectChunk().add(Objects.toString(nugget.getAuthContext()));
+        chunks[27].<String>asWritableObjectChunk().add(Objects.toString(nugget.getAuthContext()));
 
         if (chunks[0].size() == CHUNK_SIZE) {
             flushInternal();

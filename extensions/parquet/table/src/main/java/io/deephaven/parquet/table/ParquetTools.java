@@ -1002,7 +1002,7 @@ public class ParquetTools {
         // Check if the directory has a metadata file
         final URI metadataFileURI = tableRootDirectory.resolve(METADATA_FILE_NAME);
         final SeekableChannelsProvider channelsProvider =
-                SeekableChannelsProviderLoader.getInstance().load(tableRootDirectory.getScheme(),
+                ParquetChannelProviderFactory.create(tableRootDirectory.getScheme(),
                         readInstructions.getSpecialInstructions());
         if (channelsProvider.exists(metadataFileURI)) {
             return readPartitionedTableWithMetadata(metadataFileURI, readInstructions, channelsProvider);
@@ -1090,8 +1090,11 @@ public class ParquetTools {
             @NotNull final URI parquetFileURI,
             @NotNull final ParquetInstructions readInstructions) {
         verifyFileLayout(readInstructions, ParquetFileLayout.SINGLE_FILE);
+        final SeekableChannelsProvider channelsProvider =
+                ParquetChannelProviderFactory.create(parquetFileURI.getScheme(),
+                        readInstructions.getSpecialInstructions());
         final ParquetTableLocationKey locationKey =
-                new ParquetTableLocationKey(parquetFileURI, 0, null, readInstructions);
+                new ParquetTableLocationKey(parquetFileURI, 0, null, channelsProvider);
         if (readInstructions.getTableDefinition().isPresent()) {
             return readTable(locationKey, readInstructions);
         }

@@ -16,8 +16,8 @@ import io.deephaven.parquet.base.ParquetUtils;
 import io.deephaven.parquet.table.location.ParquetTableLocationKey;
 import io.deephaven.parquet.table.ParquetInstructions;
 import io.deephaven.parquet.base.ParquetFileReader;
+import io.deephaven.parquet.table.ParquetChannelProviderFactory;
 import io.deephaven.util.channel.SeekableChannelsProvider;
-import io.deephaven.util.channel.SeekableChannelsProviderLoader;
 import io.deephaven.util.mutable.MutableInt;
 import io.deephaven.util.type.TypeUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -95,8 +95,8 @@ public class ParquetMetadataFileLayout implements TableLocationKeyFinder<Parquet
         final URI commonMetadataFileURI = isCommonMetadataFile ? source : directory.resolve(COMMON_METADATA_FILE_NAME);
         if (channelsProvider == null) {
             // noinspection resource
-            channelsProvider = SeekableChannelsProviderLoader.getInstance()
-                    .load(source.getScheme(), inputInstructions.getSpecialInstructions());
+            channelsProvider = ParquetChannelProviderFactory.create(
+                    source.getScheme(), inputInstructions.getSpecialInstructions());
         }
         return new ParquetMetadataFileLayout(directory, metadataFileURI, commonMetadataFileURI, inputInstructions,
                 channelsProvider);

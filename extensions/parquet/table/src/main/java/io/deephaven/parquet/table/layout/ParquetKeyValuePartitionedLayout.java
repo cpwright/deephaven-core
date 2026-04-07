@@ -15,8 +15,8 @@ import io.deephaven.engine.table.impl.locations.local.KeyValuePartitionLayout;
 import io.deephaven.parquet.base.ParquetUtils;
 import io.deephaven.parquet.table.ParquetInstructions;
 import io.deephaven.parquet.table.location.ParquetTableLocationKey;
+import io.deephaven.parquet.table.ParquetChannelProviderFactory;
 import io.deephaven.util.channel.SeekableChannelsProvider;
-import io.deephaven.util.channel.SeekableChannelsProviderLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -66,8 +66,8 @@ public class ParquetKeyValuePartitionedLayout
             @Nullable SeekableChannelsProvider channelsProvider) {
         if (channelsProvider == null) {
             // noinspection resource
-            channelsProvider = SeekableChannelsProviderLoader.getInstance()
-                    .load(tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
+            channelsProvider = ParquetChannelProviderFactory.create(
+                    tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
         }
         return new ParquetKeyValuePartitionedLayout(tableRootDirectory, tableDefinition, channelsProvider);
     }
@@ -101,8 +101,8 @@ public class ParquetKeyValuePartitionedLayout
             @Nullable SeekableChannelsProvider channelsProvider) {
         if (channelsProvider == null) {
             // noinspection resource
-            channelsProvider = SeekableChannelsProviderLoader.getInstance()
-                    .load(tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
+            channelsProvider = ParquetChannelProviderFactory.create(
+                    tableRootDirectory.getScheme(), readInstructions.getSpecialInstructions());
         }
         return new ParquetKeyValuePartitionedLayout(tableRootDirectory, maxPartitioningLevels, channelsProvider);
     }
