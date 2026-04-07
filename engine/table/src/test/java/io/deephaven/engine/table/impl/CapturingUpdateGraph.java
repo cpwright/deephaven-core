@@ -153,7 +153,7 @@ public class CapturingUpdateGraph implements UpdateGraph {
 
     @Override
     public boolean setSerialTableOperationsSafe(final boolean newValue) {
-        return delegate.serialTableOperationsSafe();
+        return delegate.setSerialTableOperationsSafe(newValue);
     }
 
     @Override
