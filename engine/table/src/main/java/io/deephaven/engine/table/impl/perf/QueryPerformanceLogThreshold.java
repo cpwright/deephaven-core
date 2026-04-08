@@ -48,8 +48,8 @@ public class QueryPerformanceLogThreshold {
     }
 
     /**
-     * The minimum duration for a QueryPerformanceNugget to be logged based on its duration (or entry interval usage
-     * for the UpdatePerformanceLog). The value 0 logs everything. The value -1 will not log anything based on duration.
+     * The minimum duration for a QueryPerformanceNugget to be logged based on its duration (or entry interval usage for
+     * the UpdatePerformanceLog). The value 0 logs everything. The value -1 will not log anything based on duration.
      */
     private long getMinimumDurationNanos() {
         return minimumDurationNanos;
