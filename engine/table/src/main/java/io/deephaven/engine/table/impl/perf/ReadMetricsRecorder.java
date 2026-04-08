@@ -3,6 +3,8 @@
 //
 package io.deephaven.engine.table.impl.perf;
 
+import io.deephaven.util.SafeCloseable;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -16,6 +18,13 @@ import org.jetbrains.annotations.Nullable;
 public interface ReadMetricsRecorder {
 
     /**
+     * Thread-local override for the current thread's {@link ReadMetricsRecorder}. When set, {@link #current()} returns
+     * this value instead of resolving through the performance nugget. This supports nested installations &mdash; each
+     * {@link #install(ReadMetricsRecorder)} call saves the previous value and restores it on close.
+     */
+    ThreadLocal<ReadMetricsRecorder> THREAD_LOCAL = new ThreadLocal<>();
+
+    /**
      * A no-op recorder that discards all metrics.
      */
     ReadMetricsRecorder NULL_RECORDER = new ReadMetricsRecorder() {
@@ -25,18 +34,44 @@ public interface ReadMetricsRecorder {
         }
 
         @Override
-        public void recordMetadataOperation(final long elapsedNanos, @Nullable final String source) {
+        public void recordMetadataOperation(
+                @NotNull final String type, final long elapsedNanos, @Nullable final String source) {
             // no-op
         }
     };
 
     /**
-     * Obtain a {@link ReadMetricsRecorder} for the current thread's performance nugget. If no recorder is installed
-     * (i.e. the dummy recorder is active), returns {@link #NULL_RECORDER}.
+     * Install the given {@link ReadMetricsRecorder} as the current thread's recorder. Returns a {@link SafeCloseable}
+     * that, when closed, restores the previous recorder (supporting nested/stacked installations). Intended for use
+     * with try-with-resources.
      *
-     * @return a {@link ReadMetricsRecorder} that records to the current thread's enclosing performance nugget
+     * @param recorder the recorder to install on the current thread
+     * @return a {@link SafeCloseable} that restores the previous recorder when closed
+     */
+    static SafeCloseable install(@NotNull final ReadMetricsRecorder recorder) {
+        final ReadMetricsRecorder previous = THREAD_LOCAL.get();
+        THREAD_LOCAL.set(recorder);
+        return () -> {
+            if (previous == null) {
+                THREAD_LOCAL.remove();
+            } else {
+                THREAD_LOCAL.set(previous);
+            }
+        };
+    }
+
+    /**
+     * Obtain a {@link ReadMetricsRecorder} for the current thread. If a thread-local override has been installed via
+     * {@link #install(ReadMetricsRecorder)}, that recorder is returned. Otherwise, the current thread's performance
+     * nugget is used. If no recorder is available, returns {@link #NULL_RECORDER}.
+     *
+     * @return a {@link ReadMetricsRecorder} for the current thread
      */
     static ReadMetricsRecorder current() {
+        final ReadMetricsRecorder override = THREAD_LOCAL.get();
+        if (override != null) {
+            return override;
+        }
         final QueryPerformanceRecorder recorder = QueryPerformanceRecorder.getInstance();
         final QueryPerformanceNugget nugget = recorder.getEnclosingNugget();
         if (nugget == QueryPerformanceNugget.DUMMY_NUGGET) {
@@ -57,9 +92,9 @@ public interface ReadMetricsRecorder {
     /**
      * Record a metadata operation (e.g. listing files, checking existence, determining file sizes).
      *
+     * @param type the type of metadata operation (e.g. "exists", "list", "walk", "size")
      * @param elapsedNanos time spent on the metadata operation in nanoseconds
      * @param source optional human-readable description of the source (e.g. a URI or directory path), may be null
      */
-    void recordMetadataOperation(long elapsedNanos, @Nullable String source);
+    void recordMetadataOperation(@NotNull String type, long elapsedNanos, @Nullable String source);
 }
-

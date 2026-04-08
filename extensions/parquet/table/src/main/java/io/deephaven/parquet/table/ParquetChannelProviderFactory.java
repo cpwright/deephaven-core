@@ -61,8 +61,8 @@ public final class ParquetChannelProviderFactory {
             }
 
             @Override
-            public void recordMetadataOperation(final long elapsedNanos, final String source) {
-                r.recordMetadataOperation(elapsedNanos, source);
+            public void recordMetadataOperation(@NotNull final String type, final long elapsedNanos, final String source) {
+                r.recordMetadataOperation(type, elapsedNanos, source);
             }
         };
     }

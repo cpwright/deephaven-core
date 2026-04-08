@@ -5,10 +5,15 @@ package io.deephaven.engine.table.impl.perf;
 
 import io.deephaven.base.log.LogOutput;
 import io.deephaven.base.log.LogOutputAppendable;
+import io.deephaven.base.stats.Item;
+import io.deephaven.base.stats.State;
+import io.deephaven.base.stats.Stats;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.util.profiling.ThreadProfiler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.minus;
 import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.plus;
@@ -17,6 +22,15 @@ import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.plu
  * A smaller entry that simply records usage data, meant for aggregating into the larger entry.
  */
 public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRecorder {
+
+    private static final String METADATA_OP_STATS_GROUP = "MetadataOp";
+
+    /**
+     * Cache of Stats items keyed by metadata operation type. Avoids repeated synchronized lookup in
+     * {@link Stats#makeItem} on every I/O operation.
+     */
+    private static final ConcurrentHashMap<String, Item<State>> METADATA_OP_STATS = new ConcurrentHashMap<>();
+
     private long usageNanos;
 
     private long cpuNanos;
@@ -27,7 +41,9 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
 
     private long dataReadNanos;
     private long dataReadCount;
+    private long dataReadBytes;
     private long metadataReadNanos;
+    private long metadataReadCount;
 
     private long startTimeNanos;
 
@@ -80,7 +96,9 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
 
         dataReadNanos = 0;
         dataReadCount = 0;
+        dataReadBytes = 0;
         metadataReadNanos = 0;
+        metadataReadCount = 0;
     }
 
     /**
@@ -154,6 +172,16 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
     }
 
     /**
+     * Get the aggregate number of bytes read in data read operations. This getter should be called by exclusive owners
+     * of the entry, and never concurrently with mutators.
+     *
+     * @return total number of bytes read
+     */
+    public long getDataReadBytes() {
+        return dataReadBytes;
+    }
+
+    /**
      * Get the aggregate time spent on metadata operations (e.g. listing files, checking existence, determining file
      * sizes) in nanoseconds. This getter should be called by exclusive owners of the entry, and never concurrently with
      * mutators.
@@ -165,26 +193,44 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
     }
 
     /**
+     * Get the aggregate number of metadata operations. This getter should be called by exclusive owners of the entry,
+     * and never concurrently with mutators.
+     *
+     * @return total number of metadata operations
+     */
+    public long getMetadataReadCount() {
+        return metadataReadCount;
+    }
+
+    /**
      * Record a data read operation. May be called concurrently from I/O threads.
      *
      * @param nanos time spent on the read in nanoseconds
-     * @param count number of read operations (typically 1)
+     * @param bytesRead number of bytes read
      * @param source optional human-readable description of the data source (e.g. a URI or filename), may be null
      */
-    public synchronized void recordRead(final long nanos, final int count, @Nullable final String source) {
+    public synchronized void recordRead(final long nanos, final int bytesRead, @Nullable final String source) {
         dataReadNanos += nanos;
-        dataReadCount += count;
+        dataReadCount++;
+        dataReadBytes += bytesRead;
     }
 
     /**
      * Record a metadata operation (e.g. listing files, checking existence, determining file sizes). May be called
-     * concurrently from I/O threads.
+     * concurrently from I/O threads. Each distinct {@code type} is tracked as a separate Stats histogram.
      *
+     * @param type the type of metadata operation (e.g. "exists", "list", "walk", "size")
      * @param nanos time spent on the metadata operation in nanoseconds
      * @param source optional human-readable description of the source (e.g. a URI or directory path), may be null
      */
-    public synchronized void recordMetadataOperation(final long nanos, @Nullable final String source) {
+    public synchronized void recordMetadataOperation(
+            @NotNull final String type, final long nanos, @Nullable final String source) {
         metadataReadNanos += nanos;
+        metadataReadCount++;
+        METADATA_OP_STATS.computeIfAbsent(type,
+                t -> Stats.makeItem(METADATA_OP_STATS_GROUP, t, State.FACTORY,
+                        "Metadata operation timing (nanos) for type: " + t))
+                .getValue().sample(nanos);
     }
 
     @Override
@@ -197,7 +243,9 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
                 .append(", intervalPoolAllocatedBytes=").append(poolAllocatedBytes)
                 .append(", dataReadNanos=").append(dataReadNanos)
                 .append(", dataReadCount=").append(dataReadCount)
-                .append(", metadataReadNanos=").append(metadataReadNanos);
+                .append(", dataReadBytes=").append(dataReadBytes)
+                .append(", metadataReadNanos=").append(metadataReadNanos)
+                .append(", metadataReadCount=").append(metadataReadCount);
         return appendStart(currentValues)
                 .append('}');
     }
@@ -226,6 +274,8 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
 
         this.dataReadNanos += entry.dataReadNanos;
         this.dataReadCount += entry.dataReadCount;
+        this.dataReadBytes += entry.dataReadBytes;
         this.metadataReadNanos += entry.metadataReadNanos;
+        this.metadataReadCount += entry.metadataReadCount;
     }
 }

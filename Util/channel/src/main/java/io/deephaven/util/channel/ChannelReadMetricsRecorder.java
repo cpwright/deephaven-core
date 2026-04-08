@@ -3,6 +3,7 @@
 //
 package io.deephaven.util.channel;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -25,7 +26,8 @@ public interface ChannelReadMetricsRecorder {
         }
 
         @Override
-        public void recordMetadataOperation(final long elapsedNanos, @Nullable final String source) {
+        public void recordMetadataOperation(
+                @NotNull final String type, final long elapsedNanos, @Nullable final String source) {
             // no-op
         }
     };
@@ -42,8 +44,9 @@ public interface ChannelReadMetricsRecorder {
     /**
      * Record a metadata operation (e.g. listing files, checking existence, determining file sizes).
      *
+     * @param type the type of metadata operation (e.g. "exists", "list", "walk", "size")
      * @param elapsedNanos time spent on the metadata operation in nanoseconds
      * @param source optional human-readable description of the source (e.g. a URI or directory path), may be null
      */
-    void recordMetadataOperation(long elapsedNanos, @Nullable String source);
+    void recordMetadataOperation(@NotNull String type, long elapsedNanos, @Nullable String source);
 }

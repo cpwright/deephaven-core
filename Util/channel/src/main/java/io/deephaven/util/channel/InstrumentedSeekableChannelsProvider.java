@@ -8,7 +8,6 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SeekableByteChannel;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -43,7 +42,7 @@ public class InstrumentedSeekableChannelsProvider extends SeekableChannelsProvid
             return super.exists(uri);
         } finally {
             final long elapsed = System.nanoTime() - startNanos;
-            recorderSupplier.get().recordMetadataOperation(elapsed, uri.toString());
+            recorderSupplier.get().recordMetadataOperation("exists", elapsed, uri.toString());
         }
     }
 
@@ -70,7 +69,7 @@ public class InstrumentedSeekableChannelsProvider extends SeekableChannelsProvid
             return super.list(directory);
         } finally {
             final long elapsed = System.nanoTime() - startNanos;
-            recorderSupplier.get().recordMetadataOperation(elapsed, directory.toString());
+            recorderSupplier.get().recordMetadataOperation("list", elapsed, directory.toString());
         }
     }
 
@@ -81,7 +80,7 @@ public class InstrumentedSeekableChannelsProvider extends SeekableChannelsProvid
             return super.walk(directory);
         } finally {
             final long elapsed = System.nanoTime() - startNanos;
-            recorderSupplier.get().recordMetadataOperation(elapsed, directory.toString());
+            recorderSupplier.get().recordMetadataOperation("walk", elapsed, directory.toString());
         }
     }
 
@@ -137,7 +136,7 @@ public class InstrumentedSeekableChannelsProvider extends SeekableChannelsProvid
                 return delegate.size();
             } finally {
                 final long elapsed = System.nanoTime() - startNanos;
-                recorderSupplier.get().recordMetadataOperation(elapsed, source);
+                recorderSupplier.get().recordMetadataOperation("size", elapsed, source);
             }
         }
 
