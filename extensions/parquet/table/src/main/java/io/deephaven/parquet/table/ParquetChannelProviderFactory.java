@@ -3,7 +3,7 @@
 //
 package io.deephaven.parquet.table;
 
-import io.deephaven.engine.table.impl.perf.ReadMetricsRecorder;
+import io.deephaven.engine.table.impl.perf.QueryPerformanceRecorderState;
 import io.deephaven.util.channel.ChannelReadMetricsRecorder;
 import io.deephaven.util.channel.InstrumentedSeekableChannelsProvider;
 import io.deephaven.util.channel.SeekableChannelsProvider;
@@ -46,24 +46,20 @@ public final class ParquetChannelProviderFactory {
 
     /**
      * Resolve the current thread's {@link ChannelReadMetricsRecorder} by bridging from
-     * {@link ReadMetricsRecorder#current()}.
+     * {@link QueryPerformanceRecorderState}.
      */
     private static ChannelReadMetricsRecorder currentRecorder() {
-        final ReadMetricsRecorder r = ReadMetricsRecorder.current();
-        if (r == ReadMetricsRecorder.NULL_RECORDER) {
-            return ChannelReadMetricsRecorder.NULL_RECORDER;
-        }
         // Adapt ReadMetricsRecorder to ChannelReadMetricsRecorder via an anonymous wrapper.
         return new ChannelReadMetricsRecorder() {
             @Override
             public void recordRead(final long elapsedNanos, final int bytesRead, final String source) {
-                r.recordRead(elapsedNanos, bytesRead, source);
+                QueryPerformanceRecorderState.recordRead(elapsedNanos, bytesRead, source);
             }
 
             @Override
             public void recordMetadataOperation(@NotNull final String type, final long elapsedNanos,
                     final String source) {
-                r.recordMetadataOperation(type, elapsedNanos, source);
+                QueryPerformanceRecorderState.recordMetadataOperation(type, elapsedNanos, source);
             }
         };
     }

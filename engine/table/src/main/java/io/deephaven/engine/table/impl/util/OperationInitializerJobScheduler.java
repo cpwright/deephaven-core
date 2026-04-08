@@ -6,7 +6,6 @@ package io.deephaven.engine.table.impl.util;
 import io.deephaven.base.log.LogOutputAppendable;
 import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.table.impl.perf.BasePerformanceEntry;
-import io.deephaven.engine.table.impl.perf.ReadMetricsRecorder;
 import io.deephaven.engine.updategraph.OperationInitializer;
 import io.deephaven.io.log.impl.LogOutputStringImpl;
 import io.deephaven.util.SafeCloseable;
@@ -37,8 +36,7 @@ public class OperationInitializerJobScheduler implements JobScheduler {
         operationInitializer.submit(() -> {
             final BasePerformanceEntry basePerformanceEntry = new BasePerformanceEntry();
             basePerformanceEntry.onBaseEntryStart();
-            try (final SafeCloseable ignored1 = executionContext == null ? null : executionContext.open();
-                    final SafeCloseable ignored2 = ReadMetricsRecorder.install(basePerformanceEntry)) {
+            try (final SafeCloseable ignored1 = executionContext == null ? null : executionContext.open()) {
                 runnable.run();
             } catch (Exception e) {
                 onError.accept(e);

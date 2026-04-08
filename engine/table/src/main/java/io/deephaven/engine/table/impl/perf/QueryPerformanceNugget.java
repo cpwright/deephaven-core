@@ -37,16 +37,6 @@ public class QueryPerformanceNugget extends BasePerformanceEntry implements Safe
             // non-synchronized no-op override
         }
 
-        @Override
-        public void recordRead(final long nanos, final int count, @Nullable final String source) {
-            // non-synchronized no-op override
-        }
-
-        @Override
-        public void recordMetadataOperation(
-                @NotNull final String type, final long nanos, @Nullable final String source) {
-            // non-synchronized no-op override
-        }
 
         @Override
         public boolean shouldLog() {

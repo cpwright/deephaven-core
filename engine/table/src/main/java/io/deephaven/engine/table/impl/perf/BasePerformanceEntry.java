@@ -5,15 +5,9 @@ package io.deephaven.engine.table.impl.perf;
 
 import io.deephaven.base.log.LogOutput;
 import io.deephaven.base.log.LogOutputAppendable;
-import io.deephaven.base.stats.Item;
-import io.deephaven.base.stats.State;
-import io.deephaven.base.stats.Stats;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.util.profiling.ThreadProfiler;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.minus;
 import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.plus;
@@ -21,15 +15,7 @@ import static io.deephaven.engine.table.impl.lang.QueryLanguageFunctionUtils.plu
 /**
  * A smaller entry that simply records usage data, meant for aggregating into the larger entry.
  */
-public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRecorder {
-
-    private static final String METADATA_OP_STATS_GROUP = "MetadataOp";
-
-    /**
-     * Cache of Stats items keyed by metadata operation type. Avoids repeated synchronized lookup in
-     * {@link Stats#makeItem} on every I/O operation.
-     */
-    private static final ConcurrentHashMap<String, Item<State>> METADATA_OP_STATS = new ConcurrentHashMap<>();
+public class BasePerformanceEntry implements LogOutputAppendable {
 
     private long usageNanos;
 
@@ -53,9 +39,21 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
     private long startAllocatedBytes;
     private long startPoolAllocatedBytes;
 
+    private long startDataReadNanos;
+    private long startDataReadCount;
+    private long startDataReadBytes;
+    private long startMetadataReadNanos;
+    private long startMetadataReadCount;
+
     public synchronized void onBaseEntryStart() {
         startAllocatedBytes = ThreadProfiler.DEFAULT.getCurrentThreadAllocatedBytes();
         startPoolAllocatedBytes = QueryPerformanceRecorderState.getPoolAllocatedBytesForCurrentThread();
+
+        startDataReadNanos = QueryPerformanceRecorderState.getDataReadNanosForCurrentThread();
+        startDataReadCount = QueryPerformanceRecorderState.getDataReadCountForCurrentThread();
+        startDataReadBytes = QueryPerformanceRecorderState.getDataReadBytesForCurrentThread();
+        startMetadataReadNanos = QueryPerformanceRecorderState.getMetadataReadNanosForCurrentThread();
+        startMetadataReadCount = QueryPerformanceRecorderState.getMetadataReadCountForCurrentThread();
 
         startUserCpuNanos = ThreadProfiler.DEFAULT.getCurrentThreadUserTime();
         startCpuNanos = ThreadProfiler.DEFAULT.getCurrentThreadCpuTime();
@@ -75,12 +73,26 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
         allocatedBytes = plus(allocatedBytes,
                 minus(ThreadProfiler.DEFAULT.getCurrentThreadAllocatedBytes(), startAllocatedBytes));
 
+        dataReadNanos += QueryPerformanceRecorderState.getDataReadNanosForCurrentThread() - startDataReadNanos;
+        dataReadCount += QueryPerformanceRecorderState.getDataReadCountForCurrentThread() - startDataReadCount;
+        dataReadBytes += QueryPerformanceRecorderState.getDataReadBytesForCurrentThread() - startDataReadBytes;
+        metadataReadNanos +=
+                QueryPerformanceRecorderState.getMetadataReadNanosForCurrentThread() - startMetadataReadNanos;
+        metadataReadCount +=
+                QueryPerformanceRecorderState.getMetadataReadCountForCurrentThread() - startMetadataReadCount;
+
         startAllocatedBytes = 0;
         startPoolAllocatedBytes = 0;
 
         startUserCpuNanos = 0;
         startCpuNanos = 0;
         startTimeNanos = 0;
+
+        startDataReadNanos = 0;
+        startDataReadCount = 0;
+        startDataReadBytes = 0;
+        startMetadataReadNanos = 0;
+        startMetadataReadCount = 0;
     }
 
     synchronized void baseEntryReset() {
@@ -99,6 +111,12 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
         dataReadBytes = 0;
         metadataReadNanos = 0;
         metadataReadCount = 0;
+
+        startDataReadNanos = 0;
+        startDataReadCount = 0;
+        startDataReadBytes = 0;
+        startMetadataReadNanos = 0;
+        startMetadataReadCount = 0;
     }
 
     /**
@@ -202,36 +220,6 @@ public class BasePerformanceEntry implements LogOutputAppendable, ReadMetricsRec
         return metadataReadCount;
     }
 
-    /**
-     * Record a data read operation. May be called concurrently from I/O threads.
-     *
-     * @param nanos time spent on the read in nanoseconds
-     * @param bytesRead number of bytes read
-     * @param source optional human-readable description of the data source (e.g. a URI or filename), may be null
-     */
-    public synchronized void recordRead(final long nanos, final int bytesRead, @Nullable final String source) {
-        dataReadNanos += nanos;
-        dataReadCount++;
-        dataReadBytes += bytesRead;
-    }
-
-    /**
-     * Record a metadata operation (e.g. listing files, checking existence, determining file sizes). May be called
-     * concurrently from I/O threads. Each distinct {@code type} is tracked as a separate Stats histogram.
-     *
-     * @param type the type of metadata operation (e.g. "exists", "list", "walk", "size")
-     * @param nanos time spent on the metadata operation in nanoseconds
-     * @param source optional human-readable description of the source (e.g. a URI or directory path), may be null
-     */
-    public synchronized void recordMetadataOperation(
-            @NotNull final String type, final long nanos, @Nullable final String source) {
-        metadataReadNanos += nanos;
-        metadataReadCount++;
-        METADATA_OP_STATS.computeIfAbsent(type,
-                t -> Stats.makeItem(METADATA_OP_STATS_GROUP, t, State.FACTORY,
-                        "Metadata operation timing (nanos) for type: " + t))
-                .getValue().sample(nanos);
-    }
 
     @Override
     public LogOutput append(@NotNull final LogOutput logOutput) {
