@@ -519,10 +519,11 @@ public class SourcePartitionedTableTest extends RefreshingTableTestCase {
         verifyStringColumnContents(spt.table(), "TableName", "p1", "p2");
         assertNotNull(p2tl.getRowSet());
 
-        // TODO: DH-19011: Make this test pass, and then improve it to not have a sleep if possible:
-         spt = null;
-         System.gc();
-         Thread.sleep(5000);
-         assertNull(p2tl.getRowSet());
+        // Test that we cleanup even in the static case (DH-19011)
+        // TODO: improve it to not have a sleep if possible:
+        spt = null;
+        System.gc();
+        Thread.sleep(5000);
+        assertNull(p2tl.getRowSet());
     }
 }
