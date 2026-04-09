@@ -3,6 +3,7 @@
 //
 package io.deephaven.engine.liveness;
 
+import io.deephaven.engine.util.reference.CleanupReferenceProcessorInstance;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.Utils;
 import io.deephaven.util.annotations.VisibleForTesting;
@@ -49,6 +50,22 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
     @Override
     public WeakReference<? extends LivenessReferent> getWeakReference() {
         return tracker;
+    }
+
+    /**
+     * Ensure that this node's {@link RetainedReferenceTracker} is kept alive and will fire cleanup even if this node is
+     * garbage-collected without an explicit call to {@link #onReferenceCountAtZero()}.
+     * <p>
+     * Registers a phantom reference to this node via {@link CleanupReferenceProcessorInstance#LIVENESS} whose action
+     * captures the tracker. This keeps the tracker strongly reachable (via the registration set) until after this node
+     * is collected, guaranteeing that the tracker's {@link RetainedReferenceTracker#cleanup()} will be invoked.
+     */
+    public final void ensureCleanupOnGC() {
+        if (Liveness.REFERENCE_TRACKING_DISABLED) {
+            return;
+        }
+        final RetainedReferenceTracker<ReferenceCountedLivenessNode> localTracker = tracker;
+        CleanupReferenceProcessorInstance.LIVENESS.registerPhantom(this, localTracker::cleanup);
     }
 
     @Override
