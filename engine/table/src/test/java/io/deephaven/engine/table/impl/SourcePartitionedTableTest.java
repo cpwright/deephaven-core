@@ -520,10 +520,15 @@ public class SourcePartitionedTableTest extends RefreshingTableTestCase {
         assertNotNull(p2tl.getRowSet());
 
         // Test that we cleanup even in the static case (DH-19011)
-        // TODO: improve it to not have a sleep if possible:
         spt = null;
-        System.gc();
-        Thread.sleep(5000);
+        final long cleanupDeadlineMillis = System.currentTimeMillis() + 5_000;
+        do {
+            System.gc();
+            if (p2tl.getRowSet() == null) {
+                break;
+            }
+            Thread.sleep(50);
+        } while (System.currentTimeMillis() < cleanupDeadlineMillis);
         assertNull(p2tl.getRowSet());
     }
 }
