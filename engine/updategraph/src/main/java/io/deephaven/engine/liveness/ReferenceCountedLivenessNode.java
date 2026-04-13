@@ -109,14 +109,15 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
      * @param referentPredicate a predicate to test against our managed items
      * @return an Optional of a LivenessReferent that matches the given predicate; or empty if no such reference exists
      */
-    protected Optional<LivenessReferent> findAnyManagedReferent(Predicate<LivenessReferent> referentPredicate) {
+    protected Optional<? extends LivenessReferent> findAnyManagedReferent(
+            Predicate<LivenessReferent> referentPredicate) {
         return tracker.findAny(referentPredicate);
     }
 
     /**
      * @return a stream of retained LivenessReferents
      */
-    protected Stream<LivenessReferent> managedReferentStream() {
+    protected Stream<? extends LivenessReferent> managedReferentStream() {
         return tracker.stream();
     }
 }

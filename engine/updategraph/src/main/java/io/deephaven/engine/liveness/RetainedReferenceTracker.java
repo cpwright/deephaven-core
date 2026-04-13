@@ -158,6 +158,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         impl.makePermanent();
     }
 
+
     private void checkOutstanding() {
         if (outstandingState == NOT_OUTSTANDING) {
             throw new LivenessStateException(
@@ -248,6 +249,23 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         return outstandingCount.get();
     }
 
+    /**
+     * Find a retained reference that matches the given predicate.
+     *
+     * @param referentPredicate a predicate to test against our references
+     * @return an Optional of a LivenessReferent that matches the given predicate; or empty if no such reference exists
+     */
+    Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        return impl.findAny(referentPredicate);
+    }
+
+    /**
+     * @return a stream of retained LivenessReferents
+     */
+    Stream<? extends LivenessReferent> stream() {
+        return impl.stream();
+    }
+
     private interface Impl {
 
         Impl add(@NotNull final LivenessReferent referent);
@@ -269,7 +287,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
          * @return an Optional of a LivenessReferent that matches the given predicate; or empty if no such reference
          *         exists
          */
-        Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate);
+        Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate);
 
         /**
          *
@@ -277,7 +295,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
          * 
          * @return a stream of LivenessReferents retained by this impl
          */
-        Stream<LivenessReferent> stream();
+        Stream<? extends LivenessReferent> stream();
     }
 
     private static final class EmptyWeakImpl implements Impl {
@@ -414,15 +432,11 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
             if (retainedWeakReference == null) {
                 return Optional.empty();
             }
-            final LivenessReferent retained = retainedWeakReference.get();
-            if (retained == null) {
-                return Optional.empty();
+            final LivenessReferent localRetained = retainedWeakReference.get();
+            if (localRetained != null && referentPredicate.test(localRetained)) {
+                return Optional.of(localRetained);
             }
-            if (referentPredicate.test(retained)) {
-                return Optional.of(retained);
-            } else {
-                return Optional.empty();
-            }
+            return Optional.empty();
         }
 
         @Override
@@ -545,15 +559,14 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             return retainedReferences.stream().map(WeakReference::get)
-                    .filter(x -> x != null && referentPredicate.test(x)).map(x -> (LivenessReferent) x).findAny();
+                    .filter(Objects::nonNull).filter(referentPredicate).findAny();
         }
 
         @Override
-        public Stream<LivenessReferent> stream() {
-            return retainedReferences.stream().map(WeakReference::get).filter(Objects::nonNull)
-                    .map(x -> (LivenessReferent) x);
+        public Stream<? extends LivenessReferent> stream() {
+            return retainedReferences.stream().map(WeakReference::get).filter(Objects::nonNull);
         }
     }
 
@@ -854,21 +867,5 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
     }
 
-    /**
-     * Find a retained reference that matches the given predicate.
-     * 
-     * @param referentPredicate a predicate to test against our references
-     * @return an Optional of a LivenessReferent that matches the given predicate; or empty if no such reference exists
-     */
-    Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
-        return impl.findAny(referentPredicate);
-    }
-
-    /**
-     * @return a stream of retained LivenessReferents
-     */
-    Stream<LivenessReferent> stream() {
-        return impl.stream();
-    }
 }
 

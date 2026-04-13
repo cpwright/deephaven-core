@@ -554,7 +554,7 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
                 }
             }
         }
-        final Optional<LivenessReferent> unsatisfiedParent;
+        final Optional<? extends LivenessReferent> unsatisfiedParent;
         synchronized (this) {
             unsatisfiedParent = findAnyManagedReferent(managed -> {
                 if (!(managed instanceof NotificationQueue.Dependency)) {
