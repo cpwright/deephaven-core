@@ -38,9 +38,6 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
      */
     @VisibleForTesting
     public final void initializeTransientFieldsForLiveness() {
-        if (Liveness.REFERENCE_TRACKING_DISABLED) {
-            return;
-        }
         tracker = new RetainedReferenceTracker<>(this, enforceStrongReachability);
         if (Liveness.DEBUG_MODE_ENABLED) {
             Liveness.log.info().append("LivenessDebug: Created tracker ").append(Utils.REFERENT_FORMATTER, tracker)
@@ -55,9 +52,6 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
 
     @Override
     public final boolean tryManage(@NotNull final LivenessReferent referent) {
-        if (Liveness.REFERENCE_TRACKING_DISABLED) {
-            return true;
-        }
         if (Liveness.DEBUG_MODE_ENABLED) {
             Liveness.log.info().append("LivenessDebug: ").append(getReferentDescription()).append(" managing ")
                     .append(referent.getReferentDescription()).endl();
@@ -78,9 +72,6 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
 
     @Override
     public final boolean tryUnmanage(@NotNull final LivenessReferent referent) {
-        if (Liveness.REFERENCE_TRACKING_DISABLED) {
-            return true;
-        }
         if (!tryRetainReference()) {
             return false;
         }
@@ -94,9 +85,6 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
 
     @Override
     public final boolean tryUnmanage(@NotNull final Stream<? extends LivenessReferent> referents) {
-        if (Liveness.REFERENCE_TRACKING_DISABLED) {
-            return true;
-        }
         if (!tryRetainReference()) {
             return false;
         }
