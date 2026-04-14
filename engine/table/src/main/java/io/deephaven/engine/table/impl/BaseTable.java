@@ -1542,8 +1542,8 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
     }
 
     private long[] parentPerformanceEntryIdsArray() {
-        // parents is often empty (because we manage things instead), and this might not have anything; but we attempt
-        // to account for at least one listener as a parent
+        // parents is often empty (because we manage things instead), so this might not have anything.
+        // We attempt to account for at least one listener, in the common case.
         final TLongArrayList ids = new TLongArrayList(parents.size() + 1);
         forEachManagedReference(ref -> BaseTable.getParentPerformanceEntryIds(ref).forEach(ids::add));
 
