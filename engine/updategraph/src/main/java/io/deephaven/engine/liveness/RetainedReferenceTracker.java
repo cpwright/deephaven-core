@@ -20,6 +20,7 @@ import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -255,15 +256,15 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
      * @param referentPredicate a predicate to test against our references
      * @return an Optional of a LivenessReferent that matches the given predicate; or empty if no such reference exists
      */
-    Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+    synchronized Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
         return impl.findAny(referentPredicate);
     }
 
-    /**
-     * @return a stream of retained LivenessReferents
+    /*
+     * Apply consumer to each retained reference.
      */
-    Stream<? extends LivenessReferent> stream() {
-        return impl.stream();
+    synchronized void forEach(Consumer<LivenessReferent> consumer) {
+        impl.forEach(consumer);
     }
 
     private interface Impl {
@@ -290,12 +291,9 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate);
 
         /**
-         *
-         * Produce a stream of LivenessReferents that are currently retained by this Impl.
-         * 
-         * @return a stream of LivenessReferents retained by this impl
+         * Apply consumer to LivenessReferents that are currently retained by this Impl.
          */
-        Stream<? extends LivenessReferent> stream();
+        void forEach(Consumer<LivenessReferent> consumer);
     }
 
     private static final class EmptyWeakImpl implements Impl {
@@ -327,9 +325,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Stream<LivenessReferent> stream() {
-            return Stream.empty();
-        }
+        public void forEach(Consumer<LivenessReferent> consumer) {}
     }
 
     private static final class SingleWeakImpl implements Impl {
@@ -439,13 +435,16 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
             return Optional.empty();
         }
 
+
         @Override
-        public Stream<LivenessReferent> stream() {
+        public void forEach(Consumer<LivenessReferent> consumer) {
             if (retainedWeakReference == null) {
-                return Stream.empty();
+                return;
             }
             final LivenessReferent retained = retainedWeakReference.get();
-            return Stream.ofNullable(retained);
+            if (retained != null) {
+                consumer.accept(retained);
+            }
         }
     }
 
@@ -565,8 +564,8 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Stream<? extends LivenessReferent> stream() {
-            return retainedReferences.stream().map(WeakReference::get).filter(Objects::nonNull);
+        public void forEach(Consumer<LivenessReferent> consumer) {
+            retainedReferences.stream().map(WeakReference::get).filter(Objects::nonNull).forEach(consumer);
         }
     }
 
@@ -599,9 +598,8 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Stream<LivenessReferent> stream() {
-            return Stream.empty();
-        }
+        public void forEach(Consumer<LivenessReferent> consumer) {}
+
     }
 
     private static final RetentionCache<LivenessReferent> STRONG_RETENTION_CACHE = new RetentionCache<>();
@@ -683,8 +681,11 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Stream<LivenessReferent> stream() {
-            return Stream.ofNullable(retained);
+        public void forEach(Consumer<LivenessReferent> consumer) {
+            final LivenessReferent localRetained = retained;
+            if (localRetained != null) {
+                consumer.accept(localRetained);
+            }
         }
     }
 
@@ -772,8 +773,8 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Stream<LivenessReferent> stream() {
-            return retained.stream();
+        public void forEach(Consumer<LivenessReferent> consumer) {
+            retained.forEach(consumer);
         }
     }
 

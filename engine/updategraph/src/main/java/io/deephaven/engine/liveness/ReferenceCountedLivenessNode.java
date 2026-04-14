@@ -10,6 +10,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.ref.WeakReference;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -115,9 +116,9 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
     }
 
     /**
-     * @return a stream of retained LivenessReferents
+     * Apply consumer to each managed reference.
      */
-    protected Stream<? extends LivenessReferent> managedReferentStream() {
-        return tracker.stream();
+    protected void forEachManagedReference(final Consumer<LivenessReferent> consumer) {
+        tracker.forEach(consumer);
     }
 }

@@ -5,6 +5,7 @@ package io.deephaven.engine.table.impl;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import gnu.trove.list.array.TLongArrayList;
 import io.deephaven.api.Pair;
 import io.deephaven.base.Base64;
 import io.deephaven.base.log.LogOutput;
@@ -521,10 +522,7 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
         // If we have no parents whatsoever then we are a source, and have no dependency chain other than the UGP
         // itself
         final Collection<Object> localParents = parents;
-        final boolean hasManagedParents;
-        synchronized (this) {
-            hasManagedParents = findAnyManagedReferent(x -> true).isPresent();
-        }
+        final boolean hasManagedParents = findAnyManagedReferent(x -> true).isPresent();
 
         if (!updateGraph.satisfied(step)) {
             if (localParents.isEmpty() && !hasManagedParents) {
@@ -541,28 +539,27 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             return true;
         }
 
-        synchronized (localParents) {
-            for (Object parent : localParents) {
-                if (parent instanceof NotificationQueue.Dependency) {
-                    if (!((NotificationQueue.Dependency) parent).satisfied(step)) {
-                        updateGraph.logDependencies()
-                                .append("Parent dependencies not satisfied for ").append(this)
-                                .append(", parent=").append((NotificationQueue.Dependency) parent)
-                                .endl();
-                        return false;
+        if (!localParents.isEmpty()) {
+            synchronized (localParents) {
+                for (Object parent : localParents) {
+                    if (parent instanceof NotificationQueue.Dependency) {
+                        if (!((NotificationQueue.Dependency) parent).satisfied(step)) {
+                            updateGraph.logDependencies()
+                                    .append("Parent dependencies not satisfied for ").append(this)
+                                    .append(", parent=").append((NotificationQueue.Dependency) parent)
+                                    .endl();
+                            return false;
+                        }
                     }
                 }
             }
         }
-        final Optional<? extends LivenessReferent> unsatisfiedParent;
-        synchronized (this) {
-            unsatisfiedParent = findAnyManagedReferent(managed -> {
-                if (!(managed instanceof NotificationQueue.Dependency)) {
-                    return false;
-                }
-                return !((NotificationQueue.Dependency) managed).satisfied(step);
-            });
-        }
+        final Optional<? extends LivenessReferent> unsatisfiedParent = findAnyManagedReferent(managed -> {
+            if (!(managed instanceof NotificationQueue.Dependency)) {
+                return false;
+            }
+            return !((NotificationQueue.Dependency) managed).satisfied(step);
+        });
         if (unsatisfiedParent.isPresent()) {
             updateGraph.logDependencies()
                     .append("Managed parent dependencies not satisfied for ").append(this)
@@ -1550,13 +1547,13 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
     }
 
     private long[] parentPerformanceEntryIdsArray() {
-        final long[] idsSnapshot;
-        synchronized (this) {
-            final Stream<Object> stream =
-                    Stream.concat(Stream.concat(Stream.of(this), parents.stream()), managedReferentStream());
-            idsSnapshot = stream.flatMapToLong(BaseTable::getParentPerformanceEntryIds).toArray();
-        }
-        return idsSnapshot;
+        final TLongArrayList ids = new TLongArrayList();
+        forEachManagedReference(ref -> BaseTable.getParentPerformanceEntryIds(ref).forEach(ids::add));
+
+        final Stream<Object> stream = Stream.concat(Stream.of(this), parents.stream());
+        stream.flatMapToLong(BaseTable::getParentPerformanceEntryIds).forEach(ids::add);
+
+        return ids.toArray();
     }
 
     /**
