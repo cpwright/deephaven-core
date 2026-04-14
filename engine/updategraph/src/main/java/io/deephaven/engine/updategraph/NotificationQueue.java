@@ -84,7 +84,7 @@ public interface NotificationQueue {
          * @param step the current step
          * @return true if the dependency is satisfied (or not actually a Dependency), false otherwise
          */
-        static boolean satisfied(final @NotNull Object dependency, final long step) {
+        static boolean satisfied(@NotNull final Object dependency, final long step) {
             if (!(dependency instanceof Dependency)) {
                 return true;
             }
