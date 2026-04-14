@@ -495,9 +495,7 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
         if (DynamicNode.notDynamicOrIsRefreshing(parent)) {
             setRefreshing(true);
             if (parent instanceof LivenessReferent) {
-                synchronized (this) {
-                    manage((LivenessReferent) parent);
-                }
+                manage((LivenessReferent) parent);
             } else {
                 ensureParents().add(parent);
             }
@@ -522,10 +520,11 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
         // If we have no parents whatsoever then we are a source, and have no dependency chain other than the UGP
         // itself
         final Collection<Object> localParents = parents;
+        final boolean emptyParents = localParents.isEmpty();
         final boolean hasManagedParents = findAnyManagedReferent(x -> true).isPresent();
 
         if (!updateGraph.satisfied(step)) {
-            if (localParents.isEmpty() && !hasManagedParents) {
+            if (emptyParents && !hasManagedParents) {
                 updateGraph.logDependencies().append("Root node not satisfied ").append(this).endl();
             } else {
                 updateGraph.logDependencies().append("Update graph not satisfied for ").append(this).endl();
@@ -533,13 +532,15 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             return false;
         }
 
-        if (localParents.isEmpty() && !hasManagedParents) {
+        if (emptyParents && !hasManagedParents) {
             updateGraph.logDependencies().append("Root node satisfied ").append(this).endl();
             StepUpdater.tryUpdateRecordedStep(LAST_SATISFIED_STEP_UPDATER, this, step);
             return true;
         }
 
-        if (!localParents.isEmpty()) {
+        if (!emptyParents) {
+            // we check for empty before we synchronize on the localParents so that we do not need to have false
+            // contention on the shared empty sentinel
             synchronized (localParents) {
                 for (Object parent : localParents) {
                     if (parent instanceof NotificationQueue.Dependency) {
@@ -1547,7 +1548,9 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
     }
 
     private long[] parentPerformanceEntryIdsArray() {
-        final TLongArrayList ids = new TLongArrayList();
+        // parents is often empty (because we manage things instead), and this might not have anything; but we attempt
+        // to account for at least one listener and parent with the + 2
+        final TLongArrayList ids = new TLongArrayList(parents.size() + 2);
         forEachManagedReference(ref -> BaseTable.getParentPerformanceEntryIds(ref).forEach(ids::add));
 
         final Stream<Object> stream = Stream.concat(Stream.of(this), parents.stream());

@@ -159,7 +159,6 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         impl.makePermanent();
     }
 
-
     private void checkOutstanding() {
         if (outstandingState == NOT_OUTSTANDING) {
             throw new LivenessStateException(
@@ -867,6 +866,4 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
             }
         }
     }
-
 }
-
