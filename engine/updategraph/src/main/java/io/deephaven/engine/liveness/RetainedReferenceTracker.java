@@ -319,7 +319,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         public void makePermanent() {}
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             return Optional.empty();
         }
 
@@ -423,7 +423,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             if (retainedWeakReference == null) {
                 return Optional.empty();
             }
@@ -592,7 +592,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         public void makePermanent() {}
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             return Optional.empty();
         }
 
@@ -671,7 +671,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             final LivenessReferent localRetained = retained;
             if (localRetained != null && referentPredicate.test(localRetained)) {
                 return Optional.of(localRetained);
@@ -767,7 +767,7 @@ final class RetainedReferenceTracker<TYPE extends LivenessManager> extends WeakC
         }
 
         @Override
-        public Optional<LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
+        public Optional<? extends LivenessReferent> findAny(Predicate<LivenessReferent> referentPredicate) {
             return retained.stream().filter(referentPredicate).findAny();
         }
 
