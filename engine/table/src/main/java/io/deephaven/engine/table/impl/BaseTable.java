@@ -543,24 +543,18 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
             // contention on the shared empty sentinel
             synchronized (localParents) {
                 for (Object parent : localParents) {
-                    if (parent instanceof NotificationQueue.Dependency) {
-                        if (!((NotificationQueue.Dependency) parent).satisfied(step)) {
-                            updateGraph.logDependencies()
-                                    .append("Parent dependencies not satisfied for ").append(this)
-                                    .append(", parent=").append((NotificationQueue.Dependency) parent)
-                                    .endl();
-                            return false;
-                        }
+                    if (!NotificationQueue.Dependency.satisfied(parent, step)) {
+                        updateGraph.logDependencies()
+                                .append("Parent dependencies not satisfied for ").append(this)
+                                .append(", parent=").append((NotificationQueue.Dependency) parent)
+                                .endl();
+                        return false;
                     }
                 }
             }
         }
-        final Optional<? extends LivenessReferent> unsatisfiedParent = findAnyManagedReferent(managed -> {
-            if (!(managed instanceof NotificationQueue.Dependency)) {
-                return false;
-            }
-            return !((NotificationQueue.Dependency) managed).satisfied(step);
-        });
+        final Optional<? extends LivenessReferent> unsatisfiedParent =
+                findAnyManagedReferent(managed -> !NotificationQueue.Dependency.satisfied(managed, step));
         if (unsatisfiedParent.isPresent()) {
             updateGraph.logDependencies()
                     .append("Managed parent dependencies not satisfied for ").append(this)
@@ -1549,12 +1543,12 @@ public abstract class BaseTable<IMPL_TYPE extends BaseTable<IMPL_TYPE>> extends 
 
     private long[] parentPerformanceEntryIdsArray() {
         // parents is often empty (because we manage things instead), and this might not have anything; but we attempt
-        // to account for at least one listener and parent with the + 2
-        final TLongArrayList ids = new TLongArrayList(parents.size() + 2);
+        // to account for at least one listener as a parent
+        final TLongArrayList ids = new TLongArrayList(parents.size() + 1);
         forEachManagedReference(ref -> BaseTable.getParentPerformanceEntryIds(ref).forEach(ids::add));
 
-        final Stream<Object> stream = Stream.concat(Stream.of(this), parents.stream());
-        stream.flatMapToLong(BaseTable::getParentPerformanceEntryIds).forEach(ids::add);
+        BaseTable.getParentPerformanceEntryIds(this).forEach(ids::add);
+        parents.stream().flatMapToLong(BaseTable::getParentPerformanceEntryIds).forEach(ids::add);
 
         return ids.toArray();
     }
