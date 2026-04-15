@@ -1047,7 +1047,7 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
         } else if (expandDescendants.isBoolean()) {
             action = expandDescendants.asBoolean() ? ACTION_EXPAND_WITH_DESCENDENTS : ACTION_EXPAND;
         } else if (expandDescendants.isNumber()) {
-            int depth = (int) expandDescendants.asNumber();
+            int depth = expandDescendants.asInt();
             if (depth < 1) {
                 throw new IllegalArgumentException("depth must be >= 1, got " + depth);
             }
