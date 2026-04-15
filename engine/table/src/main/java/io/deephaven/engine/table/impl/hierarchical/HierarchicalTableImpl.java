@@ -1266,10 +1266,8 @@ public abstract class HierarchicalTableImpl<IFACE_TYPE extends HierarchicalTable
             return;
         }
 
-        final VisitAction rootNodeAction;
-        if ((rootNodeAction = rootNodeDirective.getAction()) != Expand
-                && rootNodeAction != ExpandAll
-                && rootNodeAction != ExpandToDepth) {
+        final VisitAction rootNodeAction = rootNodeDirective.getAction();
+        if (rootNodeAction != Expand && rootNodeAction != ExpandAll && rootNodeAction != ExpandToDepth) {
             // We *could* auto-expand the root, instead, but for now let's treat this as empty for consistency
             return;
         }
