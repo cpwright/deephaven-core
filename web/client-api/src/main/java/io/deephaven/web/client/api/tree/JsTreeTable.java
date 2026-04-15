@@ -114,12 +114,12 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
     private static final double ACTION_EXPAND = 0b001;
     private static final double ACTION_EXPAND_WITH_DESCENDENTS = 0b011;
     private static final double ACTION_COLLAPSE = 0b100;
-    private static final double ACTION_EXPAND_TO_DEPTH_BASE = 0b0100_0000;
+    private static final double ACTION_EXPAND_TO_DEPTH_BASE = 0b0111_0000;
 
     /**
      * Compute the action value for an expand-to-depth directive.
      *
-     * @param depth The number of levels to expand (must be &gt;= 1 and &lt;= 64)
+     * @param depth The number of levels to expand (must be &gt;= 1 and &lt;= 15)
      * @return The action value encoding the expand-to-depth action
      */
     private static double expandToDepthAction(int depth) {

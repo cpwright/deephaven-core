@@ -138,12 +138,12 @@ public interface HierarchicalTable<IFACE_TYPE extends HierarchicalTable<IFACE_TY
      * node, unless they are included in the key table with a {@link #KEY_TABLE_ACTION_CONTRACT contraction} or their
      * direct parent has a directive with action {@link #KEY_TABLE_ACTION_EXPAND}.
      */
-    byte KEY_TABLE_ACTION_EXPAND_TO_DEPTH_BASE = 0b0100_0000;
+    byte KEY_TABLE_ACTION_EXPAND_TO_DEPTH_BASE = 0b0111_0000;
 
     /**
      * Create a key table action byte value for expanding a node to a specific depth.
      *
-     * @param depth The number of levels to expand below the directive node (must be &gt;= 1 and &lt;= 64)
+     * @param depth The number of levels to expand below the directive node (must be &gt;= 1 and &lt;= 15)
      * @return The action byte value encoding the expand-to-depth action
      * @throws IllegalArgumentException if depth is out of the valid range
      */
