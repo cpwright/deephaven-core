@@ -61,9 +61,6 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
      * is collected, guaranteeing that the tracker's {@link RetainedReferenceTracker#cleanup()} will be invoked.
      */
     public final void ensureCleanupOnGC() {
-        if (Liveness.REFERENCE_TRACKING_DISABLED) {
-            return;
-        }
         final RetainedReferenceTracker<ReferenceCountedLivenessNode> localTracker = tracker;
         CleanupReferenceProcessorInstance.LIVENESS.registerPhantom(this, localTracker::cleanup);
     }
