@@ -109,7 +109,7 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
     /**
      * A constant we can use for feature detection from the web.
      */
-    public final boolean HAS_EXPAND_TO_DEPTH = true;
+    public final boolean hasExpandToDepth = true;
 
     private static final double ACTION_EXPAND = 0b001;
     private static final double ACTION_EXPAND_WITH_DESCENDENTS = 0b011;
