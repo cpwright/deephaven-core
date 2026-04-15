@@ -1011,8 +1011,8 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
 
         @JsOverlay
         @TsUnionMember
-        default double asNumber() {
-            return Js.asDouble(this);
+        default int asInt() {
+            return Js.asInt(this);
         }
     }
 
