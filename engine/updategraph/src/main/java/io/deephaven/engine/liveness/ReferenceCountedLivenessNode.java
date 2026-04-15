@@ -59,6 +59,10 @@ public abstract class ReferenceCountedLivenessNode extends ReferenceCountedLiven
      * Registers a phantom reference to this node via {@link CleanupReferenceProcessorInstance#LIVENESS} whose action
      * captures the tracker. This keeps the tracker strongly reachable (via the registration set) until after this node
      * is collected, guaranteeing that the tracker's {@link RetainedReferenceTracker#cleanup()} will be invoked.
+     * <p>
+     * Note, each call registers a new cleanup action. If you call this method multiple times, you may have multiple
+     * cleanup actions registered, and thus multiple calls to {@link RetainedReferenceTracker#cleanup()} when this node
+     * is collected.
      */
     public final void ensureCleanupOnGC() {
         CleanupReferenceProcessorInstance.LIVENESS.registerPhantom(this, tracker::cleanup);
