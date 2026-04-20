@@ -1050,7 +1050,8 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
      * <li>A {@code number} (&gt;= 1) — expand to a specified depth relative to the target node. The depth is relative
      * to the target node: a depth of 1 is equivalent to a regular expand (one level), a depth of 2 expands the node and
      * its children, etc. Behaves like expand-all but stops auto-expanding after the specified number of levels.
-     * Descendants with their own collapse or single-expand directives are respected, same as expand-all.</li>
+     * Descendants with their own collapse or single-expand directives are respected, same as expand-all. Numeric value
+     * is only supported if {@link Features#treeTableExpandToDepth} is true.</li>
      * <li>{@code false}, {@code null}, or omitted — expand only the row itself (one level).</li>
      * </ul>
      *
