@@ -926,13 +926,14 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
      * {@code true} to expand the row and all descendants, a {@code number} to expand to a specified depth relative to
      * the target node, or omit / pass {@code false} to expand only the row itself. A depth of 1 is equivalent to a
      * regular expand (one level). A depth of 2 expands the node and its children, etc. Equivalent to
-     * {@code setExpanded(row, true)} with an optional third parameter.
+     * {@code setExpanded(row, true)} with an optional third parameter. Numeric value is only supported if
+     * {@link Features#treeTableExpandToDepth} is true.
      *
      * @param row The row to expand - either the absolute row index or the row object.
      * @param expandDescendants Controls descendant expansion: {@code true} for all descendants, a {@code number} for
      *        depth-limited expansion (relative to the target node), or {@code false}/omitted for a single level.
      */
-    public void expand(RowReferenceUnion row, @JsOptional ExpandDescendantsUnion expandDescendants) {
+    public void expand(RowReferenceUnion row, @JsOptional @JsNullable ExpandDescendantsUnion expandDescendants) {
         setExpanded(row, true, expandDescendants);
     }
 
@@ -1037,7 +1038,7 @@ public class JsTreeTable extends HasLifecycle implements ServerObject {
      *        Defaults to {@code false}.
      */
     public void setExpanded(RowReferenceUnion row, boolean isExpanded,
-            @JsOptional ExpandDescendantsUnion expandDescendants) {
+            @JsOptional @JsNullable ExpandDescendantsUnion expandDescendants) {
         // TODO check row number is within bounds
         final double action;
         if (!isExpanded) {
