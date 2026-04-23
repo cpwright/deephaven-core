@@ -35,11 +35,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Reproduces the lock-order inversion between {@link ArrowFlightUtil.DoExchangeMarshaller} and its
- * {@link ArrowFlightUtil.DoExchangeMarshaller.Handler} that was observed in deadlock.txt (DH-XXXXX).
+ * Regression test for DH-22370: lock-order inversion between {@link ArrowFlightUtil.DoExchangeMarshaller} and its
+ * {@link ArrowFlightUtil.DoExchangeMarshaller.Handler}.
  *
  * <p>
- * The captured deadlock had two threads:
+ * The reported deadlock had two threads:
  * <ul>
  * <li>Thread A inside {@code BarrageSubscriptionRequestHandler.onExportResolved} (holding the handler's monitor)
  * reaching {@code DoExchangeMarshaller.close} via a synchronously-delivered gRPC {@code onCancel} callback and blocking

@@ -355,7 +355,7 @@ public class ArrowFlightUtil {
 
         private final StreamObserver<BarrageMessageWriter.MessageView> listener;
 
-        private boolean isClosed = false;
+        private volatile boolean isClosed = false;
 
         private boolean isFirstMsg = true;
 
