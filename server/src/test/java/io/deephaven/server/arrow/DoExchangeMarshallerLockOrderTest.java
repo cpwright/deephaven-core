@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
