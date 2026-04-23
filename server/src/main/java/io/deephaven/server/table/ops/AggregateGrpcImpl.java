@@ -4,6 +4,7 @@
 package io.deephaven.server.table.ops;
 
 import io.deephaven.api.ColumnName;
+import io.deephaven.api.Pair;
 import io.deephaven.auth.codegen.impl.TableServiceContextualAuthWiring;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.table.Table;
@@ -96,6 +97,17 @@ public final class AggregateGrpcImpl extends GrpcTableOperation<AggregateRequest
                 default:
                     throw new IllegalArgumentException(
                             "Unsupported Selectable type (" + selectableGrpc.getTypeCase() + ") in Aggregation.");
+            }
+        }
+        if (agg.hasColumns()) {
+            final AggSpec innerSpec = agg.getColumns().getSpec();
+            if (innerSpec.getTypeCase() == AggSpec.TypeCase.FORMULA) {
+                final List<String> inputNames = agg.getColumns().getMatchPairsList().stream()
+                        .map(Pair::parse)
+                        .map(pair -> pair.input().name())
+                        .collect(Collectors.toList());
+                AggSpecFormulaValidator.validate(innerSpec.getFormula(), parent, groupByColumns, inputNames,
+                        expressionValidator);
             }
         }
     }
