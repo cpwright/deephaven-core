@@ -427,6 +427,8 @@ public class ArrowFlightUtil {
             } catch (final IOException err) {
                 throw errorTransformer.transform(err);
             }
+
+            final Handler handler;
             synchronized (this) {
 
                 // `FlightData` messages from Barrage clients will provide app_metadata describing the request but
@@ -436,11 +438,8 @@ public class ArrowFlightUtil {
 
                 if (requestHandler != null) {
                     // rely on the handler to verify message type
-                    requestHandler.handleMessage(message);
-                    return;
-                }
-
-                if (message.app_metadata != null) {
+                    handler = requestHandler;
+                } else if (message.app_metadata != null) {
                     // handle the different message types that can come over DoExchange
                     final byte type = message.app_metadata.msgType();
                     final ExchangeRequestHandlerFactory factory = requestHandlerFactories.get(type);
@@ -453,19 +452,21 @@ public class ArrowFlightUtil {
                         throw new IllegalStateException(
                                 "ExchangeRequestHandlerFactory returned null for message of type " + type);
                     }
-                    requestHandler.handleMessage(message);
+                    handler = requestHandler;
+                } else {
+                    // handle the possible error cases
+                    if (!isFirstMsg) {
+                        // only the first messages is allowed to have null metadata
+                        throw Exceptions.statusRuntimeException(Code.INVALID_ARGUMENT,
+                                myPrefix + "failed to receive Barrage request metadata");
+                    }
+
+                    isFirstMsg = false;
                     return;
                 }
-
-                // handle the possible error cases
-                if (!isFirstMsg) {
-                    // only the first messages is allowed to have null metadata
-                    throw Exceptions.statusRuntimeException(Code.INVALID_ARGUMENT,
-                            myPrefix + "failed to receive Barrage request metadata");
-                }
-
-                isFirstMsg = false;
             }
+
+            handler.handleMessage(message);
         }
 
         public List<ExchangeMarshaller> getMarshallers() {
