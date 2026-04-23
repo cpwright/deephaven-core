@@ -156,8 +156,11 @@ public class BarrageSubscriptionRequestHandler implements ArrowFlightUtil.DoExch
             marshaller.manage(subscriptionManagedReference);
         }
 
-        for (final BarrageSubscriptionRequest request : preExportSubscriptions) {
-            apply(request);
+        // preExportSubscriptions could have been changed out from under us if subscribe called close()
+        if (preExportSubscriptions != null) {
+            for (final BarrageSubscriptionRequest request : preExportSubscriptions) {
+                apply(request);
+            }
         }
 
         // we will now process requests as they are received
