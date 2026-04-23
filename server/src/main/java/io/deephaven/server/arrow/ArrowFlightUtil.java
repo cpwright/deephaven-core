@@ -11,6 +11,7 @@ import gnu.trove.map.hash.TByteObjectHashMap;
 import io.deephaven.UncheckedDeephavenException;
 import io.deephaven.barrage.flatbuf.BarrageMessageType;
 import io.deephaven.barrage.flatbuf.BarrageSubscriptionRequest;
+import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.liveness.SingletonLivenessManager;
 import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.table.Table;
@@ -34,6 +35,7 @@ import io.deephaven.server.session.SessionService;
 import io.deephaven.server.session.SessionState;
 import io.deephaven.server.session.TicketRouter;
 import io.deephaven.util.SafeCloseable;
+import io.deephaven.util.annotations.TestUseOnly;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.apache.arrow.flatbuf.MessageHeader;
@@ -384,6 +386,15 @@ public class ArrowFlightUtil {
         }
 
         private Handler requestHandler = null;
+
+        /**
+         * This is only used for testing; never call this method outside of a unit test.
+         */
+        @TestUseOnly
+        synchronized void setRequestHandler(final Handler handler) {
+            Assert.eqNull(requestHandler, "requestHandler");
+            requestHandler = handler;
+        }
 
         @AssistedInject
         public DoExchangeMarshaller(

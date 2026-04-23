@@ -4,6 +4,7 @@
 package io.deephaven.server.arrow;
 
 import io.deephaven.auth.AuthContext;
+import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.context.TestExecutionContext;
 import io.deephaven.extensions.barrage.util.BarrageProtoUtil;
 import io.deephaven.server.session.SessionService;
@@ -136,10 +137,7 @@ public class DoExchangeMarshallerLockOrderTest {
 
         // Install the handler directly so onNext takes the "requestHandler already set" dispatch path and
         // we can skip the flatbuffer machinery that would otherwise be required for factory lookup.
-        final Field requestHandlerField =
-                ArrowFlightUtil.DoExchangeMarshaller.class.getDeclaredField("requestHandler");
-        requestHandlerField.setAccessible(true);
-        requestHandlerField.set(marshaller, handler);
+        marshaller.setRequestHandler(handler);
 
         final CountDownLatch threadYHoldsHandler = new CountDownLatch(1);
         final CountDownLatch threadYProceed = new CountDownLatch(1);
@@ -154,7 +152,7 @@ public class DoExchangeMarshallerLockOrderTest {
                     threadYHoldsHandler.countDown();
                     // Give Thread X time to enter onNext and (pre-fix) block at handleMessage's
                     // synchronized(this) while still holding the marshaller monitor.
-                    if (!handleMessageEntered.await(5, TimeUnit.SECONDS)) {
+                    if (!handleMessageEntered.await(10, TimeUnit.SECONDS)) {
                         // Thread X never reached handleMessage — allow Thread Y to proceed anyway so the
                         // test can terminate; findDeadlockedThreads() will still be the source of truth.
                     }
@@ -174,7 +172,9 @@ public class DoExchangeMarshallerLockOrderTest {
         final Thread threadX = new Thread(() -> {
             try {
                 // Wait for Y to own the handler monitor so the ordering is deterministic.
-                threadYHoldsHandler.await();
+                if (!threadYHoldsHandler.await(10, TimeUnit.SECONDS)) {
+                    fail("Thread Y did not acquire the handler monitor before Thread X proceeded");
+                }
                 marshaller.onNext(new ByteArrayInputStream(new byte[0]));
             } catch (final Throwable t) {
                 threadFailure.compareAndSet(null, t);
@@ -217,5 +217,7 @@ public class DoExchangeMarshallerLockOrderTest {
         assertFalse(
                 "DoExchangeMarshaller.onNext must not hold its own monitor while dispatching to Handler.handleMessage",
                 holdsMarshallerMonitorAtDispatch.get());
+
+        Assert.eq(handleMessageEntered.getCount(), "handleMessageEntered.getCount()", 0L);
     }
 }
