@@ -5,6 +5,7 @@ package io.deephaven.server.table.ops;
 
 import io.deephaven.api.ColumnName;
 import io.deephaven.api.Selectable;
+import io.deephaven.engine.table.ColumnDefinition;
 import io.deephaven.engine.table.Table;
 import io.deephaven.engine.table.impl.select.FormulaUtil;
 import io.deephaven.engine.table.impl.select.SelectColumn;
@@ -50,14 +51,12 @@ final class AggSpecFormulaValidator {
                 TableTools.newTable(parent.getDefinition()).groupBy(groupByColumns);
         final String formulaString = formula.getFormula();
         final String paramToken = formula.getParamToken();
-        for (final String columnName : inputColumnNames) {
-            final String substituted = FormulaUtil.replaceFormulaTokens(formulaString, paramToken, columnName);
-            final SelectColumn sc = SelectColumn.of(Selectable.parse(columnName + "=" + substituted));
-            validator.validateColumnExpressions(
-                    new SelectColumn[] {sc},
-                    new String[] {formulaString},
-                    groupedPrototype.getDefinition());
-        }
+        final String[] expressions = inputColumnNames.stream()
+                .map(columnName -> columnName + "="
+                        + FormulaUtil.replaceFormulaTokens(formulaString, paramToken, columnName))
+                .toArray(String[]::new);
+        final SelectColumn[] selectColumns = SelectColumn.from(Selectable.from(expressions));
+        validator.validateColumnExpressions(selectColumns, expressions, groupedPrototype.getDefinition());
     }
 
     /**
@@ -70,7 +69,7 @@ final class AggSpecFormulaValidator {
                 .map(ColumnName::name)
                 .collect(Collectors.toSet());
         return parent.getDefinition().getColumnStream()
-                .map(cd -> cd.getName())
+                .map(ColumnDefinition::getName)
                 .filter(name -> !keyNames.contains(name))
                 .collect(Collectors.toList());
     }
