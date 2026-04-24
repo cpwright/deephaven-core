@@ -71,7 +71,7 @@ public class SortTableGrpcImpl extends GrpcTableOperation<SortTableRequest> {
         }
 
         // This loop does two optimizations:
-        // 1. Consolidate all sorts into a SortPair array to only call one sort on the table
+        // 1. Consolidate all sorts into a List<SortColumn> to only call one sort on the table
         // 2. Move all the reverses to the back:
         // - For an odd number of reverses only call one reverse
         // - For an even number of reverses do not call reverse (they cancel out)
