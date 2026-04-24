@@ -47,6 +47,7 @@ public class SortTableGrpcImpl extends GrpcTableOperation<SortTableRequest> {
         final List<String> missingColumns = request.getSortsList().stream()
                 .filter(sort -> sort.getDirection() != SortDescriptor.SortDirection.REVERSE)
                 .map(SortDescriptor::getColumnName)
+                .filter(Predicate.not(String::isEmpty))
                 .filter(Predicate.not(originalColumns::contains))
                 .collect(Collectors.toList());
         if (!missingColumns.isEmpty()) {
