@@ -130,7 +130,7 @@ class QueryPerformanceStreamPublisher implements StreamPublisher {
         chunks[19].<String>asWritableObjectChunk().add(Objects.toString(nugget.getAuthContext()));
 
         // ColumnDefinition.ofLong("WorkerHeapSize")
-        chunks[20].<String>asWritableLongChunk().add(heapSize);
+        chunks[20].asWritableLongChunk().add(heapSize);
 
         if (chunks[0].size() == CHUNK_SIZE) {
             flushInternal();

@@ -10,9 +10,9 @@ import io.deephaven.util.QueryConstants;
  */
 public class HeapSize {
     /**
-     * Get this process's maximum heap size in bytes, or QueryConstants NULL_LONG
+     * Get this process's maximum heap size in bytes, or {@link QueryConstants#NULL_LONG}.
      * 
-     * @return this processes maximum heap size in bytes, or QueryConstants NULL_LONG
+     * @return this processes maximum heap size in bytes, or {@link QueryConstants#NULL_LONG}.
      */
     public static long getMaximumHeapSizeBytes() {
         return EngineMetrics.getProcessInfo().getMemoryInfo().heap().max().orElse(QueryConstants.NULL_LONG);
