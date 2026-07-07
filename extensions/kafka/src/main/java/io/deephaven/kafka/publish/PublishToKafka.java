@@ -366,7 +366,7 @@ public class PublishToKafka<K, V> extends LivenessArtifact {
         private PublishListener(
                 @NotNull final ModifiedColumnSet keysModified,
                 @NotNull final ModifiedColumnSet valuesModified) {
-            super("PublishToKafka", table, false);
+            super("PublishToKafka", table, false, false);
             this.keysModified = keysModified;
             this.valuesModified = valuesModified;
             this.isBlink = BlinkTableTools.isBlink(table);

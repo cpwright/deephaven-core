@@ -64,7 +64,8 @@ public class PythonReplayShiftObliviousListenerAdapter extends ShiftObliviousIns
      */
     public PythonReplayShiftObliviousListenerAdapter(String description, Table source, boolean retain,
             PyObject pyObjectIn) {
-        super(description, source, retain);
+        // capture the auth context so the Python function executes with the listener creator's permissions
+        super(description, source, retain, true);
         pyCallable = PythonUtils.pyListenerFunc(pyObjectIn);
     }
 

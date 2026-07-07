@@ -3,8 +3,10 @@
 //
 package io.deephaven.engine.table.impl;
 
+import io.deephaven.auth.AuthContext;
 import io.deephaven.base.cache.RetentionCache;
 import io.deephaven.base.verify.Require;
+import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.exceptions.UncheckedTableException;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.table.Table;
@@ -13,6 +15,7 @@ import io.deephaven.engine.liveness.Liveness;
 import io.deephaven.engine.table.impl.util.*;
 import io.deephaven.engine.util.systemicmarking.SystemicObject;
 import io.deephaven.engine.util.systemicmarking.SystemicObjectTracker;
+import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.Utils;
 import io.deephaven.util.annotations.ReferentialIntegrity;
 import org.jetbrains.annotations.NotNull;
@@ -43,11 +46,19 @@ public abstract class ShiftObliviousInstrumentedListenerAdapter extends ShiftObl
      */
     private volatile boolean systemic = SystemicObjectTracker.isSystemicThread();
 
+    /**
+     * The creating thread's {@link AuthContext}, reinstalled around {@link #onUpdate(RowSet, RowSet, RowSet)}
+     * execution; null if this listener does not capture the auth context.
+     */
+    @Nullable
+    private final AuthContext authContext;
+
     @ReferentialIntegrity
     protected final Table source;
 
     /**
-     * Create an instrumented listener for source. No description is provided.
+     * Create an instrumented listener for source. No description is provided. The {@link AuthContext} from the current
+     * {@link ExecutionContext} is captured and reinstalled around {@link #onUpdate(RowSet, RowSet, RowSet)} execution.
      *
      * @param source The source table this listener will subscribe to - needed for preserving referential integrity
      * @param retain Whether a hard reference to this listener should be maintained to prevent it from being collected.
@@ -58,6 +69,9 @@ public abstract class ShiftObliviousInstrumentedListenerAdapter extends ShiftObl
     }
 
     /**
+     * Create an instrumented listener for source. The {@link AuthContext} from the current {@link ExecutionContext} is
+     * captured and reinstalled around {@link #onUpdate(RowSet, RowSet, RowSet)} execution.
+     *
      * @param description A description for the UpdatePerformanceTracker to append to its entry description.
      * @param source The source table this listener will subscribe to - needed for preserving referential integrity.
      * @param retain Whether a hard reference to this listener should be maintained to prevent it from being collected.
@@ -65,7 +79,24 @@ public abstract class ShiftObliviousInstrumentedListenerAdapter extends ShiftObl
      */
     public ShiftObliviousInstrumentedListenerAdapter(@Nullable final String description, @NotNull final Table source,
             final boolean retain) {
+        this(description, source, retain, true);
+    }
+
+    /**
+     * @param description A description for the UpdatePerformanceTracker to append to its entry description.
+     * @param source The source table this listener will subscribe to - needed for preserving referential integrity.
+     * @param retain Whether a hard reference to this listener should be maintained to prevent it from being collected.
+     *        In most scenarios, it's better to specify {@code false} and keep a reference in the calling code.
+     * @param captureAuthContext Whether to capture the {@link AuthContext} from the current {@link ExecutionContext}
+     *        and reinstall it around {@link #onUpdate(RowSet, RowSet, RowSet)} execution. User listeners should capture
+     *        the auth context so their callbacks execute with the creator's permissions; listeners that execute no user
+     *        code (or restore an entire execution context of their own) may pass {@code false} to avoid the context
+     *        switch.
+     */
+    public ShiftObliviousInstrumentedListenerAdapter(@Nullable final String description, @NotNull final Table source,
+            final boolean retain, final boolean captureAuthContext) {
         super(description);
+        this.authContext = captureAuthContext ? ExecutionContext.getContext().getAuthContext() : null;
         this.source = Require.neqNull(source, "source");
         if (this.retain = retain) {
             RETENTION_CACHE.retain(this);
@@ -75,6 +106,22 @@ public abstract class ShiftObliviousInstrumentedListenerAdapter extends ShiftObl
             }
         }
         manage(source);
+    }
+
+    @Override
+    public Notification getNotification(final RowSet added, final RowSet removed, final RowSet modified) {
+        if (authContext == null) {
+            return super.getNotification(added, removed, modified);
+        }
+        return new Notification(added, removed, modified) {
+            @Override
+            public void run() {
+                try (final SafeCloseable ignored =
+                        ExecutionContext.getContext().withAuthContext(authContext).open()) {
+                    super.run();
+                }
+            }
+        };
     }
 
     @Override

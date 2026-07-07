@@ -208,7 +208,7 @@ class BucketedPartitionedUpdateByManager extends UpdateBy {
     private final class TransformFailureListener extends InstrumentedTableUpdateListenerAdapter {
 
         private TransformFailureListener(@NotNull final Table transformed) {
-            super(BucketedPartitionedUpdateByManager.this + "-TransformFailureListener", transformed, false);
+            super(BucketedPartitionedUpdateByManager.this + "-TransformFailureListener", transformed, false, false);
         }
 
         @Override
