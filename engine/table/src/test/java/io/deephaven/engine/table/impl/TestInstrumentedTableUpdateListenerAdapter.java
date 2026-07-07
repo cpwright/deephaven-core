@@ -20,57 +20,96 @@ import static io.deephaven.engine.util.TableTools.col;
 
 public class TestInstrumentedTableUpdateListenerAdapter extends RefreshingTableTestCase {
 
+    /**
+     * The creating thread's context is captured whole, so the creator's auth context is active during onUpdate. The
+     * unit test harness context is systemic; capture must not depend on the systemic flag, because script session
+     * contexts are also systemic.
+     */
     public void testAuthContextCaptured() {
-        final AuthContext creatorContext = new AuthContext.Anonymous();
+        final AuthContext creatorAuthContext = new AuthContext.Anonymous();
+        final ExecutionContext creatorContext = ExecutionContext.getContext().withAuthContext(creatorAuthContext);
         assertSame(creatorContext, tickWithListenerCreatedUnder(creatorContext, true, false));
     }
 
     public void testAuthContextNotCaptured() {
-        final AuthContext creatorContext = new AuthContext.Anonymous();
-        assertNotSame(creatorContext, tickWithListenerCreatedUnder(creatorContext, false, false));
+        final AuthContext creatorAuthContext = new AuthContext.Anonymous();
+        final ExecutionContext creatorContext = ExecutionContext.getContext().withAuthContext(creatorAuthContext);
+        assertNotSame(creatorAuthContext, tickWithListenerCreatedUnder(creatorContext, false, false).getAuthContext());
     }
 
     public void testAuthContextCapturedShiftOblivious() {
-        final AuthContext creatorContext = new AuthContext.Anonymous();
+        final AuthContext creatorAuthContext = new AuthContext.Anonymous();
+        final ExecutionContext creatorContext = ExecutionContext.getContext().withAuthContext(creatorAuthContext);
         assertSame(creatorContext, tickWithListenerCreatedUnder(creatorContext, true, true));
     }
 
     public void testAuthContextNotCapturedShiftOblivious() {
-        final AuthContext creatorContext = new AuthContext.Anonymous();
-        assertNotSame(creatorContext, tickWithListenerCreatedUnder(creatorContext, false, true));
+        final AuthContext creatorAuthContext = new AuthContext.Anonymous();
+        final ExecutionContext creatorContext = ExecutionContext.getContext().withAuthContext(creatorAuthContext);
+        assertNotSame(creatorAuthContext, tickWithListenerCreatedUnder(creatorContext, false, true).getAuthContext());
+    }
+
+    /**
+     * The creator's QueryScope must be observable during onUpdate, so listener callbacks can compile formulas.
+     */
+    public void testQueryScopeCaptured() {
+        final ExecutionContext creatorContext = makeContextWithQueryScope();
+        final ExecutionContext observed = tickWithListenerCreatedUnder(creatorContext, true, false);
+        assertSame(creatorContext, observed);
+        assertTrue(observed.getQueryScope().hasParamName("ListenerTestVar"));
+    }
+
+    public void testQueryScopeCapturedShiftOblivious() {
+        final ExecutionContext creatorContext = makeContextWithQueryScope();
+        final ExecutionContext observed = tickWithListenerCreatedUnder(creatorContext, true, true);
+        assertSame(creatorContext, observed);
+        assertTrue(observed.getQueryScope().hasParamName("ListenerTestVar"));
+    }
+
+    /**
+     * Build a context with a fresh QueryScope holding a test variable.
+     */
+    private static ExecutionContext makeContextWithQueryScope() {
+        final ExecutionContext creatorContext = ExecutionContext.newBuilder()
+                .newQueryScope()
+                .captureQueryLibrary()
+                .captureQueryCompiler()
+                .build();
+        creatorContext.getQueryScope().putParam("ListenerTestVar", 42);
+        return creatorContext;
     }
 
     /**
      * Create a listener under {@code creatorContext}, tick the source table outside that context, and return the
-     * {@link AuthContext} that was active during {@code onUpdate}.
+     * {@link ExecutionContext} that was active during {@code onUpdate}.
      */
-    private static AuthContext tickWithListenerCreatedUnder(final AuthContext creatorContext,
-            final boolean captureAuthContext, final boolean shiftOblivious) {
+    private static ExecutionContext tickWithListenerCreatedUnder(final ExecutionContext creatorContext,
+            final boolean captureExecutionContext, final boolean shiftOblivious) {
         final QueryTable source = TstUtils.testRefreshingTable(i(10).toTracking(), col("Sentinel", 1));
 
         final MutableBoolean fired = new MutableBoolean();
-        final MutableObject<AuthContext> observed = new MutableObject<>();
+        final MutableObject<ExecutionContext> observed = new MutableObject<>();
         // hold a strong reference to the listener for the duration of the test, as the source subscribes weakly
         final Object listener;
-        try (final SafeCloseable ignored = ExecutionContext.getContext().withAuthContext(creatorContext).open()) {
+        try (final SafeCloseable ignored = creatorContext.open()) {
             if (shiftOblivious) {
                 final ShiftObliviousInstrumentedListenerAdapter shiftObliviousListener =
-                        new ShiftObliviousInstrumentedListenerAdapter(null, source, false, captureAuthContext) {
+                        new ShiftObliviousInstrumentedListenerAdapter(null, source, false, captureExecutionContext) {
                             @Override
                             public void onUpdate(final RowSet added, final RowSet removed, final RowSet modified) {
                                 fired.setTrue();
-                                observed.setValue(ExecutionContext.getContext().getAuthContext());
+                                observed.setValue(ExecutionContext.getContext());
                             }
                         };
                 source.addUpdateListener(shiftObliviousListener, false);
                 listener = shiftObliviousListener;
             } else {
                 final TableUpdateListener updateListener =
-                        new InstrumentedTableUpdateListenerAdapter(null, source, false, captureAuthContext) {
+                        new InstrumentedTableUpdateListenerAdapter(null, source, false, captureExecutionContext) {
                             @Override
                             public void onUpdate(final TableUpdate upstream) {
                                 fired.setTrue();
-                                observed.setValue(ExecutionContext.getContext().getAuthContext());
+                                observed.setValue(ExecutionContext.getContext());
                             }
                         };
                 source.addUpdateListener(updateListener);

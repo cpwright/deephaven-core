@@ -75,7 +75,8 @@ public class PythonReplayListenerAdapter extends InstrumentedTableUpdateListener
             @NotNull PyObject pyListener,
             @NotNull PyObject pyOnFailureCallback,
             @Nullable NotificationQueue.Dependency... dependencies) {
-        // capture the auth context so the Python function executes with the listener creator's permissions
+        // capture the execution context so the Python function executes with the listener creator's permissions and
+        // can compile formulas against the creator's query scope
         super(description, source, retain, true);
         this.dependencies = dependencies;
         this.pyListenerCallable = PythonUtils.pyListenerFunc(Objects.requireNonNull(pyListener));

@@ -60,7 +60,8 @@ public class PythonListenerAdapter extends InstrumentedTableUpdateListenerAdapte
      */
     public PythonListenerAdapter(String description, Table source, boolean retain,
             PyObject pyObjectIn) {
-        // capture the auth context so the Python function executes with the listener creator's permissions
+        // capture the execution context so the Python function executes with the listener creator's permissions and
+        // can compile formulas against the creator's query scope
         super(description, source, retain, true);
         pyCallable = PythonUtils.pyListenerFunc(pyObjectIn);
     }

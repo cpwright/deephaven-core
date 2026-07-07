@@ -3,7 +3,6 @@
 //
 package io.deephaven.engine.table.impl;
 
-import io.deephaven.auth.AuthContext;
 import io.deephaven.base.cache.RetentionCache;
 import io.deephaven.base.verify.Require;
 import io.deephaven.engine.context.ExecutionContext;
@@ -48,17 +47,18 @@ public abstract class InstrumentedTableUpdateListenerAdapter extends Instrumente
     private volatile boolean systemic = SystemicObjectTracker.isSystemicThread();
 
     /**
-     * The creating thread's {@link AuthContext}, reinstalled around {@link #onUpdate(TableUpdate)} execution; null if
-     * this listener does not capture the auth context.
+     * The creating thread's {@link ExecutionContext}, reinstalled around {@link #onUpdate(TableUpdate)} execution so
+     * user callbacks run with the creator's permissions and can compile formulas against the creator's QueryScope; null
+     * if this listener does not capture an execution context.
      */
     @Nullable
-    private final AuthContext authContext;
+    private final ExecutionContext executionContext;
 
     @ReferentialIntegrity
     protected final Table source;
 
     /**
-     * Create an instrumented listener for source. No description is provided. The {@link AuthContext} from the current
+     * Create an instrumented listener for source. No description is provided. The creating thread's
      * {@link ExecutionContext} is captured and reinstalled around {@link #onUpdate(TableUpdate)} execution.
      *
      * @param source The source table this listener will subscribe to - needed for preserving referential integrity
@@ -70,8 +70,8 @@ public abstract class InstrumentedTableUpdateListenerAdapter extends Instrumente
     }
 
     /**
-     * Create an instrumented listener for source. The {@link AuthContext} from the current {@link ExecutionContext} is
-     * captured and reinstalled around {@link #onUpdate(TableUpdate)} execution.
+     * Create an instrumented listener for source. The creating thread's {@link ExecutionContext} is captured and
+     * reinstalled around {@link #onUpdate(TableUpdate)} execution.
      *
      * @param description A description for the UpdatePerformanceTracker to append to its entry description
      * @param source The source table this listener will subscribe to - needed for preserving referential integrity
@@ -88,20 +88,20 @@ public abstract class InstrumentedTableUpdateListenerAdapter extends Instrumente
      * @param source The source table this listener will subscribe to - needed for preserving referential integrity
      * @param retain Whether a hard reference to this listener should be maintained to prevent it from being collected.
      *        In most scenarios, it's better to specify {@code false} and keep a reference in the calling code.
-     * @param captureAuthContext Whether to capture the {@link AuthContext} from the current {@link ExecutionContext}
-     *        and reinstall it around {@link #onUpdate(TableUpdate)} execution. User listeners should capture the auth
-     *        context so their callbacks execute with the creator's permissions; listeners that execute no user code (or
-     *        restore an entire execution context of their own) may pass {@code false} to avoid the context switch.
+     * @param captureExecutionContext Whether to capture the creating thread's {@link ExecutionContext} and reinstall it
+     *        around {@link #onUpdate(TableUpdate)} execution, so that user callbacks execute with the creator's
+     *        permissions and can compile formulas against the creator's QueryScope. Listeners that execute no user code
+     *        (or install an execution context of their own) may pass {@code false} to avoid the context switch.
      */
     public InstrumentedTableUpdateListenerAdapter(@Nullable final String description, @NotNull final Table source,
-            final boolean retain, final boolean captureAuthContext) {
+            final boolean retain, final boolean captureExecutionContext) {
         super(description, false, () -> {
             if (source instanceof HasParentPerformanceIds) {
                 return ((HasParentPerformanceIds) source).parentPerformanceEntryIds().toArray();
             }
             return null;
         });
-        this.authContext = captureAuthContext ? ExecutionContext.getContext().getAuthContext() : null;
+        this.executionContext = captureExecutionContext ? ExecutionContext.getContext() : null;
         this.source = Require.neqNull(source, "source");
         if (this.retain = retain) {
             RETENTION_CACHE.retain(this);
@@ -116,14 +116,13 @@ public abstract class InstrumentedTableUpdateListenerAdapter extends Instrumente
 
     @Override
     public Notification getNotification(final TableUpdate update) {
-        if (authContext == null) {
+        if (executionContext == null) {
             return super.getNotification(update);
         }
         return new Notification(update) {
             @Override
             public void run() {
-                try (final SafeCloseable ignored =
-                        ExecutionContext.getContext().withAuthContext(authContext).open()) {
+                try (final SafeCloseable ignored = executionContext.open()) {
                     super.run();
                 }
             }

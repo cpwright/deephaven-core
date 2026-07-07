@@ -960,6 +960,26 @@ class TableListenerTestCase(BaseTestCase):
 
         self.assertTrue(observed[0].equals(auth_context))
 
+    def test_query_scope_in_listener(self):
+        observed = []
+        errors = []
+
+        def listener_func(update, is_replay):
+            try:
+                my_multiplier = 3
+                t = empty_table(5).update(["X = i * my_multiplier"])
+                observed.append(list(_JColumnVectors.of(t.j_table, "X").copyToArray()))
+            except Exception as e:
+                errors.append(e)
+
+        table_listener_handle = listen(self.test_table, listener_func)
+        while not observed and not errors:
+            time.sleep(1)
+        table_listener_handle.stop()
+
+        self.assertFalse(errors)
+        self.assertEqual([0, 3, 6, 9, 12], observed[0])
+
     def test_auth_context_in_shift_oblivious_listener(self):
         auth_context = _JAnonymousAuthContext()
         observed = []
