@@ -69,7 +69,7 @@ public abstract class RDMModelFarm<KEYTYPE, DATATYPE, ROWDATAMANAGERTYPE extends
     @Override
     protected void modelFarmStarted() {
         Assert.eqNull(listener, "listener");
-        listener = new ShiftObliviousInstrumentedListenerAdapter(dataManager.table(), false) {
+        listener = new ShiftObliviousInstrumentedListenerAdapter(null, dataManager.table(), false, false) {
             private static final long serialVersionUID = -2137065147841887955L;
 
             @Override

@@ -52,7 +52,7 @@ public class KeyedTableListener {
         this.rowKeyToKeyHashMap = new Long2ObjectOpenHashMap<>(tableSize, 0.75f);
         this.keyListenerHashMap = new HashMap<>();
         this.keyColumnNames = keyColumnNames;
-        this.tableListener = new ShiftObliviousInstrumentedListenerAdapter(null, table, false) {
+        this.tableListener = new ShiftObliviousInstrumentedListenerAdapter(null, table, false, false) {
             @Override
             public void onUpdate(final RowSet added, final RowSet removed, final RowSet modified) {
                 handleUpdateFromTable(added, removed, modified);

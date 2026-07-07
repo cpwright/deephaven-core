@@ -98,7 +98,8 @@ public class DynamicWhereFilter extends WhereFilterLivenessArtifactImpl
                     Arrays.stream(this.sourceToSetColumnNamePairs).map(MatchPair::rightColumn).toArray(String[]::new);
             final ModifiedColumnSet setColumnsMCS = setTable.newModifiedColumnSet(setColumnNames);
             setUpdateListener = new InstrumentedTableUpdateListenerAdapter(
-                    "DynamicWhereFilter(" + Arrays.toString(sourceToSetColumnNamePairs) + ")", setTable, false) {
+                    "DynamicWhereFilter(" + Arrays.toString(sourceToSetColumnNamePairs) + ")", setTable, false,
+                    false) {
 
                 @Override
                 public void onUpdate(final TableUpdate upstream) {

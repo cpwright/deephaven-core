@@ -24,10 +24,15 @@ from deephaven.table_listener import (
     listen,
     merged_listen,
 )
-from deephaven.update_graph import exclusive_lock
+from deephaven.update_graph import auto_locking_ctx, exclusive_lock
 from tests.testbase import BaseTestCase
 
 _JColumnVectors = jpy.get_type("io.deephaven.engine.table.vectors.ColumnVectors")
+_JExecutionContext = jpy.get_type("io.deephaven.engine.context.ExecutionContext")
+_JAnonymousAuthContext = jpy.get_type("io.deephaven.auth.AuthContext$Anonymous")
+_JPythonShiftObliviousListenerAdapter = jpy.get_type(
+    "io.deephaven.integrations.python.PythonShiftObliviousListenerAdapter"
+)
 
 
 class TableUpdateRecorder:
@@ -910,6 +915,76 @@ class TableListenerTestCase(BaseTestCase):
         self.assertTrue(mlh.j_object.isFailed())
 
         t = t2 = None
+
+    def test_auth_context_in_listener(self):
+        auth_context = _JAnonymousAuthContext()
+        observed = []
+
+        def listener_func(update, is_replay):
+            observed.append(_JExecutionContext.getContext().getAuthContext())
+
+        # the listener must be created while the auth context is active for it to be captured
+        context_guard = (
+            _JExecutionContext.getContext().withAuthContext(auth_context).open()
+        )
+        try:
+            table_listener_handle = listen(self.test_table, listener_func)
+        finally:
+            context_guard.close()
+
+        while not observed:
+            time.sleep(1)
+        table_listener_handle.stop()
+
+        self.assertTrue(observed[0].equals(auth_context))
+
+    def test_auth_context_in_merged_listener(self):
+        auth_context = _JAnonymousAuthContext()
+        observed = []
+
+        def ml_func(updates: dict[Table, TableUpdate], is_replay: bool) -> None:
+            observed.append(_JExecutionContext.getContext().getAuthContext())
+
+        # the listener must be created while the auth context is active for it to be captured
+        context_guard = (
+            _JExecutionContext.getContext().withAuthContext(auth_context).open()
+        )
+        try:
+            mlh = merged_listen([self.test_table, self.test_table2], ml_func)
+        finally:
+            context_guard.close()
+
+        while not observed:
+            time.sleep(1)
+        mlh.stop()
+
+        self.assertTrue(observed[0].equals(auth_context))
+
+    def test_auth_context_in_shift_oblivious_listener(self):
+        auth_context = _JAnonymousAuthContext()
+        observed = []
+
+        def listener_func(added, removed, modified):
+            observed.append(_JExecutionContext.getContext().getAuthContext())
+
+        # the listener must be created while the auth context is active for it to be captured
+        context_guard = (
+            _JExecutionContext.getContext().withAuthContext(auth_context).open()
+        )
+        try:
+            listener_adapter = _JPythonShiftObliviousListenerAdapter(
+                None, self.test_table.j_table, False, listener_func
+            )
+        finally:
+            context_guard.close()
+        with auto_locking_ctx(self.test_table):
+            self.test_table.j_table.addUpdateListener(listener_adapter, False)
+
+        while not observed:
+            time.sleep(1)
+        self.test_table.j_table.removeUpdateListener(listener_adapter)
+
+        self.assertTrue(observed[0].equals(auth_context))
 
 
 if __name__ == "__main__":

@@ -301,7 +301,7 @@ public class TimeSeriesFilter
 
         protected TimeSeriesFilterWindowListener(String listenerDescription, QueryTable tableWithWindow,
                 final String windowSourceName) {
-            super(listenerDescription, tableWithWindow, false);
+            super(listenerDescription, tableWithWindow, false, false);
             this.windowColumnSet = tableWithWindow.newModifiedColumnSet(windowSourceName);
             this.windowColumnSource = tableWithWindow.getColumnSource(windowSourceName);
         }

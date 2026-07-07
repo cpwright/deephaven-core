@@ -3,6 +3,7 @@
 //
 package io.deephaven.integrations.python;
 
+import io.deephaven.auth.AuthContext;
 import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.RowSetShiftData;
@@ -43,6 +44,12 @@ public class PythonMergedListenerAdapter extends MergedListener {
     private final PyObject pyOnFailureCallback;
 
     /**
+     * The creating thread's {@link AuthContext}, reinstalled around the Python invocation in {@link #process()} so the
+     * Python function executes with the listener creator's permissions.
+     */
+    private final AuthContext authContext;
+
+    /**
      * Create a Python merged listener.
      *
      * @param recorders The listener recorders to which this listener will subscribe.
@@ -61,6 +68,7 @@ public class PythonMergedListenerAdapter extends MergedListener {
         Arrays.stream(recorders).forEach(rec -> rec.setMergedListener(this));
         this.pyListenerCallable = PythonUtils.pyMergeListenerFunc(Objects.requireNonNull(pyListener));
         this.pyOnFailureCallback = Objects.requireNonNull(pyOnFailureCallback);
+        this.authContext = ExecutionContext.getContext().getAuthContext();
     }
 
     public static PythonMergedListenerAdapter create(
@@ -102,7 +110,9 @@ public class PythonMergedListenerAdapter extends MergedListener {
 
     @Override
     protected void process() {
-        pyListenerCallable.call("__call__");
+        try (final SafeCloseable ignored = ExecutionContext.getContext().withAuthContext(authContext).open()) {
+            pyListenerCallable.call("__call__");
+        }
     }
 
     @Override

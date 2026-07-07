@@ -59,7 +59,8 @@ public class PythonShiftObliviousListenerAdapter extends ShiftObliviousInstrumen
      * @param pyObjectIn Python listener object.
      */
     public PythonShiftObliviousListenerAdapter(String description, Table source, boolean retain, PyObject pyObjectIn) {
-        super(description, source, retain);
+        // capture the auth context so the Python function executes with the listener creator's permissions
+        super(description, source, retain, true);
         pyCallable = PythonUtils.pyListenerFunc(pyObjectIn);
     }
 

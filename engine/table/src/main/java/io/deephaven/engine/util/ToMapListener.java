@@ -81,7 +81,7 @@ public class ToMapListener<K, V> extends InstrumentedTableUpdateListenerAdapter 
 
     private ToMapListener(Table source, LongFunction<K> keyProducer, LongFunction<K> prevKeyProducer,
             LongFunction<V> valueProducer, LongFunction<V> prevValueProducer) {
-        super(source, false);
+        super(null, source, false, false);
         this.keyProducer = keyProducer;
         this.prevKeyProducer = prevKeyProducer;
         this.valueProducer = valueProducer;

@@ -1110,7 +1110,7 @@ public abstract class UpdateBy {
         private volatile Future<Void> processingFuture;
 
         private UpdateByListener() {
-            super(UpdateBy.this + "-SourceListener", UpdateBy.this.source, false);
+            super(UpdateBy.this + "-SourceListener", UpdateBy.this.source, false, false);
         }
 
         @Override

@@ -378,7 +378,7 @@ class UpdateByBucketHelper extends IntrusiveDoublyLinkedNode.Impl<UpdateByBucket
     private class UpdateByBucketHelperListener extends InstrumentedTableUpdateListenerAdapter {
 
         private UpdateByBucketHelperListener(@Nullable final String description, @NotNull final QueryTable source) {
-            super(description, source, false);
+            super(description, source, false, false);
         }
 
         @Override
