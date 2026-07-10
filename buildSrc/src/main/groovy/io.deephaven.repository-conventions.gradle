@@ -21,6 +21,7 @@ repositories {
                 username = System.getenv("JETTY_REPO_USER")
                 password = System.getenv("JETTY_REPO_PASSWORD")
             }
+            println("Credentials User: " + System.getenv("JETTY_REPO_USER"))
             authentication { basic(BasicAuthentication) }
 
             content {
