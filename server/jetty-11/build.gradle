@@ -25,7 +25,6 @@ dependencies {
     testAnnotationProcessor libs.dagger.compiler
 
     implementation platform(libs.grpc.bom)
-    implementation platform(libs.jetty11.bom)
 
     api libs.jakarata.servlet.api
     implementation libs.jetty11.servlet

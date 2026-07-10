@@ -82,6 +82,9 @@ jobs:
 
       - name: Create Dockerfile and context
         run: ./gradlew --scan outputVersion docker-server-slim:prepareDocker docker-server:prepareDockerAll
+        env:
+          JETTY_REPO_USER: deephaven
+          JETTY_REPO_PASSWORD: ${{ secrets.JETTY_REPO_PASSWORD }}
 
       - name: Get Deephaven Version
         id: deephaven_version
@@ -172,6 +175,9 @@ jobs:
 
       - name: Create Dockerfile and context
         run: ./gradlew --scan outputVersion docker-web-plugin-packager:prepareDocker
+        env:
+          JETTY_REPO_USER: deephaven
+          JETTY_REPO_PASSWORD: ${{ secrets.JETTY_REPO_PASSWORD }}
 
       - name: Get Deephaven Version
         id: deephaven_version

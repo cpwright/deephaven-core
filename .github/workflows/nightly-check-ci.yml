@@ -77,7 +77,10 @@ jobs:
 
       - name: Run gradle ${{ matrix.gradle-task }} on java ${{ matrix.test-jvm-version }} with coverage=${{ env.COVER }}
         run: ./gradlew --scan --continue --rerun-tasks ${{ matrix.gradle-task }} -PtestRuntimeVersion=${{ matrix.test-jvm-version }} -Pcoverage.enabled=$COVER $JETTY_FLAG
-        
+        env:
+          JETTY_REPO_USER: deephaven
+          JETTY_REPO_PASSWORD: ${{ secrets.JETTY_REPO_PASSWORD }}
+
       - name: Run df -h after build
         run: |
           df -h

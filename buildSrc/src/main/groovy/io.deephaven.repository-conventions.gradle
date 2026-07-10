@@ -13,4 +13,21 @@ repositories {
             includeGroup 'org.apache.kafka'
         }
     }
+
+    if (System.getenv("JETTY_REPO_PASSWORD") != null) {
+        maven {
+            url 'https://nexus.repo.tuxcare.com/repository/els_java/'
+            credentials {
+                username = System.getenv("JETTY_REPO_USER")
+                password = System.getenv("JETTY_REPO_PASSWORD")
+            }
+            authentication { basic(BasicAuthentication) }
+
+            content {
+                includeGroup 'org.eclipse.jetty'
+                includeGroup 'org.eclipse.jetty.http2'
+                includeGroup 'org.eclipse.jetty.websocket'
+            }
+        }
+    }
 }

@@ -65,6 +65,9 @@ jobs:
 
       - name: Check
         run: ./gradlew --scan --continue check
+        env:
+          JETTY_REPO_USER: deephaven
+          JETTY_REPO_PASSWORD: ${{ secrets.JETTY_REPO_PASSWORD }}
 
       - name: Run df -h after build
         run: df -h

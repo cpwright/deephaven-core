@@ -57,6 +57,9 @@ jobs:
       - name: Quick Task
         # Even though quick includes spotlessCheck, we want to make sure it runs first and fails ASAP for quick feedback
         run: ./gradlew --scan spotlessCheck quick
+        env:
+          JETTY_REPO_USER: deephaven
+          JETTY_REPO_PASSWORD: ${{ secrets.JETTY_REPO_PASSWORD }}
 
       - name: Upload JVM Error Logs
         uses: actions/upload-artifact@v4
