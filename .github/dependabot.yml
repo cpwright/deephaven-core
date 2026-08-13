@@ -11,12 +11,9 @@ updates:
       - "NoDocumentationNeeded"
       - "NoReleaseNotesNeeded"
       - "version-bump"
-    assignees:
-      - "devinrsmith"
-      - "stanbrub"
   - package-ecosystem: "gradle"
     directory: "/"
-    open-pull-requests-limit: 99
+    open-pull-requests-limit: 1
     schedule:
       interval: "weekly"
     commit-message:
@@ -25,6 +22,3 @@ updates:
       - "NoDocumentationNeeded"
       - "NoReleaseNotesNeeded"
       - "version-bump"
-    assignees:
-      - "devinrsmith"
-      - "rcaudy"
