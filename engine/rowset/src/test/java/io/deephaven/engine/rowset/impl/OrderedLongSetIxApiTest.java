@@ -1129,7 +1129,7 @@ public class OrderedLongSetIxApiTest {
         final OrderedLongSet.BuilderSequential builder = new OrderedLongSetBuilderSequential();
         builder.appendOrderedRowKeysChunk(LongChunk.chunkWrap(new long[] {1, 2, 5}), 0, 3);
         final OrderedLongSet donor = RSP_SMALL.make();
-        builder.appendOrderedLongSet(1000, donor, false);
+        builder.appendOrderedLongSet(1000, donor);
         final OrderedLongSet built = builder.getOrderedLongSet();
         final TreeSet<Long> expected = new TreeSet<>(Arrays.asList(1L, 2L, 5L));
         expected.addAll(shifted(RSP_SMALL.model(), 1000));
