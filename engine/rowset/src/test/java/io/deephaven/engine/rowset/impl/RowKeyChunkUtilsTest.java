@@ -152,6 +152,52 @@ public class RowKeyChunkUtilsTest {
         }
     }
 
+    @Test
+    public void testConvertToIndicesDestFullTruncation() {
+        // The single range would expand to 10 keys, but dest only has room for 4.
+        final LongChunk<OrderedRowKeyRanges> ranges = createChunk(0, 9);
+        final WritableLongChunk<OrderedRowKeys> dest = WritableLongChunk.makeWritableChunk(4);
+        RowKeyChunkUtils.convertToOrderedKeyIndices(0, ranges, dest, 0);
+        validateChunk(dest, 0, 1, 2, 3);
+    }
+
+    @Test
+    public void testConvertToIndicesDestFullTruncationMidRange() {
+        // Expansion crosses into the second range and truncates within it.
+        final LongChunk<OrderedRowKeyRanges> ranges = createChunk(0, 2, 10, 19);
+        final WritableLongChunk<OrderedRowKeys> dest = WritableLongChunk.makeWritableChunk(5);
+        RowKeyChunkUtils.convertToOrderedKeyIndices(0, ranges, dest, 0);
+        validateChunk(dest, 0, 1, 2, 10, 11);
+    }
+
+    @Test
+    public void testConvertToIndicesDestOffset() {
+        final LongChunk<OrderedRowKeyRanges> ranges = createChunk(5, 7);
+        final WritableLongChunk<OrderedRowKeys> dest = WritableLongChunk.makeWritableChunk(6);
+        for (int idx = 0; idx < dest.size(); ++idx) {
+            dest.set(idx, -7);
+        }
+        RowKeyChunkUtils.convertToOrderedKeyIndices(0, ranges, dest, 2);
+        validateChunk(dest, -7, -7, 5, 6, 7);
+    }
+
+    @Test
+    public void testConvertToIndicesOddSrcOffsetRoundsUp() {
+        // An odd srcOffset must be rounded up to the next range boundary, skipping the first range entirely.
+        final LongChunk<OrderedRowKeyRanges> ranges = createChunk(0, 2, 10, 12);
+        final WritableLongChunk<OrderedRowKeys> dest = WritableLongChunk.makeWritableChunk(3);
+        RowKeyChunkUtils.convertToOrderedKeyIndices(1, ranges, dest, 0);
+        validateChunk(dest, 10, 11, 12);
+    }
+
+    @Test
+    public void testConvertToRangesFillEmptySource() {
+        final LongChunk<OrderedRowKeys> empty = createChunk();
+        final WritableLongChunk<OrderedRowKeyRanges> dest = WritableLongChunk.makeWritableChunk(4);
+        RowKeyChunkUtils.convertToOrderedKeyRanges(empty, dest);
+        assertEquals(0, dest.size());
+    }
+
     private <ATTR extends Any> LongChunk<ATTR> createChunk(final long... values) {
         final WritableLongChunk<ATTR> chunk = WritableLongChunk.makeWritableChunk(values.length);
         for (int idx = 0; idx < values.length; ++idx) {
