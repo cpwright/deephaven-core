@@ -412,15 +412,8 @@ public class OrderedLongSetIxApiTest {
                 assertContent(ctx, expected, result);
                 result.ixRelease();
             }
-            // Inverted windows produce EMPTY on RspBitmap and the EMPTY singleton.
-            // TODO(bug): SingleRange.ixSubindexByKeyOnNew does not guard against an inverted window (startKey >
-            // endKey) that intersects the range: e.g. SingleRange.make(0, 100).ixSubindexByKeyOnNew(50, 10) returns an
-            // invalid SingleRange [50, 10] instead of EMPTY. RspBitmap explicitly guards this case (endKey < startKey
-            // returns EMPTY), so the implementations are inconsistent; the assertion below is restricted to the
-            // implementations with defined behavior.
-            if (rs.kind == Kind.EMPTY || rs.kind == Kind.RSP) {
-                assertSame(rs.name + ": inverted key range", OrderedLongSet.EMPTY, recv.ixSubindexByKeyOnNew(50, 10));
-            }
+            // An inverted window produces EMPTY for every implementation.
+            assertSame(rs.name + ": inverted key range", OrderedLongSet.EMPTY, recv.ixSubindexByKeyOnNew(50, 10));
             assertContent(rs.name + " [receiver preserved]", rs.model(), recv);
             recv.ixRelease();
         }

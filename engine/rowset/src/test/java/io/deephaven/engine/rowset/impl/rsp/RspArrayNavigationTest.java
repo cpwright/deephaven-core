@@ -428,13 +428,11 @@ public class RspArrayNavigationTest {
                     view.firstRowKey() - 3, view.lastRowKey() + 3)) {
                 assertArrayEquals(viewModel, keysOf(sub));
             }
-            // TODO(bug): A start key that falls in a gap *before* a full block span yields a bogus result; see
-            // testGetRowSequenceByKeyRangeStartKeyBeforeFullBlockSpanIsBroken below. The view here starts inside a
-            // full block span, so requesting from key 0 hits that bug and returns only the view's tail.
-            // Re-enable when RspArray.findInSpan / getRowSequenceByKeyRangeConstrainedToIndexAndOffsetRange is fixed.
-            // try (final RowSequence sub = view.getRowSequenceByKeyRange(0, Long.MAX_VALUE)) {
-            // assertArrayEquals(viewModel, keysOf(sub));
-            // }
+            // An unbounded key range: the whole view qualifies, even though the view starts inside a full
+            // block span and key 0 falls in the gap before it.
+            try (final RowSequence sub = view.getRowSequenceByKeyRange(0, Long.MAX_VALUE)) {
+                assertArrayEquals(viewModel, keysOf(sub));
+            }
             // Interior key range: the requested keys bind on both sides instead.
             final long a = viewModel[viewModel.length / 4];
             final long b = viewModel[3 * viewModel.length / 4];
@@ -451,15 +449,12 @@ public class RspArrayNavigationTest {
     }
 
     /**
-     * Documents a bug in {@code RspArray.getRowSequenceByKeyRange}: when the requested start key falls in a gap that
-     * precedes a full block span, {@code findInSpan} computes {@code prevAcc + startValue - spanKey} for that full
-     * block span without clamping, producing a large negative value that the caller decodes as a "not found" insertion
-     * point far past the span. The result is either a wildly wrong sequence or an
-     * {@link ArrayIndexOutOfBoundsException}. Nothing here is a production-code change; the assertions describing
-     * correct behavior are disabled below.
+     * A requested start key may fall in a gap that precedes a full block span, in which case {@code findInSpan} must
+     * report an insertion point at that span rather than a position derived from {@code startValue - spanKey}, which is
+     * negative for such a key.
      */
     @Test
-    public void testGetRowSequenceByKeyRangeStartKeyBeforeFullBlockSpanIsBroken() {
+    public void testGetRowSequenceByKeyRangeStartKeyBeforeFullBlockSpan() {
         RspBitmap rb = RspBitmap.makeEmpty();
         rb = rb.addRangeUnsafe(5 * BLK, 6 * BLK - 1); // full block span, blocks 5-5.
         rb = rb.addUnsafe(9 * BLK + 3);
@@ -476,17 +471,16 @@ public class RspArrayNavigationTest {
             assertEquals(BLK + 1 - 10, rs.size());
         }
 
-        // TODO(bug): a start key below the full block span's key returns only the trailing singleton instead of the
-        // whole set. Observed: first == 9 * BLK + 3, size == 1.
-        // try (final RowSequence rs = rb.getRowSequenceByKeyRange(0, Long.MAX_VALUE)) {
-        // assertEquals(5 * BLK, rs.firstRowKey());
-        // assertEquals(BLK + 1, rs.size());
-        // }
-        // TODO(bug): same shape narrowed to the full block span returns an empty sequence with first > last.
-        // try (final RowSequence rs = rb.getRowSequenceByKeyRange(0, 6 * BLK - 1)) {
-        // assertEquals(5 * BLK, rs.firstRowKey());
-        // assertEquals(BLK, rs.size());
-        // }
+        // A start key below the full block span's key finds the whole span.
+        try (final RowSequence rs = rb.getRowSequenceByKeyRange(0, Long.MAX_VALUE)) {
+            assertEquals(5 * BLK, rs.firstRowKey());
+            assertEquals(BLK + 1, rs.size());
+        }
+        // The same shape narrowed to the full block span.
+        try (final RowSequence rs = rb.getRowSequenceByKeyRange(0, 6 * BLK - 1)) {
+            assertEquals(5 * BLK, rs.firstRowKey());
+            assertEquals(BLK, rs.size());
+        }
 
         RspBitmap rb2 = RspBitmap.makeEmpty();
         rb2 = rb2.addUnsafe(BLK + 1); // singleton span first...
@@ -497,12 +491,11 @@ public class RspArrayNavigationTest {
             assertEquals(BLK + 1, rs.firstRowKey());
             assertEquals(BLK + 1, rs.size());
         }
-        // TODO(bug): starting from a key inside the gap between the two spans throws
-        // ArrayIndexOutOfBoundsException("Index 2 out of bounds for length 2").
-        // try (final RowSequence rs = rb2.getRowSequenceByKeyRange(3 * BLK, Long.MAX_VALUE)) {
-        // assertEquals(5 * BLK, rs.firstRowKey());
-        // assertEquals(BLK, rs.size());
-        // }
+        // Starting from a key inside the gap between the two spans.
+        try (final RowSequence rs = rb2.getRowSequenceByKeyRange(3 * BLK, Long.MAX_VALUE)) {
+            assertEquals(5 * BLK, rs.firstRowKey());
+            assertEquals(BLK, rs.size());
+        }
     }
 
     @Test

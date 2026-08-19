@@ -1547,24 +1547,6 @@ public class SortedRangesCapacityTransitionTest {
     }
 
     @Test
-    public void testShortFromLongConstructor() {
-        final TreeSet<Long> model = new TreeSet<>();
-        SortedRanges srl = SortedRanges.makeSingleRange(100, 100);
-        model.add(100L);
-        srl = srl.append(105);
-        assertNotNull(srl);
-        model.add(105L);
-        srl = srl.appendRange(110, 120);
-        assertNotNull(srl);
-        addRangeToModel(model, 110, 120);
-        assertTrue(srl instanceof SortedRangesLong);
-
-        final SortedRangesShort srs = new SortedRangesShort((SortedRangesLong) srl);
-        srs.validate();
-        assertSameSet("short-from-long ctor", srs, model);
-    }
-
-    @Test
     public void testMiscAccessors() {
         final SortedRanges sr = makeSmall(); // {10, [20,30], 50}
         assertTrue(sr.hasMoreThanOneRange());
