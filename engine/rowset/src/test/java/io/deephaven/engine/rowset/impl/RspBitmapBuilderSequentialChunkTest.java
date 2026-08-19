@@ -655,7 +655,7 @@ public class RspBitmapBuilderSequentialChunkTest {
     @Test
     public void testAppendOrderedLongSetEmpty() {
         final RspBitmapBuilderSequential b = new RspBitmapBuilderSequential();
-        b.appendOrderedLongSet(1000, OrderedLongSet.EMPTY, true);
+        b.appendOrderedLongSet(1000, OrderedLongSet.EMPTY);
         assertSame(OrderedLongSet.EMPTY, b.getOrderedLongSet());
     }
 
@@ -668,7 +668,7 @@ public class RspBitmapBuilderSequentialChunkTest {
 
         // rb == null and the argument is not an RspBitmap.
         final OrderedLongSet single = OrderedLongSet.EMPTY.ixInsertRange(3, 9);
-        b.appendOrderedLongSet(shift, single, false);
+        b.appendOrderedLongSet(shift, single);
         addRange(model, 3 + shift, 9 + shift);
         assertNull(b.rb);
 
@@ -676,7 +676,7 @@ public class RspBitmapBuilderSequentialChunkTest {
         final long[] keys = rspForcingKeys(20 * BS, 4, 1000, 61);
         final OrderedLongSet rsp = OrderedLongSet.fromChunk(chunkOf(keys), 0, keys.length, false);
         assertTrue(rsp instanceof RspBitmap);
-        b.appendOrderedLongSet(shift, rsp, false);
+        b.appendOrderedLongSet(shift, rsp);
         for (final long k : keys) {
             model.add(k + shift);
         }
@@ -692,14 +692,6 @@ public class RspBitmapBuilderSequentialChunkTest {
      * {@code appendOrderedLongSet}: the fast path where the builder already has a non-empty {@link RspBitmap} and the
      * argument is an {@link RspBitmap}, so the spans are appended directly. Also drives the pending-range and
      * pending-container flushes at the top of that method.
-     *
-     * <p>
-     * Only {@code acquire == false} is covered here, which is the only value any production caller passes (see
-     * {@link BasicRowSetBuilderSequential#appendRowSequenceWithOffset}). {@code acquire == true} is currently broken:
-     * {@code RspArray.tryAppendShiftedUnsafeNoWriteCheck} guards its span-copying loop with {@code if (!acquire)} but
-     * increments {@code size} unconditionally, so the appended spans are never written and the result is a corrupt
-     * {@code RspArray}.
-     * </p>
      */
     @Test
     public void testAppendOrderedLongSetAppendsRspSpansDirectly() {
@@ -713,7 +705,7 @@ public class RspBitmapBuilderSequentialChunkTest {
             final long[] keys = rspForcingKeys(50 * BS, 4, 1000, 61);
             final OrderedLongSet rsp = OrderedLongSet.fromChunk(chunkOf(keys), 0, keys.length, false);
             assertTrue(rsp instanceof RspBitmap);
-            b.appendOrderedLongSet(shift, rsp, false);
+            b.appendOrderedLongSet(shift, rsp);
             for (final long k : keys) {
                 model.add(k + shift);
             }
