@@ -4132,7 +4132,10 @@ public abstract class SortedRanges extends RefCountedCow<SortedRanges> implement
         if (toIntersect instanceof SortedRanges) {
             return retain(toIntersect);
         }
-        return ixToRspOnNew().ixRetainNoWriteCheck(toIntersect);
+        // Converting ourselves to a bitmap and retaining there walks every span of toIntersect, however few keys we
+        // hold; the merge below advances through toIntersect by key instead, and only falls back to that when the
+        // result does not fit in a SortedRanges.
+        return intersectOnNew(toIntersect);
     }
 
     @Override
