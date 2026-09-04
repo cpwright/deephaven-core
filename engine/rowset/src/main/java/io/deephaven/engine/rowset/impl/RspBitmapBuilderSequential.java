@@ -118,11 +118,11 @@ public class RspBitmapBuilderSequential implements BuilderSequential {
 
     @Override
     public void appendRange(final long rangeFirstRowKey, final long rangeLastRowKey) {
-        if (RspArray.debug) {
-            if (rangeFirstRowKey > rangeLastRowKey) {
-                throw new IllegalArgumentException(
-                        "start (= " + rangeFirstRowKey + ") > end (= " + rangeLastRowKey + ")");
-            }
+        if (rangeFirstRowKey > rangeLastRowKey) {
+            // An empty range, as for WritableRowSet.insertRange; appendRange(start, start + count - 1) with a count
+            // of zero is the common form. Accepting it would shrink an adjacent pending range or leave a range with a
+            // negative cardinality in the result.
+            return;
         }
         if (pendingStart != -1) {
             if (check && rangeFirstRowKey <= pendingEnd) {
