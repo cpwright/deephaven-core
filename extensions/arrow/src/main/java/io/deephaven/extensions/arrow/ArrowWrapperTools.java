@@ -183,10 +183,16 @@ public class ArrowWrapperTools {
                 biggestBlock = Math.max(biggestBlock, rowCount);
             }
 
-            // note we can use `0` to index the first row of each block; e.g. 16 rows needs only 4 bits
-            final int highBit = Integer.highestOneBit(biggestBlock - 1) << 1;
+            // note we can use `0` to index the first row of each block; e.g. 16 rows needs only 4 bits. The column
+            // sources require highBit to be a power of two, so a file whose blocks hold at most one row still gets a
+            // single bit per block.
+            final int highBit = biggestBlock <= 1 ? 1 : Integer.highestOneBit(biggestBlock - 1) << 1;
             final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
             for (int bi = 0; bi < blocks.length; bi++) {
+                if (blocks[bi] == 0) {
+                    // An empty record batch contributes no rows, but keeps its block position.
+                    continue;
+                }
                 final long rangeStart = (long) highBit * bi;
                 builder.appendRange(rangeStart, rangeStart + blocks[bi] - 1);
             }

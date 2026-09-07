@@ -124,6 +124,11 @@ class UpdateByWindowRollingTicks extends UpdateByWindowRollingBase {
             }
             head = Math.max(head, minPos.get());
             tail = Math.min(tail, maxPos);
+            if (head > tail) {
+                // Once a range has been clamped to the last position, minPos sits past maxPos and every later range
+                // clamps to nothing. A window with no width also yields an inverted range before clamping.
+                return;
+            }
             builder.appendRange(head, tail);
             minPos.set(tail + 1);
         });

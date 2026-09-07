@@ -102,6 +102,9 @@ public class RspBitmapBuilderSequential implements BuilderSequential {
 
     @Override
     public void appendKey(final long rowKey) {
+        if (check && rowKey < 0) {
+            throw new IllegalArgumentException("Negative key in sequential builder: value=" + rowKey);
+        }
         if (pendingStart != -1) {
             if (check && rowKey <= pendingEnd) {
                 throw new IllegalArgumentException(outOfOrderKeyErrorMsg +
@@ -118,11 +121,18 @@ public class RspBitmapBuilderSequential implements BuilderSequential {
 
     @Override
     public void appendRange(final long rangeFirstRowKey, final long rangeLastRowKey) {
-        if (rangeFirstRowKey > rangeLastRowKey) {
-            // An empty range, as for WritableRowSet.insertRange; appendRange(start, start + count - 1) with a count
-            // of zero is the common form. Accepting it would shrink an adjacent pending range or leave a range with a
-            // negative cardinality in the result.
-            return;
+        if (check) {
+            // Unlike WritableRowSet.insertRange, an inverted range is an error here rather than a no-op: accepting it
+            // would shrink an adjacent pending range or leave a range with a negative cardinality in the result, and
+            // the caller that produced it has almost always mis-computed its bounds.
+            if (rangeFirstRowKey > rangeLastRowKey) {
+                throw new IllegalArgumentException("Inverted range in sequential builder: start=" + rangeFirstRowKey
+                        + " > end=" + rangeLastRowKey);
+            }
+            if (rangeFirstRowKey < 0) {
+                throw new IllegalArgumentException("Negative key in sequential builder: range start="
+                        + rangeFirstRowKey + ", end=" + rangeLastRowKey);
+            }
         }
         if (pendingStart != -1) {
             if (check && rangeFirstRowKey <= pendingEnd) {

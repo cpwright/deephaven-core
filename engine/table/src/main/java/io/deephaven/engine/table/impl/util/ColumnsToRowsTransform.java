@@ -122,6 +122,9 @@ public class ColumnsToRowsTransform {
         if (valueColumns.length == 0) {
             throw new IllegalArgumentException("No columns to transpose defined!");
         }
+        if (labels.length == 0) {
+            throw new IllegalArgumentException("No labels defined!");
+        }
         if (valueColumns.length != transposeColumns.length) {
             throw new IllegalArgumentException("Inconsistent transpose column definition, " + valueColumns.length
                     + " names defined, " + transposeColumns.length + " columns defined.");
