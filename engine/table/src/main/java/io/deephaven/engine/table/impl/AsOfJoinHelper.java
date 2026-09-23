@@ -942,7 +942,9 @@ public class AsOfJoinHelper {
         final boolean reverse = order == SortingOrder.Descending;
 
         final ChunkType stampChunkType = rightStampSource.getChunkType();
-        final Supplier<SegmentedSortedArray> ssaFactory =
+        final Supplier<SegmentedSortedArray> leftSsaSupplier =
+                SegmentedSortedArray.makeFactory(stampChunkType, reverse, control.leftSsaNodeSize());
+        final Supplier<SegmentedSortedArray> rightSsaSupplier =
                 SegmentedSortedArray.makeFactory(stampChunkType, reverse, control.rightSsaNodeSize());
         final SsaSsaStamp ssaSsaStamp = SsaSsaStamp.make(stampChunkType, reverse);
 
@@ -1019,7 +1021,7 @@ public class AsOfJoinHelper {
 
             @Override
             public SegmentedSortedArray apply(RowSet rightRowSet) {
-                final SegmentedSortedArray ssa = ssaFactory.get();
+                final SegmentedSortedArray ssa = rightSsaSupplier.get();
                 final int slotSize = rightRowSet.intSize();
                 if (slotSize > 0) {
                     rightRowSet.fillRowKeyChunk(rightStampKeys.ensureCapacity(slotSize));
@@ -1040,7 +1042,7 @@ public class AsOfJoinHelper {
 
             @Override
             public SegmentedSortedArray apply(RowSet leftRowSet) {
-                final SegmentedSortedArray ssa = ssaFactory.get();
+                final SegmentedSortedArray ssa = leftSsaSupplier.get();
                 final int slotSize = leftRowSet.intSize();
                 if (slotSize > 0) {
 
