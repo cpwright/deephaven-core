@@ -299,7 +299,6 @@ public class AsOfJoinHelper {
 
                 if (restampKeys.isNonempty()) {
                     final RowSetBuilderRandom foundBuilder = RowSetFactory.builderRandom();
-                    updatedSlots.ensureCapacity(restampKeys.size());
                     final int slotCount =
                             asOfJoinStateManager.probeLeft(restampKeys, leftSources, updatedSlots, foundBuilder);
 
@@ -664,11 +663,6 @@ public class AsOfJoinHelper {
                     restampRemovals = upstream.removed();
                 }
 
-                // a probe reports at most one slot per occupied bucket
-                sequentialBuilders.ensureCapacity(Math.min(
-                        Math.max(restampRemovals.size(), restampAdditions.size()),
-                        asOfJoinStateManager.getNumEntries()));
-
                 // We first do a probe pass, adding all of the removals to a builder in the as of join state manager
                 final int removedSlotCount =
                         asOfJoinStateManager.markForRemoval(restampRemovals, rightSources, slots, sequentialBuilders);
@@ -734,8 +728,6 @@ public class AsOfJoinHelper {
                                         continue;
                                     }
 
-                                    sequentialBuilders.ensureCapacity(
-                                            Math.min(rowSetToShift.size(), asOfJoinStateManager.getNumEntries()));
                                     final int shiftedSlots = asOfJoinStateManager.gatherShiftRowSet(rowSetToShift,
                                             rightSources, slots, sequentialBuilders);
                                     rowSetToShift.close();
@@ -861,8 +853,6 @@ public class AsOfJoinHelper {
                     // the responsive modifications.
                     if (!keysModified && !stampModified && upstream.modified().isNonempty()) {
                         // next we do the additions
-                        sequentialBuilders.ensureCapacity(
-                                Math.min(upstream.modified().size(), asOfJoinStateManager.getNumEntries()));
                         final int modifiedSlotCount = asOfJoinStateManager.gatherModifications(upstream.modified(),
                                 rightSources, slots, sequentialBuilders);
 
