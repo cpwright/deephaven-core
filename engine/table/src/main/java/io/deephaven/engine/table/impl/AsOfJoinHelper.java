@@ -21,6 +21,7 @@ import io.deephaven.engine.table.impl.asofjoin.StaticHashedAsOfJoinStateManager;
 import io.deephaven.engine.table.impl.by.typed.TypedHasherFactory;
 import io.deephaven.engine.table.impl.asofjoin.BucketedChunkedAjMergedListener;
 import io.deephaven.engine.table.DataIndex;
+import io.deephaven.engine.exceptions.MismatchedJoinKeyException;
 import io.deephaven.engine.table.impl.join.JoinListenerRecorder;
 import io.deephaven.engine.table.impl.asofjoin.ZeroKeyChunkedAjMergedListener;
 import io.deephaven.engine.table.impl.sort.LongSortKernel;
@@ -81,7 +82,7 @@ public class AsOfJoinHelper {
             final Class<?> leftType = originalLeftSources[ii].getType();
             final Class<?> rightType = originalRightSources[ii].getType();
             if (leftType != rightType) {
-                throw new IllegalArgumentException(
+                throw new MismatchedJoinKeyException(
                         "Mismatched join types, " + columnsToMatch[ii] + ": " + leftType + " != " + rightType);
             }
         }
@@ -91,7 +92,7 @@ public class AsOfJoinHelper {
         final Class<?> leftStampType = originalLeftStampSource.getType();
         final Class<?> rightStampType = originalRightStampSource.getType();
         if (leftStampType != rightStampType) {
-            throw new IllegalArgumentException("Can not aj() with different stamp types: left=" + leftStampType
+            throw new MismatchedJoinKeyException("Can not aj() with different stamp types: left=" + leftStampType
                     + ", right=" + rightStampType);
         }
 
