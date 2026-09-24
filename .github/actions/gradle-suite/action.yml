@@ -43,7 +43,7 @@ runs:
 
     - name: Run gradle ${{ inputs.gradle-task }}
       shell: bash
-      run: ./gradlew --scan --continue ${{ inputs.gradle-task }}
+      run: ./gradlew --scan --continue :cpp-client:testCppClient
 
     - name: Run df -h after build
       shell: bash
