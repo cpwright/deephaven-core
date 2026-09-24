@@ -66,11 +66,6 @@ public class AsOfJoinHelper {
 
         checkColumnConflicts(leftTable, columnsToAdd);
 
-        if (!leftTable.isRefreshing() && leftTable.isEmpty()) {
-            return makeResult(leftTable, rightTable, new SingleValueRowRedirection(RowSequence.NULL_ROW_KEY),
-                    columnsToAdd, false);
-        }
-
         final MatchPair stampPair = columnsToMatch[columnsToMatch.length - 1];
 
         final int keyColumnCount = columnsToMatch.length - 1;
@@ -95,6 +90,11 @@ public class AsOfJoinHelper {
         if (leftStampType != rightStampType) {
             throw new MismatchedJoinKeyException("Can not aj() with different stamp types: left=" + leftStampType
                     + ", right=" + rightStampType);
+        }
+
+        if (!leftTable.isRefreshing() && leftTable.isEmpty()) {
+            return makeResult(leftTable, rightTable, new SingleValueRowRedirection(RowSequence.NULL_ROW_KEY),
+                    columnsToAdd, false);
         }
 
         // each pair of matched columns is reinterpreted to a primitive only when both sides can be, so that the two
