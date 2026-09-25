@@ -8,6 +8,7 @@
 package io.deephaven.engine.table.impl.ssa;
 
 import io.deephaven.chunk.*;
+import io.deephaven.chunk.sized.SizedLongChunk;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.engine.rowset.RowSequence;
@@ -87,29 +88,45 @@ public class ByteChunkSsaStamp implements ChunkSsaStamp {
         // in the left for the removed key to find the smallest value geq the removed right. Update all rows
         // with the removed redirection to the previous key.
 
-        int leftLowIdx = 0;
+        try (final SizedLongChunk<RowKeys> modifiedKeys = new SizedLongChunk<>()) {
+            // the modified left rows are gathered and sorted, so the builder receives them in row key order
+            int capacity = Math.max(1, Math.min(rightStampChunk.size(), leftStampKeys.size()));
+            modifiedKeys.ensureCapacity(capacity).setSize(capacity);
+            int modifiedCount = 0;
+            int leftLowIdx = 0;
 
-        for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
-            final byte rightStampValue = rightStampChunk.get(ii);
-            final long rightStampKey = rightKeys.get(ii);
-            final long newRightStampKey = nextRedirections.get(ii);
+            for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
+                final byte rightStampValue = rightStampChunk.get(ii);
+                final long rightStampKey = rightKeys.get(ii);
+                final long newRightStampKey = nextRedirections.get(ii);
 
-            leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
+                leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
 
-            while (leftLowIdx < leftStampKeys.size()) {
-                final long leftKey = leftStampKeys.get(leftLowIdx);
-                final long leftRedirectionKey = rowRedirection.get(leftKey);
-                if (leftRedirectionKey == rightStampKey) {
-                    modifiedBuilder.addKey(leftKey);
-                    if (newRightStampKey == RowSequence.NULL_ROW_KEY) {
-                        rowRedirection.removeVoid(leftKey);
+                while (leftLowIdx < leftStampKeys.size()) {
+                    final long leftKey = leftStampKeys.get(leftLowIdx);
+                    final long leftRedirectionKey = rowRedirection.get(leftKey);
+                    if (leftRedirectionKey == rightStampKey) {
+                        if (modifiedCount == capacity) {
+                            capacity *= 2;
+                            modifiedKeys.ensureCapacityPreserve(capacity).setSize(capacity);
+                        }
+                        modifiedKeys.get().set(modifiedCount++, leftKey);
+                        if (newRightStampKey == RowSequence.NULL_ROW_KEY) {
+                            rowRedirection.removeVoid(leftKey);
+                        } else {
+                            rowRedirection.putVoid(leftKey, newRightStampKey);
+                        }
+                        leftLowIdx++;
                     } else {
-                        rowRedirection.putVoid(leftKey, newRightStampKey);
+                        break;
                     }
-                    leftLowIdx++;
-                } else {
-                    break;
                 }
+            }
+
+            if (modifiedCount > 0) {
+                modifiedKeys.get().setSize(modifiedCount);
+                modifiedKeys.get().sort();
+                modifiedBuilder.addOrderedRowKeysChunk(WritableLongChunk.downcast(modifiedKeys.get()));
             }
         }
     }
@@ -135,35 +152,55 @@ public class ByteChunkSsaStamp implements ChunkSsaStamp {
         // (contained
         // in the nextRightValue chunk) should be re-stamped with our value
 
-        int leftLowIdx = 0;
+        try (final SizedLongChunk<RowKeys> modifiedKeys = new SizedLongChunk<>()) {
+            // the modified left rows are gathered and sorted, so the builder receives them in row key order
+            int capacity = Math.max(1, Math.min(rightStampChunk.size(), leftStampKeys.size()));
+            modifiedKeys.ensureCapacity(capacity).setSize(capacity);
+            int modifiedCount = 0;
+            int leftLowIdx = 0;
 
-        for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
-            final byte rightStampValue = rightStampChunk.get(ii);
+            for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
+                final byte rightStampValue = rightStampChunk.get(ii);
 
-            leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
+                leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
 
-            final long rightStampKey = rightKeys.get(ii);
+                final long rightStampKey = rightKeys.get(ii);
 
-            if (ii == rightStampChunk.size() - 1 && endsWithLastValue) {
-                while (leftLowIdx < leftStampKeys.size()) {
-                    final long leftKey = leftStampKeys.get(leftLowIdx);
-                    rowRedirection.putVoid(leftKey, rightStampKey);
-                    modifiedBuilder.addKey(leftKey);
-                    leftLowIdx++;
-                }
-            } else {
-                final byte nextRight = nextRightValue.get(ii);
-                while (leftLowIdx < leftStampKeys.size()) {
-                    final byte leftValue = leftStampValues.get(leftLowIdx);
-                    if (disallowExactMatch ? leq(leftValue, nextRight) : lt(leftValue, nextRight)) {
+                if (ii == rightStampChunk.size() - 1 && endsWithLastValue) {
+                    while (leftLowIdx < leftStampKeys.size()) {
                         final long leftKey = leftStampKeys.get(leftLowIdx);
                         rowRedirection.putVoid(leftKey, rightStampKey);
-                        modifiedBuilder.addKey(leftKey);
+                        if (modifiedCount == capacity) {
+                            capacity *= 2;
+                            modifiedKeys.ensureCapacityPreserve(capacity).setSize(capacity);
+                        }
+                        modifiedKeys.get().set(modifiedCount++, leftKey);
                         leftLowIdx++;
-                    } else {
-                        break;
+                    }
+                } else {
+                    final byte nextRight = nextRightValue.get(ii);
+                    while (leftLowIdx < leftStampKeys.size()) {
+                        final byte leftValue = leftStampValues.get(leftLowIdx);
+                        if (disallowExactMatch ? leq(leftValue, nextRight) : lt(leftValue, nextRight)) {
+                            final long leftKey = leftStampKeys.get(leftLowIdx);
+                            rowRedirection.putVoid(leftKey, rightStampKey);
+                            if (modifiedCount == capacity) {
+                                capacity *= 2;
+                                modifiedKeys.ensureCapacityPreserve(capacity).setSize(capacity);
+                            }
+                            modifiedKeys.get().set(modifiedCount++, leftKey);
+                            leftLowIdx++;
+                        } else {
+                            break;
+                        }
                     }
                 }
+            }
+
+            if (modifiedCount > 0) {
+                modifiedKeys.get().setSize(modifiedCount);
+                modifiedKeys.get().sort();
+                modifiedBuilder.addOrderedRowKeysChunk(WritableLongChunk.downcast(modifiedKeys.get()));
             }
         }
     }
@@ -179,18 +216,34 @@ public class ByteChunkSsaStamp implements ChunkSsaStamp {
     private static int findModified(int leftLowIdx, ByteChunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
             RowRedirection rowRedirection, ByteChunk<? extends Values> rightStampChunk,
             LongChunk<RowKeys> rightStampIndices, RowSetBuilderRandom modifiedBuilder, boolean disallowExactMatch) {
-        for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
-            final byte rightStampValue = rightStampChunk.get(ii);
+        try (final SizedLongChunk<RowKeys> modifiedKeys = new SizedLongChunk<>()) {
+            // the modified left rows are gathered and sorted, so the builder receives them in row key order
+            int capacity = Math.max(1, Math.min(rightStampChunk.size(), leftStampKeys.size()));
+            modifiedKeys.ensureCapacity(capacity).setSize(capacity);
+            int modifiedCount = 0;
+            for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
+                final byte rightStampValue = rightStampChunk.get(ii);
 
-            // now find the lowest left value leq (lt) than rightStampValue
-            leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
+                // now find the lowest left value leq (lt) than rightStampValue
+                leftLowIdx = findFirstResponsiveLeft(leftLowIdx, leftStampValues, disallowExactMatch, rightStampValue);
 
-            final long rightStampKey = rightStampIndices.get(ii);
-            int checkIdx = leftLowIdx;
-            while (checkIdx < leftStampValues.size()
-                    && rowRedirection.get(leftStampKeys.get(checkIdx)) == rightStampKey) {
-                modifiedBuilder.addKey(leftStampKeys.get(checkIdx));
-                checkIdx++;
+                final long rightStampKey = rightStampIndices.get(ii);
+                int checkIdx = leftLowIdx;
+                while (checkIdx < leftStampValues.size()
+                        && rowRedirection.get(leftStampKeys.get(checkIdx)) == rightStampKey) {
+                    if (modifiedCount == capacity) {
+                        capacity *= 2;
+                        modifiedKeys.ensureCapacityPreserve(capacity).setSize(capacity);
+                    }
+                    modifiedKeys.get().set(modifiedCount++, leftStampKeys.get(checkIdx));
+                    checkIdx++;
+                }
+            }
+
+            if (modifiedCount > 0) {
+                modifiedKeys.get().setSize(modifiedCount);
+                modifiedKeys.get().sort();
+                modifiedBuilder.addOrderedRowKeysChunk(WritableLongChunk.downcast(modifiedKeys.get()));
             }
         }
 
