@@ -517,7 +517,6 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
 
                         boolean makeRightIndex = false;
                         boolean updateRightIndex = false;
-                        boolean processInitial = false;
 
                         switch (state) {
                             case ENTRY_LEFT_IS_EMPTY | ENTRY_RIGHT_IS_EMPTY:
@@ -527,12 +526,6 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                             case ENTRY_LEFT_IS_EMPTY | ENTRY_RIGHT_IS_ROWSET:
                             case ENTRY_LEFT_IS_EMPTY | ENTRY_RIGHT_IS_BUILDER:
                                 updateRightIndex = true;
-                                break;
-
-                            case ENTRY_LEFT_IS_BUILDER | ENTRY_RIGHT_IS_EMPTY:
-                            case ENTRY_LEFT_IS_ROWSET | ENTRY_RIGHT_IS_EMPTY:
-                            case ENTRY_LEFT_IS_SSA | ENTRY_RIGHT_IS_EMPTY:
-                                processInitial = true;
                                 break;
 
                             case ENTRY_LEFT_IS_BUILDER | ENTRY_RIGHT_IS_ROWSET:
@@ -546,6 +539,11 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                             case ENTRY_LEFT_IS_ROWSET | ENTRY_RIGHT_IS_SSA:
                                 throw new IllegalStateException();
 
+                            // with an empty right side no left row is redirected, and processInsertion below
+                            // stamps and reports exactly the left rows that the added right rows match
+                            case ENTRY_LEFT_IS_BUILDER | ENTRY_RIGHT_IS_EMPTY:
+                            case ENTRY_LEFT_IS_ROWSET | ENTRY_RIGHT_IS_EMPTY:
+                            case ENTRY_LEFT_IS_SSA | ENTRY_RIGHT_IS_EMPTY:
                             case ENTRY_LEFT_IS_SSA | ENTRY_RIGHT_IS_SSA:
                                 break;
                         }
@@ -566,12 +564,6 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                             final SegmentedSortedArray rightSsa =
                                     asOfJoinStateManager.getRightSsa(slot, rightSsaFactory);
                             final SegmentedSortedArray leftSsa = asOfJoinStateManager.getLeftSsa(slot, leftSsaFactory);
-
-                            if (processInitial) {
-                                ssaSsaStamp.processEntry(leftSsa, rightSsa, rowRedirection, disallowExactMatch);
-                                // we've modified everything in the leftssa
-                                leftSsa.forAllKeys(modifiedBuilder::addKey);
-                            }
 
                             final int chunks =
                                     (ownedRightAdded.intSize() + cycleRightChunkSize - 1) / cycleRightChunkSize;
