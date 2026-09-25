@@ -109,8 +109,17 @@ def testCppClient = Docker.registerDockerTask(project, 'testCppClient') {
     dockerfile {
         from(Docker.localImageName('cpp-client'))
         //
-        // Setup for test run.
+        // Setup for test run. gdb lets the test script print stack traces from a core dump.
         //
+        runCommand('''set -eux; \\
+                      if command -v apt-get; then \\
+                        apt-get update; \\
+                        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gdb; \\
+                        rm -rf /var/lib/apt/lists/*; \\
+                      elif command -v dnf; then dnf install -y gdb; \\
+                      elif command -v yum; then yum install -y gdb; \\
+                      fi
+                   ''')
         environmentVariable 'DH_HOST', deephavenDocker.containerName.get()
         environmentVariable 'DH_PORT', '10000'
     }

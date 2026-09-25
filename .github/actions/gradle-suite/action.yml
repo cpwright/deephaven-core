@@ -41,6 +41,12 @@ runs:
         .github/scripts/gradle-properties.sh ${{ inputs.java-version }} >> gradle.properties
         cat gradle.properties
 
+    - name: Write core dumps into the test container's output directory
+      shell: bash
+      run: |
+        cat /proc/sys/kernel/core_pattern
+        sudo sysctl -w kernel.core_pattern=/out/core.%e.%p
+
     - name: Run gradle ${{ inputs.gradle-task }}
       shell: bash
       run: ./gradlew --scan --continue :cpp-client:testCppClient
