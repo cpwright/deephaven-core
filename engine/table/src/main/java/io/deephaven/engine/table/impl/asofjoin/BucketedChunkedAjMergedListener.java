@@ -711,54 +711,54 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                         asOfJoinStateManager.setLeftRowSet(slot, leftAdded);
                         continue;
                     }
-                    if (updateLeftIndex) {
-                        final WritableRowSet leftRowSet = asOfJoinStateManager.getLeftRowSet(slot);
-                        leftRowSet.insert(leftAdded);
-                        leftAdded.close();
-                        leftRowSet.compact();
-                        continue;
-                    }
+                    try (final RowSet ownedLeftAdded = leftAdded) {
+                        if (updateLeftIndex) {
+                            final WritableRowSet leftRowSet = asOfJoinStateManager.getLeftRowSet(slot);
+                            leftRowSet.insert(ownedLeftAdded);
+                            leftRowSet.compact();
+                            continue;
+                        }
 
 
-                    final SegmentedSortedArray rightSsa = asOfJoinStateManager.getRightSsa(slot, rightSsaFactory);
-                    final SegmentedSortedArray leftSsa = asOfJoinStateManager.getLeftSsa(slot, leftSsaFactory);
+                        final SegmentedSortedArray rightSsa = asOfJoinStateManager.getRightSsa(slot, rightSsaFactory);
+                        final SegmentedSortedArray leftSsa = asOfJoinStateManager.getLeftSsa(slot, leftSsaFactory);
 
-                    if (processInitial) {
-                        ssaSsaStamp.processEntry(leftSsa, rightSsa, rowRedirection, disallowExactMatch);
-                        leftSsa.forAllKeys(modifiedBuilder::addKey);
-                    }
+                        if (processInitial) {
+                            ssaSsaStamp.processEntry(leftSsa, rightSsa, rowRedirection, disallowExactMatch);
+                            leftSsa.forAllKeys(modifiedBuilder::addKey);
+                        }
 
 
-                    try (final RowSequence.Iterator leftRsIt = leftAdded.getRowSequenceIterator();
-                            final WritableLongChunk<RowKeys> rightKeysForLeft =
-                                    WritableLongChunk.makeWritableChunk(cycleLeftChunkSize)) {
-                        assert leftFillContext != null;
-                        assert leftStampValues != null;
+                        try (final RowSequence.Iterator leftRsIt = ownedLeftAdded.getRowSequenceIterator();
+                                final WritableLongChunk<RowKeys> rightKeysForLeft =
+                                        WritableLongChunk.makeWritableChunk(cycleLeftChunkSize)) {
+                            assert leftFillContext != null;
+                            assert leftStampValues != null;
 
-                        while (leftRsIt.hasMore()) {
-                            final RowSequence chunkOk = leftRsIt.getNextRowSequenceWithLength(cycleLeftChunkSize);
-                            leftStampSource.fillChunk(leftFillContext, leftStampValues, chunkOk);
-                            chunkOk.fillRowKeyChunk(leftStampKeys);
+                            while (leftRsIt.hasMore()) {
+                                final RowSequence chunkOk = leftRsIt.getNextRowSequenceWithLength(cycleLeftChunkSize);
+                                leftStampSource.fillChunk(leftFillContext, leftStampValues, chunkOk);
+                                chunkOk.fillRowKeyChunk(leftStampKeys);
 
-                            sortKernel.sort(leftStampKeys, leftStampValues);
+                                sortKernel.sort(leftStampKeys, leftStampValues);
 
-                            leftSsa.insert(leftStampValues, leftStampKeys);
+                                leftSsa.insert(leftStampValues, leftStampKeys);
 
-                            chunkSsaStamp.processEntry(leftStampValues, leftStampKeys, rightSsa, rightKeysForLeft,
-                                    disallowExactMatch);
+                                chunkSsaStamp.processEntry(leftStampValues, leftStampKeys, rightSsa, rightKeysForLeft,
+                                        disallowExactMatch);
 
-                            for (int ii = 0; ii < leftStampKeys.size(); ++ii) {
-                                final long leftKey = leftStampKeys.get(ii);
-                                final long rightKey = rightKeysForLeft.get(ii);
-                                if (rightKey == RowSequence.NULL_ROW_KEY) {
-                                    rowRedirection.removeVoid(leftKey);
-                                } else {
-                                    rowRedirection.putVoid(leftKey, rightKey);
+                                for (int ii = 0; ii < leftStampKeys.size(); ++ii) {
+                                    final long leftKey = leftStampKeys.get(ii);
+                                    final long rightKey = rightKeysForLeft.get(ii);
+                                    if (rightKey == RowSequence.NULL_ROW_KEY) {
+                                        rowRedirection.removeVoid(leftKey);
+                                    } else {
+                                        rowRedirection.putVoid(leftKey, rightKey);
+                                    }
                                 }
                             }
                         }
                     }
-                    leftAdded.close();
                 }
 
                 if (leftStampModified || leftKeysModified) {
