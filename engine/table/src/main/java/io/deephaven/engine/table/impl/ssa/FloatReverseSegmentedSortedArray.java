@@ -88,13 +88,9 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
             nextValue.asWritableFloatChunk().copyFromTypedChunk(insertChunk, 1, 0, insertSize - 1);
             return insertSize - 1;
         }
-        // the merge loops record into an array, which keeps their rarely taken recording branches free of calls
-        final float[] nextArray = new float[insertSize];
-        insert(insertChunk, rowKeysToInsert, nextArray);
+        insert(insertChunk, rowKeysToInsert, WritableFloatChunk.upcast(nextValue.asWritableFloatChunk()));
         // only the last inserted value can lack a next value, when it is the last value of this SSA
-        final int found = getLast() == rowKeysToInsert.get(insertSize - 1) ? insertSize - 1 : insertSize;
-        nextValue.asWritableFloatChunk().copyFromTypedArray(nextArray, 0, 0, found);
-        return found;
+        return getLast() == rowKeysToInsert.get(insertSize - 1) ? insertSize - 1 : insertSize;
     }
 
     /**
@@ -118,7 +114,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
      *        is left unchanged. Must be null when this SSA is empty.
      */
     private void insert(FloatChunk<? extends Any> valuesToInsert, LongChunk<? extends RowKeys> rowKeysToInsert,
-            @Nullable float[] nextValues) {
+            @Nullable WritableFloatChunk<Any> nextValues) {
         final int insertSize = valuesToInsert.size();
         validate();
 
@@ -218,8 +214,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                             }
                             if (nextValues != null) {
                                 // the appended values are consecutive, and the last of them ends this SSA
-                                valuesToInsert.copyToTypedArray(firstValuesPosition + 1, nextValues,
-                                        firstValuesPosition, count - 1);
+                                nextValues.copyFromTypedChunk(valuesToInsert, firstValuesPosition + 1, firstValuesPosition, count - 1);
                             }
                         } else {
                             distributeValues(valuesPerLeaf(sizeForThisLeaf, newLeafCount), firstLeaf, newLeafCount,
@@ -252,9 +247,9 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
      * that first value is final.
      */
     private void recordNextLeafFirst(int leaf, LongChunk<? extends RowKeys> rowKeysToInsert, int insertPosition,
-            float[] nextValues) {
+            WritableFloatChunk<Any> nextValues) {
         if (leaf < leafCount - 1 && leafRowKeys[leaf][leafSizes[leaf] - 1] == rowKeysToInsert.get(insertPosition)) {
-            nextValues[insertPosition] = leafValues[leaf + 1][0];
+            nextValues.set(insertPosition, leafValues[leaf + 1][0]);
         }
     }
 
@@ -431,7 +426,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
      */
     private void distributeValues(int targetSize, int startingLeaf, int distributionSlots,
             FloatChunk<? extends Any> valuesToInsert, LongChunk<? extends RowKeys> rowKeys,
-            @Nullable float[] nextValues, int nextOffset) {
+            @Nullable WritableFloatChunk<Any> nextValues, int nextOffset) {
         final int lastSlot = startingLeaf + distributionSlots - 1;
         final int startingLeafSize = leafSizes[startingLeaf];
         final int totalInsertions = valuesToInsert.size() + startingLeafSize;
@@ -483,11 +478,11 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                     copyToLeaf(0, leafValues[workingSlot], valuesToInsert, leafRowKeys[workingSlot], rowKeys,
                             rposi - wpos, wpos + 1);
                     if (nextValues != null) {
-                        System.arraycopy(slotValues, 1, nextValues, nextOffset + rposi - wpos, wpos);
+                        nextValues.copyFromTypedArray(slotValues, 1, nextOffset + rposi - wpos, wpos);
                         if (wpos < leafSize - 1) {
-                            nextValues[nextOffset + rposi] = slotValues[wpos + 1];
+                            nextValues.set(nextOffset + rposi, slotValues[wpos + 1]);
                         } else if (workingSlot < lastSlot) {
-                            nextValues[nextOffset + rposi] = leafValues[workingSlot + 1][0];
+                            nextValues.set(nextOffset + rposi, leafValues[workingSlot + 1][0]);
                         }
                     }
                     rposi -= (wpos + 1);
@@ -509,9 +504,9 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                     if (nextValues != null) {
                         // higher positions and slots are already written; the caller handles the end of lastSlot
                         if (wpos < leafSize - 1) {
-                            nextValues[nextOffset + rposi] = slotValues[wpos + 1];
+                            nextValues.set(nextOffset + rposi, slotValues[wpos + 1]);
                         } else if (workingSlot < lastSlot) {
-                            nextValues[nextOffset + rposi] = leafValues[workingSlot + 1][0];
+                            nextValues.set(nextOffset + rposi, leafValues[workingSlot + 1][0]);
                         }
                     }
                     rposi--;
@@ -581,14 +576,14 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
      */
     private void insertIntoLeaf(int leafSize, float[] leafValues, FloatChunk<? extends Any> insertValues,
             long[] leafRowKeys, LongChunk<? extends RowKeys> insertRowKeys,
-            @Nullable float[] nextValues, int nextOffset) {
+            @Nullable WritableFloatChunk<Any> nextValues, int nextOffset) {
         final int insertSize = insertValues.size();
 
         // if we are at the end; we can just copy to the end
         if (isAfterLeaf(leafSize, leafValues, insertValues, leafRowKeys, insertRowKeys)) {
             copyToLeaf(leafSize, leafValues, insertValues, leafRowKeys, insertRowKeys);
             if (nextValues != null) {
-                insertValues.copyToTypedArray(1, nextValues, nextOffset, insertSize - 1);
+                nextValues.copyFromTypedChunk(insertValues, 1, nextOffset, insertSize - 1);
             }
             return;
         }
@@ -612,7 +607,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                 copyToLeaf(0, leafValues, insertValues, leafRowKeys, insertRowKeys, 0, rposi + 1);
                 if (nextValues != null) {
                     // a leaf value or an earlier merged insert value occupies position rposi + 1
-                    System.arraycopy(leafValues, 1, nextValues, nextOffset, rposi + 1);
+                    nextValues.copyFromTypedArray(leafValues, 1, nextOffset, rposi + 1);
                 }
                 break;
             }
@@ -635,7 +630,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                 leafValues[wpos] = vali;
                 leafRowKeys[wpos] = idxi;
                 if (nextValues != null && wpos < lastPosition) {
-                    nextValues[nextOffset + rposi] = leafValues[wpos + 1];
+                    nextValues.set(nextOffset + rposi, leafValues[wpos + 1]);
                 }
                 rposi--;
             }
@@ -672,8 +667,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
                             rposi - (gallopLength - 1), gallopLength);
                     if (nextValues != null) {
                         // the insert winning streak has already written position wpos + 1
-                        System.arraycopy(leafValues, wpos - gallopLength + 2, nextValues,
-                                nextOffset + rposi - gallopLength + 1, gallopLength);
+                        nextValues.copyFromTypedArray(leafValues, wpos - gallopLength + 2, nextOffset + rposi - gallopLength + 1, gallopLength);
                     }
                     rposi -= gallopLength;
                     wpos -= gallopLength;
@@ -716,7 +710,7 @@ public final class FloatReverseSegmentedSortedArray implements SegmentedSortedAr
 
                 if (nextValues != null) {
                     // the leaf winning streak has already written position wpos + 1
-                    nextValues[nextOffset + rposi] = leafValues[wpos + 1];
+                    nextValues.set(nextOffset + rposi, leafValues[wpos + 1]);
                 }
                 leafValues[wpos] = searchValue;
                 leafRowKeys[wpos--] = searchKey;
