@@ -736,6 +736,18 @@ public final class ObjectReverseSegmentedSortedArray implements SegmentedSortedA
         }
     }
 
+    /**
+     * Determine whether every value to insert sorts after every value in a leaf, so that the insertion appends to it.
+     * Values are ordered by this SSA's comparison, with ties broken by the row key. Only the first value to insert and
+     * the last value of the leaf are compared, because both are sorted.
+     *
+     * @param leafSize the number of values in the leaf, which must be positive
+     * @param leafValues the values of the leaf
+     * @param insertValues the sorted values to insert, which must not be empty
+     * @param leafRowKeys the row keys of the leaf, parallel to leafValues
+     * @param insertRowKeys the row keys to insert, parallel to insertValues
+     * @return true if the first value to insert sorts after the last value of the leaf
+     */
     private boolean isAfterLeaf(int leafSize, Object[] leafValues, ObjectChunk<Object, ? extends Any> insertValues,
             long[] leafRowKeys, LongChunk<? extends RowKeys> insertRowKeys) {
         final Object firstInsertValue = insertValues.get(0);
