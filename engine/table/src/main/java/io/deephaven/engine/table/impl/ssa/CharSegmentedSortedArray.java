@@ -116,6 +116,7 @@ public final class CharSegmentedSortedArray implements SegmentedSortedArray {
 
         if (leafCount == 0) {
             // we are creating something brand new
+            Assert.eqNull(nextValues, "nextValues");
             makeLeavesInitial(valuesToInsert, rowKeysToInsert);
         } else if (leafCount == 1) {
             final int newSize = insertSize + size;
@@ -1888,7 +1889,5 @@ public final class CharSegmentedSortedArray implements SegmentedSortedArray {
         }
         return leafRowKeys[leafCount - 1][leafSizes[leafCount - 1] - 1];
     }
-
-
 
 }

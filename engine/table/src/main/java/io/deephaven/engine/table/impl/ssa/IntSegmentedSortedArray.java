@@ -120,6 +120,7 @@ public final class IntSegmentedSortedArray implements SegmentedSortedArray {
 
         if (leafCount == 0) {
             // we are creating something brand new
+            Assert.eqNull(nextValues, "nextValues");
             makeLeavesInitial(valuesToInsert, rowKeysToInsert);
         } else if (leafCount == 1) {
             final int newSize = insertSize + size;
@@ -210,7 +211,8 @@ public final class IntSegmentedSortedArray implements SegmentedSortedArray {
                             }
                             if (nextValues != null) {
                                 // the appended values are consecutive, and the last of them ends this SSA
-                                nextValues.copyFromTypedChunk(valuesToInsert, firstValuesPosition + 1, firstValuesPosition, count - 1);
+                                nextValues.copyFromTypedChunk(valuesToInsert, firstValuesPosition + 1,
+                                        firstValuesPosition, count - 1);
                             }
                         } else {
                             distributeValues(valuesPerLeaf(sizeForThisLeaf, newLeafCount), firstLeaf, newLeafCount,
@@ -663,7 +665,8 @@ public final class IntSegmentedSortedArray implements SegmentedSortedArray {
                             rposi - (gallopLength - 1), gallopLength);
                     if (nextValues != null) {
                         // the insert winning streak has already written position wpos + 1
-                        nextValues.copyFromTypedArray(leafValues, wpos - gallopLength + 2, nextOffset + rposi - gallopLength + 1, gallopLength);
+                        nextValues.copyFromTypedArray(leafValues, wpos - gallopLength + 2,
+                                nextOffset + rposi - gallopLength + 1, gallopLength);
                     }
                     rposi -= gallopLength;
                     wpos -= gallopLength;
@@ -1890,7 +1893,5 @@ public final class IntSegmentedSortedArray implements SegmentedSortedArray {
         }
         return leafRowKeys[leafCount - 1][leafSizes[leafCount - 1] - 1];
     }
-
-
 
 }
