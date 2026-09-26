@@ -392,6 +392,20 @@ public class QueryTableAjTest {
         return refreshing ? testRefreshingTable(rowSet, columns) : testTable(rowSet, columns);
     }
 
+    /**
+     * The two-argument aj and raj add every right column that is not a match column, the same as naming those columns.
+     */
+    @Test
+    public void testAsOfJoinWithoutColumnsToAddAddsAllRightColumns() {
+        final Table left = TableTools.newTable(col("Key", "A", "B", "A"), intCol("LeftStamp", 10, 20, 30));
+        final Table right = TableTools.newTable(col("Key", "A", "A", "B"), intCol("RightStamp", 5, 25, 15),
+                intCol("Sentinel", 1, 2, 3));
+        assertTableEquals(left.aj(right, "Key,LeftStamp>=RightStamp", "RightStamp,Sentinel"),
+                left.aj(right, "Key,LeftStamp>=RightStamp"));
+        assertTableEquals(left.raj(right, "Key,LeftStamp<=RightStamp", "RightStamp,Sentinel"),
+                left.raj(right, "Key,LeftStamp<=RightStamp"));
+    }
+
     @Test
     public void testAjNull() {
         final Table left = TableTools.newTable(
