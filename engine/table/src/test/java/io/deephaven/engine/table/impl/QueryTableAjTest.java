@@ -14,6 +14,7 @@ import io.deephaven.engine.rowset.RowSetBuilderRandom;
 import io.deephaven.engine.rowset.RowSetBuilderSequential;
 import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.RowSetShiftData;
+import io.deephaven.engine.rowset.TrackingRowSet;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.table.impl.asofjoin.RightIncrementalAsOfJoinStateManagerTypedBase;
 import io.deephaven.engine.table.impl.asofjoin.RightIncrementalHashedAsOfJoinStateManager;
@@ -22,6 +23,10 @@ import io.deephaven.engine.table.impl.sources.IntegerArraySource;
 import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.engine.table.PartitionedTable;
 import io.deephaven.engine.table.impl.indexer.DataIndexer;
+import java.util.List;
+import io.deephaven.engine.table.impl.sources.immutable.ImmutableObjectArraySource;
+import io.deephaven.engine.table.DataIndexOptions;
+import io.deephaven.engine.table.impl.dataindex.AbstractDataIndex;
 import io.deephaven.engine.table.vectors.ColumnVectors;
 import io.deephaven.engine.testutil.*;
 import io.deephaven.engine.testutil.generator.*;
@@ -271,6 +276,120 @@ public class QueryTableAjTest {
         assertTableEquals(expected.view("LeftStamp", "Sentinel"),
                 convertibleLeft.aj(indexedObjectRight, "Key,LeftStamp>=RightStamp", "Sentinel")
                         .view("LeftStamp", "Sentinel"));
+    }
+
+    /**
+     * When both sides' key columns can be reinterpreted to primitives (Instant to long, Boolean to byte), a data index
+     * on either or both sides supplies its key columns in that representation or is not used; either way the join
+     * matches the same join of unindexed copies, for every combination of refreshing sides.
+     */
+    @Test
+    public void testAjReinterpretedKeysWithDataIndex() {
+        final ColumnHolder<?>[] instantKeys = new ColumnHolder<?>[] {
+                instantCol("Key", DateTimeUtils.epochNanosToInstant(1_000L), DateTimeUtils.epochNanosToInstant(2_000L),
+                        DateTimeUtils.epochNanosToInstant(1_000L), DateTimeUtils.epochNanosToInstant(2_000L)),
+                instantCol("Key", DateTimeUtils.epochNanosToInstant(1_000L), DateTimeUtils.epochNanosToInstant(1_000L),
+                        DateTimeUtils.epochNanosToInstant(2_000L), DateTimeUtils.epochNanosToInstant(2_000L))};
+        final ColumnHolder<?>[] booleanKeys = new ColumnHolder<?>[] {
+                booleanCol("Key", true, false, true, false),
+                booleanCol("Key", true, true, false, false)};
+        for (final ColumnHolder<?>[] keys : new ColumnHolder<?>[][] {instantKeys, booleanKeys}) {
+            for (final boolean leftRefreshing : new boolean[] {false, true}) {
+                for (final boolean rightRefreshing : new boolean[] {false, true}) {
+                    for (final int indexed : new int[] {1, 2, 3}) {
+                        final QueryTable left = makeTable(leftRefreshing, i(0, 1, 2, 3).toTracking(), keys[0],
+                                intCol("LeftStamp", 10, 20, 30, 40));
+                        final QueryTable right = makeTable(rightRefreshing, i(0, 1, 2, 3).toTracking(), keys[1],
+                                intCol("RightStamp", 5, 15, 25, 35), intCol("Sentinel", 1, 2, 3, 4));
+                        final Table expectedAj = left.select().aj(right.select(), "Key,LeftStamp>=RightStamp",
+                                "Sentinel");
+                        final Table expectedRaj = left.select().raj(right.select(), "Key,LeftStamp<=RightStamp",
+                                "Sentinel");
+                        if ((indexed & 1) != 0) {
+                            DataIndexer.getOrCreateDataIndex(left, "Key");
+                        }
+                        if ((indexed & 2) != 0) {
+                            DataIndexer.getOrCreateDataIndex(right, "Key");
+                        }
+                        assertTableEquals(expectedAj, left.aj(right, "Key,LeftStamp>=RightStamp", "Sentinel"));
+                        assertTableEquals(expectedRaj, left.raj(right, "Key,LeftStamp<=RightStamp", "Sentinel"));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A data index over a table's ZonedDateTime key column whose own key column is a plain object source, which cannot
+     * be reinterpreted to long.
+     */
+    private static final class ObjectZonedKeyDataIndex extends AbstractDataIndex {
+        private final ColumnSource<?> indexedColumn;
+        private final QueryTable indexTable;
+
+        private ObjectZonedKeyDataIndex(final QueryTable table, final ZonedDateTime[] keys, final RowSet[] rowSets) {
+            indexedColumn = table.getColumnSource("Key");
+            final Map<String, ColumnSource<?>> sources = new LinkedHashMap<>();
+            sources.put("Key", new ImmutableObjectArraySource<>(ZonedDateTime.class, null, keys));
+            sources.put(ROW_SET_COLUMN_NAME, new ImmutableObjectArraySource<>(RowSet.class, null, rowSets));
+            indexTable = new QueryTable(RowSetFactory.flat(keys.length).toTracking(), sources);
+        }
+
+        @Override
+        public boolean isValid() {
+            return true;
+        }
+
+        @Override
+        public @NotNull List<String> keyColumnNames() {
+            return List.of("Key");
+        }
+
+        @Override
+        public @NotNull Map<ColumnSource<?>, String> keyColumnNamesByIndexedColumn() {
+            return Map.of(indexedColumn, "Key");
+        }
+
+        @Override
+        public boolean tableIsCached() {
+            return true;
+        }
+
+        @Override
+        public @NotNull Table table(final DataIndexOptions options) {
+            return indexTable;
+        }
+
+        @Override
+        public @NotNull RowKeyLookup rowKeyLookup(final DataIndexOptions options) {
+            throw new UnsupportedOperationException("the join does not use an index it cannot reinterpret");
+        }
+
+        @Override
+        public boolean isRefreshing() {
+            return false;
+        }
+    }
+
+    /**
+     * When both key columns are nanosecond-backed ZonedDateTime sources, the join hashes them as longs. A data index
+     * whose key column cannot take that representation is not used, and the join matches the same join without it.
+     */
+    @Test
+    public void testAjIgnoresDataIndexWhoseKeysCannotBeReinterpreted() {
+        final QueryTable right = convertibleZonedTable("Key", 1_000L, "RightStamp", 1);
+        final Table expected = convertibleZonedTable("Key", 1_000L, "LeftStamp", 5)
+                .aj(right, "Key,LeftStamp>=RightStamp", "RightStamp");
+
+        final QueryTable indexedLeft = convertibleZonedTable("Key", 1_000L, "LeftStamp", 5);
+        DataIndexer.of(indexedLeft.getRowSet()).addDataIndex(new ObjectZonedKeyDataIndex(indexedLeft,
+                new ZonedDateTime[] {utc(1_000L)}, new RowSet[] {RowSetFactory.flat(1)}));
+        assertTableEquals(expected, indexedLeft.aj(right, "Key,LeftStamp>=RightStamp", "RightStamp"));
+    }
+
+    private static QueryTable makeTable(final boolean refreshing, final TrackingRowSet rowSet,
+            final ColumnHolder<?>... columns) {
+        return refreshing ? testRefreshingTable(rowSet, columns) : testTable(rowSet, columns);
     }
 
     @Test
