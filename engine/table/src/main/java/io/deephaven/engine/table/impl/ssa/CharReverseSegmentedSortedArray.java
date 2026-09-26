@@ -979,8 +979,9 @@ public final class CharReverseSegmentedSortedArray implements SegmentedSortedArr
                         directoryValues[firstLeaf] = leafValues[firstLeaf][leafSizes[firstLeaf] - 1];
                         directoryRowKeys[firstLeaf] = leafRowKeys[firstLeaf][leafSizes[firstLeaf] - 1];
 
-                        final boolean hasLeft = firstLeaf > 0 && (leavesToRemove == null || leavesToRemove.isEmpty()
-                                || (leavesToRemove.getInt(leavesToRemove.size() - 1) != (firstLeaf - 1)));
+                        // a list of removed leaves is created with its first entry, so it is never empty here
+                        final boolean hasLeft = firstLeaf > 0 && (leavesToRemove == null
+                                || leavesToRemove.getInt(leavesToRemove.size() - 1) != (firstLeaf - 1));
                         final boolean hasRight = firstLeaf < leafCount - 1;
 
                         // in cases where we do not have a left or right, we just set the size to leafSize so we will
@@ -1011,9 +1012,8 @@ public final class CharReverseSegmentedSortedArray implements SegmentedSortedArr
                             Assert.eq(computeLeafSizes(), "computeLeafSizes()", size - totalCount, "size - totalCount");
                         }
                     } else if (firstValuesPosition < removeSize) {
-                        if (leavesToRemove != null) {
-                            leavesToRemove.clear();
-                        }
+                        // only one leaf remains, so at least one leaf has been removed
+                        leavesToRemove.clear();
                         // we need to promote the last remaining leaf to the directory values, because there is only a
                         // single leaf left
                         promoteLastLeafToDirectory();
