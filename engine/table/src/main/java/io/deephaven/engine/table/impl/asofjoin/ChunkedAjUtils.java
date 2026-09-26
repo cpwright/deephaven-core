@@ -41,15 +41,13 @@ public class ChunkedAjUtils {
             final RowSetShiftData.Iterator sit = shiftData.applyIterator();
             while (sit.hasNext()) {
                 sit.next();
-                final RowSet rowSetToShift = relevantShiftedRows.subSetByKeyRange(sit.beginRange(), sit.endRange());
-                if (rowSetToShift.isEmpty()) {
-                    rowSetToShift.close();
-                    continue;
+                try (final RowSet rowSetToShift =
+                        relevantShiftedRows.subSetByKeyRange(sit.beginRange(), sit.endRange())) {
+                    if (rowSetToShift.isNonempty()) {
+                        applyOneShift(leftSsa, nodeSize, stampSource, shiftFillContext, shiftSortContext, stampKeys,
+                                stampValues, sit, rowSetToShift);
+                    }
                 }
-
-                applyOneShift(leftSsa, nodeSize, stampSource, shiftFillContext, shiftSortContext, stampKeys,
-                        stampValues, sit, rowSetToShift);
-                rowSetToShift.close();
             }
         }
     }
