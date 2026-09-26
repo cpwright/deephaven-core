@@ -308,13 +308,13 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
                                         WritableLongChunk.makeWritableChunk(cycleRightChunkSize);
                                 final WritableBooleanChunk<Any> retainStamps =
                                         WritableBooleanChunk.makeWritableChunk(cycleRightChunkSize)) {
-                            final long chunks =
-                                    (rightRestampAdditions.size() + cycleRightChunkSize - 1) / cycleRightChunkSize;
+                            final long addedSize = rightRestampAdditions.size();
+                            final long chunks = addedSize / cycleRightChunkSize
+                                    + (addedSize % cycleRightChunkSize == 0 ? 0 : 1);
                             for (long ii = 0; ii < chunks; ++ii) {
-                                final long startChunk = chunks - ii - 1;
-                                try (final RowSet chunkOk =
-                                        rightRestampAdditions.subSetByPositionRange(startChunk * cycleRightChunkSize,
-                                                (startChunk + 1) * cycleRightChunkSize)) {
+                                final long chunkStart = (chunks - ii - 1) * cycleRightChunkSize;
+                                try (final RowSet chunkOk = rightRestampAdditions.subSetByPositionRange(chunkStart,
+                                        chunkStart + Math.min(cycleRightChunkSize, addedSize - chunkStart))) {
                                     final int chunkSize = chunkOk.intSize();
                                     rightStampSource.fillChunk(fillContext, stampChunk, chunkOk);
                                     insertedIndices.setSize(chunkSize);
