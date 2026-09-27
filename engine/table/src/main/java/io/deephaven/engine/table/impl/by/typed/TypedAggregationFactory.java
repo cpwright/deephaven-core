@@ -26,7 +26,8 @@ public class TypedAggregationFactory {
     }
 
     public static void probeFound(HasherConfig<?> hasherConfig, boolean alternate, CodeBlock.Builder builder) {
-        builder.addStatement("outputPositions.set(chunkPosition, outputPosition)");
+        builder.addStatement(hasherConfig.stateType == long.class ? "outputPositions.set(chunkPosition, (int) outputPosition)"
+                : "outputPositions.set(chunkPosition, outputPosition)");
     }
 
     public static void probeMissing(CodeBlock.Builder builder) {
@@ -34,7 +35,8 @@ public class TypedAggregationFactory {
     }
 
     static void buildFound(HasherConfig<?> hasherConfig, boolean alternate, CodeBlock.Builder builder) {
-        builder.addStatement("outputPositions.set(chunkPosition, outputPosition)");
+        builder.addStatement(hasherConfig.stateType == long.class ? "outputPositions.set(chunkPosition, (int) outputPosition)"
+                : "outputPositions.set(chunkPosition, outputPosition)");
     }
 
     private static void buildInsertCommon(HasherConfig<?> hasherConfig, CodeBlock.Builder builder) {
@@ -44,7 +46,8 @@ public class TypedAggregationFactory {
         } else {
             builder.addStatement("outputPosition = nextOutputPosition.getAndIncrement()");
         }
-        builder.addStatement("outputPositions.set(chunkPosition, outputPosition)");
+        builder.addStatement(hasherConfig.stateType == long.class ? "outputPositions.set(chunkPosition, (int) outputPosition)"
+                : "outputPositions.set(chunkPosition, outputPosition)");
         builder.addStatement("$L.set(tableLocation, outputPosition)", hasherConfig.mainStateName);
     }
 
@@ -98,7 +101,8 @@ public class TypedAggregationFactory {
 
         final String positionValueName = alternate ? "alternatePositionValue" : "positionValue";
 
-        builder.addStatement("final int $L = $L.getUnsafe($L)", positionValueName,
+        builder.addStatement(hasherConfig.stateType == long.class ? "final long $L = $L.getUnsafe($L)"
+                : "final int $L = $L.getUnsafe($L)", positionValueName,
                 alternate ? hasherConfig.overflowOrAlternateStateName : hasherConfig.mainStateName,
                 tableLocationName);
         builder.beginControlFlow("if (isStateEmpty($L))", positionValueName);
@@ -114,7 +118,8 @@ public class TypedAggregationFactory {
         builder.beginControlFlow(
                 "if (" + (alternate ? TypedHasherFactory.getEqualsStatementAlternate(chunkTypes)
                         : TypedHasherFactory.getEqualsStatement(chunkTypes)) + ")");
-        builder.addStatement("return $L", positionValueName);
+        builder.addStatement(hasherConfig.stateType == long.class ? "return (int) $L" : "return $L",
+                positionValueName);
         builder.endControlFlow();
 
         final String nextLocationName = alternate ? "alternateNextTableLocation" : "nextTableLocation";

@@ -55,7 +55,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
             int tableLocation = firstTableLocation;
             int firstDeletedLocation = -1;
             MAIN_SEARCH: while (true) {
-                int outputPosition = mainOutputPosition.getUnsafe(tableLocation);
+                long outputPosition = mainOutputPosition.getUnsafe(tableLocation);
                 if (firstDeletedLocation < 0 && isStateDeleted(outputPosition)) {
                     firstDeletedLocation = tableLocation;
                 }
@@ -70,7 +70,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                             if (isStateDeleted(outputPosition)) {
                                 break;
                             }
-                            outputPositions.set(chunkPosition, outputPosition);
+                            outputPositions.set(chunkPosition, (int) outputPosition);
                             break MAIN_SEARCH;
                         } else {
                             alternateTableLocation = alternateNextTableLocation(alternateTableLocation);
@@ -87,7 +87,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                     liveEntries++;
                     mainKeySource0.set(tableLocation, k0);
                     outputPosition = allocateOutputPosition();
-                    outputPositions.set(chunkPosition, outputPosition);
+                    outputPositions.set(chunkPosition, (int) outputPosition);
                     mainOutputPosition.set(tableLocation, outputPosition);
                     outputPositionToHashSlot.set(outputPosition, mainInsertMask | tableLocation);
                     break;
@@ -97,12 +97,12 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                         liveEntries++;
                         mainKeySource0.set(tableLocation, k0);
                         outputPosition = allocateOutputPosition();
-                        outputPositions.set(chunkPosition, outputPosition);
+                        outputPositions.set(chunkPosition, (int) outputPosition);
                         mainOutputPosition.set(tableLocation, outputPosition);
                         outputPositionToHashSlot.set(outputPosition, mainInsertMask | tableLocation);
                         break;
                     }
-                    outputPositions.set(chunkPosition, outputPosition);
+                    outputPositions.set(chunkPosition, (int) outputPosition);
                     break;
                 } else {
                     tableLocation = nextTableLocation(tableLocation);
@@ -124,14 +124,14 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
             boolean found = false;
             boolean searchAlternate = true;
             int tableLocation = firstTableLocation;
-            int outputPosition;
+            long outputPosition;
             while (!isStateEmpty(outputPosition = mainOutputPosition.getUnsafe(tableLocation))) {
                 if (eq(mainKeySource0.getUnsafe(tableLocation), k0)) {
                     if (isStateDeleted(outputPosition)) {
                         searchAlternate = false;
                         break;
                     }
-                    outputPositions.set(chunkPosition, outputPosition);
+                    outputPositions.set(chunkPosition, (int) outputPosition);
                     found = true;
                     break;
                 }
@@ -153,7 +153,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                                 if (isStateDeleted(outputPosition)) {
                                     break;
                                 }
-                                outputPositions.set(chunkPosition, outputPosition);
+                                outputPositions.set(chunkPosition, (int) outputPosition);
                                 alternateFound = true;
                                 break;
                             }
@@ -176,16 +176,16 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
         return hash;
     }
 
-    private static boolean isStateEmpty(int state) {
+    private static boolean isStateEmpty(long state) {
         return state == EMPTY_OUTPUT_POSITION;
     }
 
-    private static boolean isStateDeleted(int state) {
+    private static boolean isStateDeleted(long state) {
         return state == TOMBSTONE_STATE;
     }
 
     private boolean migrateOneLocation(int locationToMigrate, boolean trueOnDeletedEntry) {
-        final int currentStateValue = alternateOutputPosition.getUnsafe(locationToMigrate);
+        final long currentStateValue = alternateOutputPosition.getUnsafe(locationToMigrate);
         if (isStateEmpty(currentStateValue)) {
             return false;
         }
@@ -197,7 +197,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
         final long k0 = alternateKeySource0.getUnsafe(locationToMigrate);
         final int hash = hash(k0);
         int destinationTableLocation = hashToTableLocation(hash);
-        int candidateState;
+        long candidateState;
         while (!isStateEmpty(candidateState = mainOutputPosition.getUnsafe(destinationTableLocation)) && !isStateDeleted(candidateState)) {
             destinationTableLocation = nextTableLocation(destinationTableLocation);
         }
@@ -247,14 +247,14 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
     @Override
     protected void rehashInternalFull(final int oldSize) {
         final long[] destKeyArray0 = new long[tableSize];
-        final int[] destState = new int[tableSize];
+        final long[] destState = new long[tableSize];
         Arrays.fill(destState, EMPTY_OUTPUT_POSITION);
         final long [] originalKeyArray0 = mainKeySource0.getArray();
         mainKeySource0.setArray(destKeyArray0);
-        final int [] originalStateArray = mainOutputPosition.getArray();
+        final long [] originalStateArray = mainOutputPosition.getArray();
         mainOutputPosition.setArray(destState);
         for (int sourceBucket = 0; sourceBucket < oldSize; ++sourceBucket) {
-            final int currentStateValue = originalStateArray[sourceBucket];
+            final long currentStateValue = originalStateArray[sourceBucket];
             if (isStateEmpty(currentStateValue)) {
                 continue;
             }
@@ -284,7 +284,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
         int tableLocation = hashToTableLocation(hash);
         final int firstTableLocation = tableLocation;
         while (true) {
-            final int positionValue = mainOutputPosition.getUnsafe(tableLocation);
+            final long positionValue = mainOutputPosition.getUnsafe(tableLocation);
             if (isStateEmpty(positionValue)) {
                 int alternateTableLocation = hashToTableLocationAlternate(hash);
                 if (alternateTableLocation >= rehashPointer) {
@@ -292,12 +292,12 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                 }
                 final int firstAlternateTableLocation = alternateTableLocation;
                 while (true) {
-                    final int alternatePositionValue = alternateOutputPosition.getUnsafe(alternateTableLocation);
+                    final long alternatePositionValue = alternateOutputPosition.getUnsafe(alternateTableLocation);
                     if (isStateEmpty(alternatePositionValue)) {
                         return UNKNOWN_ROW;
                     }
                     if (eq(alternateKeySource0.getUnsafe(alternateTableLocation), k0)) {
-                        return alternatePositionValue;
+                        return (int) alternatePositionValue;
                     }
                     alternateTableLocation = alternateNextTableLocation(alternateTableLocation);
                     if (alternateTableLocation == firstAlternateTableLocation) {
@@ -306,7 +306,7 @@ final class IncrementalAggOpenHasherWithTombstoneLong extends IncrementalChunked
                 }
             }
             if (eq(mainKeySource0.getUnsafe(tableLocation), k0)) {
-                return positionValue;
+                return (int) positionValue;
             }
             tableLocation = nextTableLocation(tableLocation);
             if (tableLocation == firstTableLocation) {

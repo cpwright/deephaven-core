@@ -17,6 +17,7 @@ import io.deephaven.engine.table.impl.sources.InMemoryColumnSource;
 import io.deephaven.engine.table.impl.sources.IntegerArraySource;
 import io.deephaven.engine.table.impl.sources.RedirectedColumnSource;
 import io.deephaven.engine.table.impl.sources.immutable.ImmutableIntArraySource;
+import io.deephaven.engine.table.impl.sources.immutable.ImmutableLongArraySource;
 import io.deephaven.engine.table.impl.util.IntColumnSourceWritableRowRedirection;
 import io.deephaven.engine.table.impl.util.RowRedirection;
 import io.deephaven.engine.table.impl.util.TypedHasherUtil.BuildOrProbeContext;
@@ -42,7 +43,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
      * This is an invalid output position, so we can use it to represent a deleted state. It must equal UNKNOWN_ROW: the
      * generated findPositionForKey returns the state of the slot whose key matches, so a removed key reports unknown.
      */
-    protected static final int TOMBSTONE_STATE = UNKNOWN_ROW;
+    protected static final long TOMBSTONE_STATE = UNKNOWN_ROW;
 
     /** The number of slots in our table. */
     protected int tableSize;
@@ -80,18 +81,18 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
 
 
     /** Our state value used when nothing is there. */
-    protected static final int EMPTY_OUTPUT_POSITION = QueryConstants.NULL_INT;
+    protected static final long EMPTY_OUTPUT_POSITION = QueryConstants.NULL_LONG;
 
     /**
      * The state value for the bucket, parallel to mainKeySources (the state is an output row key for the aggregation).
      */
-    protected ImmutableIntArraySource mainOutputPosition = new ImmutableIntArraySource();
+    protected ImmutableLongArraySource mainOutputPosition = new ImmutableLongArraySource();
 
     /**
      * The state value for the bucket, parallel to alternateKeySources (the state is an output row key for the
      * aggregation).
      */
-    protected ImmutableIntArraySource alternateOutputPosition;
+    protected ImmutableLongArraySource alternateOutputPosition;
 
     /**
      * Used as a row redirection for the output key sources, updated using the mainInsertMask to identify the main vs.
@@ -406,7 +407,7 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
         numEntries = 0;
 
         alternateOutputPosition = mainOutputPosition;
-        mainOutputPosition = new ImmutableIntArraySource();
+        mainOutputPosition = new ImmutableLongArraySource();
         mainOutputPosition.ensureCapacity(tableSize);
         if (mainInsertMask == 0) {
             if (alternatingColumnSources != null) {
@@ -500,9 +501,9 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                     final int slot = Math.toIntExact(hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK);
                     final int newOutputPosition = Math.toIntExact(outputPosition + delta);
                     if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
-                        mainOutputPosition.set(slot, newOutputPosition);
+                        mainOutputPosition.set(slot, (long) newOutputPosition);
                     } else {
-                        alternateOutputPosition.set(slot, newOutputPosition);
+                        alternateOutputPosition.set(slot, (long) newOutputPosition);
                     }
                 });
             }
@@ -526,9 +527,9 @@ public abstract class IncrementalChunkedOperatorAggregationStateManagerOpenAddre
                 outputPositionToHashSlot.set(newOutputPosition, hashSlot);
                 final int slot = Math.toIntExact(hashSlot & AlternatingColumnSource.ALTERNATE_INNER_MASK);
                 if ((hashSlot & AlternatingColumnSource.ALTERNATE_SWITCH_MASK) == mainInsertMask) {
-                    mainOutputPosition.set(slot, newOutputPosition);
+                    mainOutputPosition.set(slot, (long) newOutputPosition);
                 } else {
-                    alternateOutputPosition.set(slot, newOutputPosition);
+                    alternateOutputPosition.set(slot, (long) newOutputPosition);
                 }
             }
         }

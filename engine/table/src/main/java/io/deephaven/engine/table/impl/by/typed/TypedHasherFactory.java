@@ -179,6 +179,8 @@ public class TypedHasherFactory {
         } else if (baseClass
                 .equals(IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class)) {
             configureAggregation(builder);
+            // experiment: store the output positions as longs
+            builder.stateType(long.class);
             builder.supportTombstones(true);
             builder.tombstoneStateName("TOMBSTONE_STATE");
             // must match
