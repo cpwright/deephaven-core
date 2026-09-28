@@ -70,6 +70,7 @@ createJmhTask('jmhRunNaturalJoinIncrementalUpdate', 'NaturalJoinIncrementalUpdat
 createJmhTask('jmhRunSparseSelect', 'SparseSelectBenchmark')
 createJmhTask('jmhRunRCS', 'RegionedColumnSourceBenchmark')
 createJmhTask('jmhRunBy', 'ByBenchmark')
+createJmhTask('jmhRunAggregationIncremental', 'AggregationIncrementalBenchmark')
 createJmhTask('jmhRunUnion', 'UnionBenchmark', [], '12g')
 createJmhTask('jmhRunBuilder', 'RowSetBuilderBenchmark')
 createJmhTask('jmhRunMatchHistorical',
