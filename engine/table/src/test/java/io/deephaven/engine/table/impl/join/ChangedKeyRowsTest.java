@@ -3,6 +3,7 @@
 //
 package io.deephaven.engine.table.impl.join;
 
+import io.deephaven.chunk.ChunkType;
 import io.deephaven.chunk.IntChunk;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.engine.context.ExecutionContext;
@@ -29,7 +30,8 @@ public class ChangedKeyRowsTest extends RefreshingTableTestCase {
         final QueryTable table = testRefreshingTable(i(0, 1, 2, 3).toTracking(), intCol("I", 1, 2, 3, 4),
                 col("S", "a", "b", "c", "d"));
         final ColumnSource<?>[] sources = {table.getColumnSource("I"), table.getColumnSource("S")};
-        final ChangedKeyRows changedKeyRows = new ChangedKeyRows(sources);
+        final ChangedKeyRows changedKeyRows = new ChangedKeyRows(
+                Arrays.stream(sources).map(ColumnSource::getChunkType).toArray(ChunkType[]::new));
 
         final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
         updateGraph.runWithinUnitTestCycle(() -> {

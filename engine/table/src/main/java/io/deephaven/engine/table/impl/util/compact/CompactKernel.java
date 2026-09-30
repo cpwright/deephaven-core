@@ -86,7 +86,52 @@ public interface CompactKernel {
             boolean countNaN);
 
     /**
-     * Make a CompactKernel for values of the given type.
+     * Compacts values into the front of the chunk, retaining only values where the parallel retainValues chunk has a
+     * true value, and sets the chunk's size to the number of retained values. This compaction selects values by
+     * position alone and tests no values for equality, so hash-based operations may use it without regard to how the
+     * values are ordered.
+     *
+     * @param values a chunk of values, input and output
+     * @param retainValues the values to retain
+     */
+    static void compactRetained(WritableChunk<? extends Any> values, BooleanChunk<Any> retainValues) {
+        switch (values.getChunkType()) {
+            case Boolean:
+                BooleanCompactKernel.compact(values.asWritableBooleanChunk(), retainValues);
+                return;
+            case Char:
+                CharCompactKernel.compact(values.asWritableCharChunk(), retainValues);
+                return;
+            case Byte:
+                ByteCompactKernel.compact(values.asWritableByteChunk(), retainValues);
+                return;
+            case Short:
+                ShortCompactKernel.compact(values.asWritableShortChunk(), retainValues);
+                return;
+            case Int:
+                IntCompactKernel.compact(values.asWritableIntChunk(), retainValues);
+                return;
+            case Long:
+                LongCompactKernel.compact(values.asWritableLongChunk(), retainValues);
+                return;
+            case Float:
+                FloatCompactKernel.compact(values.asWritableFloatChunk(), retainValues);
+                return;
+            case Double:
+                DoubleCompactKernel.compact(values.asWritableDoubleChunk(), retainValues);
+                return;
+            case Object:
+                ObjectCompactKernel.compact(values.asWritableObjectChunk(), retainValues);
+                return;
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Make a CompactKernel for values of the given type. The kernel's {@code compactAndCount} equality is consistent
+     * with the ordering of the values, as the sorted operations require; hash-based operations compact with
+     * {@link #compactRetained(WritableChunk, BooleanChunk)}.
      *
      * @param chunkType the chunk type of the values
      * @param equalsConsistent true when values of the data type compare equal exactly when they are equal (see

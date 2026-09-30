@@ -11,6 +11,7 @@ import io.deephaven.engine.rowset.*;
 import io.deephaven.engine.rowset.chunkattributes.OrderedRowKeys;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.engine.table.*;
+import io.deephaven.chunk.ChunkType;
 import io.deephaven.chunk.LongChunk;
 import io.deephaven.chunk.WritableLongChunk;
 import io.deephaven.engine.table.impl.by.typed.TypedHasherFactory;
@@ -570,7 +571,8 @@ class NaturalJoinHelper {
 
             leftTransformer =
                     leftTable.newModifiedColumnSetTransformer(result, leftTable.getDefinition().getColumnNamesArray());
-            changedKeyRows = new ChangedKeyRows(leftSources);
+            changedKeyRows = new ChangedKeyRows(
+                    Arrays.stream(leftSources).map(ColumnSource::getChunkType).toArray(ChunkType[]::new));
         }
 
         @Override
