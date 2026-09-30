@@ -283,7 +283,7 @@ public class ReplicateSegmentedSortedMultiset {
         final File objectFile = new File(objectPath);
         List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
         lines = fixupChunkAttributes(lines);
-        lines = ReplicateSortKernel.fixupObjectComparisons(lines);
+        lines = ReplicateSortKernel.fixupObjectComparisons(lines, true, true);
         lines = replaceRegion(lines, "averageMedian",
                 indent(Collections.singletonList("throw new UnsupportedOperationException();"), 16));
 
