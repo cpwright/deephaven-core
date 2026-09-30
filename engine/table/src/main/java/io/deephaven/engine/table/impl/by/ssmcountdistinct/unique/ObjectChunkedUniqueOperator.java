@@ -257,7 +257,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         final long priorState = singletonCount.getUnsafe(destination);
         if (isUnique(priorState)) {
             final Object held = internalResult.getUnsafe(destination);
-            if (len == 1 && ObjectComparisons.eq(values.get(start), held)) {
+            if (len == 1 && eq(values.get(start), held)) {
                 // the single distinct value being added is the one we already hold; just bump its multiplicity. The
                 // result value is unchanged; only the (internal) count moves.
                 singletonCount.set(destination, priorState + counts.get(start));
@@ -296,8 +296,8 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         if (isUnique(priorState)) {
             // a unique state can only be asked to remove its one held value, and never more copies than it holds
             Assert.eq(len, "len", 1);
-            Assert.assertion(ObjectComparisons.eq(values.get(start), internalResult.getUnsafe(destination)),
-                    "values.get(start) == internalResult.getUnsafe(destination)");
+            Assert.assertion(eq(values.get(start), internalResult.getUnsafe(destination)),
+                    "eq(values.get(start), internalResult.getUnsafe(destination))");
             final long remaining = priorState - counts.get(start);
             Assert.geqZero(remaining, "remaining");
             if (remaining == 0) {
@@ -441,6 +441,16 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
 
     private void clearSsm(long destination) {
         ssms.clear(destination);
+    }
+
+    /**
+     * Test two values for equality consistent with the ordering of the SSM; a state holds one entry for each class of
+     * equal values.
+     */
+    private static boolean eq(Object lhs, Object rhs) {
+        // region equality function
+        return ObjectComparisons.compareEquals(lhs, rhs);
+        // endregion equality function
     }
     // endregion
 }

@@ -422,7 +422,7 @@ public class CharRollupUniqueOperator implements IterativeChunkedAggregationOper
         }
         // singleton: a single held value with a positive count
         final char held = singletonValue.getUnsafe(destination);
-        if (distinctCount == 1 && CharComparisons.eq(values.get(0), held)) {
+        if (distinctCount == 1 && eq(values.get(0), held)) {
             count.add(counts.get(0));
             return;
         }
@@ -602,6 +602,16 @@ public class CharRollupUniqueOperator implements IterativeChunkedAggregationOper
 
     private void clearSsm(long destination) {
         ssms.clear(destination);
+    }
+
+    /**
+     * Test two values for equality consistent with the ordering of the SSM; a state holds one entry for each class of
+     * equal values.
+     */
+    private static boolean eq(char lhs, char rhs) {
+        // region equality function
+        return CharComparisons.eq(lhs, rhs);
+        // endregion equality function
     }
     // endregion
 }

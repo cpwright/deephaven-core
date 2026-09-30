@@ -435,7 +435,7 @@ public class LongRollupUniqueOperator implements IterativeChunkedAggregationOper
         }
         // singleton: a single held value with a positive count
         final long held = singletonValue.getUnsafe(destination);
-        if (distinctCount == 1 && LongComparisons.eq(values.get(0), held)) {
+        if (distinctCount == 1 && eq(values.get(0), held)) {
             count.add(counts.get(0));
             return;
         }
@@ -615,6 +615,16 @@ public class LongRollupUniqueOperator implements IterativeChunkedAggregationOper
 
     private void clearSsm(long destination) {
         ssms.clear(destination);
+    }
+
+    /**
+     * Test two values for equality consistent with the ordering of the SSM; a state holds one entry for each class of
+     * equal values.
+     */
+    private static boolean eq(long lhs, long rhs) {
+        // region equality function
+        return LongComparisons.eq(lhs, rhs);
+        // endregion equality function
     }
     // endregion
 }

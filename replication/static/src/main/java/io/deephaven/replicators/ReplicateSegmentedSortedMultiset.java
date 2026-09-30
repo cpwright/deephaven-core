@@ -274,6 +274,7 @@ public class ReplicateSegmentedSortedMultiset {
                 "(WritableObjectChunk<Object, ? extends Values>)");
         // give the typed chunk locals (e.g. the cast-once valueCopy) the two-argument WritableObjectChunk form
         lines = fixupChunkAttributes(lines);
+        lines = ReplicateSortKernel.fixupObjectEquality(lines);
 
         FileUtils.writeLines(objectFile, lines);
     }
@@ -350,6 +351,7 @@ public class ReplicateSegmentedSortedMultiset {
                 "final Object addedValue", "final T addedValue",
                 "final Object value", "final T value");
         lines = fixupNulls(lines);
+        lines = ReplicateSortKernel.fixupObjectEquality(lines);
         FileUtils.writeLines(file, lines);
     }
 

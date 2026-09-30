@@ -426,7 +426,7 @@ public class DoubleRollupUniqueOperator implements IterativeChunkedAggregationOp
         }
         // singleton: a single held value with a positive count
         final double held = singletonValue.getUnsafe(destination);
-        if (distinctCount == 1 && DoubleComparisons.eq(values.get(0), held)) {
+        if (distinctCount == 1 && eq(values.get(0), held)) {
             count.add(counts.get(0));
             return;
         }
@@ -606,6 +606,16 @@ public class DoubleRollupUniqueOperator implements IterativeChunkedAggregationOp
 
     private void clearSsm(long destination) {
         ssms.clear(destination);
+    }
+
+    /**
+     * Test two values for equality consistent with the ordering of the SSM; a state holds one entry for each class of
+     * equal values.
+     */
+    private static boolean eq(double lhs, double rhs) {
+        // region equality function
+        return DoubleComparisons.eq(lhs, rhs);
+        // endregion equality function
     }
     // endregion
 }

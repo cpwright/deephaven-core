@@ -65,7 +65,7 @@ public class LongCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final long removedValue = removedValues.get(rRead);
             final long addedValue = addedValues.get(aRead);
-            if (LongComparisons.eq(removedValue, addedValue)) {
+            if (eq(removedValue, addedValue)) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -131,10 +131,20 @@ public class LongCompactModifications {
     private static int countRun(WritableLongChunk<? extends Values> values, int pos, int end) {
         final long value = values.get(pos);
         int run = 1;
-        while (pos + run < end && LongComparisons.eq(values.get(pos + run), value)) {
+        while (pos + run < end && eq(values.get(pos + run), value)) {
             run++;
         }
         return run;
+    }
+
+    /**
+     * Test two values for equality consistent with the order in which the runs are sorted; each class of equal values
+     * forms one run.
+     */
+    private static boolean eq(long lhs, long rhs) {
+        // region equality function
+        return LongComparisons.eq(lhs, rhs);
+        // endregion equality function
     }
 
     private static boolean ignore(long value, boolean countNull, boolean countNaN) {
