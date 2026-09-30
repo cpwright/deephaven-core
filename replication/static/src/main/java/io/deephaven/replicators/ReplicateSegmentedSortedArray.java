@@ -88,24 +88,23 @@ public class ReplicateSegmentedSortedArray {
     }
 
     /**
-     * Matches the Object SSA, stamp, checker, dup compact and binary search kernel class names (and their test class
-     * names), capturing the optional Test prefix.
+     * Matches the Object SSA, stamp, checker and dup compact class names (and the SSA test class name), capturing the
+     * optional Test prefix.
      */
     private static final String OBJECT_CLASS_PATTERN =
-            "\\b(Test)?Object(?=(Reverse)?(SegmentedSortedArray|ChunkSsaStamp|SsaSsaStamp|SsaChecker|DupCompactKernel"
-                    + "|RegionBinarySearchKernel|ColumnBinarySearchKernel)(Test)?\\b)";
+            "\\b(Test)?Object(?=(Reverse)?(SegmentedSortedArray|ChunkSsaStamp|SsaSsaStamp|SsaChecker|DupCompactKernel)\\b)";
     private static final String OBJECT_CLASS_REPLACEMENT = "$1EqualsConsistentObject";
 
     /**
-     * Write the EqualsConsistentObject counterpart of an Object class, next to it. The Object class is correct for any
-     * Comparable; the counterpart is used only for data types whose natural ordering is consistent with equals. Where
-     * the Object class tests equality with {@code ObjectComparisons.compareEquals} in an equality function region, the
-     * counterpart tests it with {@code ObjectComparisons.eq}. References to the other Object SSA, stamp, checker, dup
-     * compact and binary search kernel classes become references to their EqualsConsistentObject counterparts.
+     * Write the EqualsConsistentObject counterpart of a generated Object class, next to it. The Object class tests
+     * equality with {@code ObjectComparisons.compareEquals}, which is correct for any Comparable; the counterpart tests
+     * equality with {@code ObjectComparisons.eq}, which is correct only for data types whose natural ordering is
+     * consistent with equals. References to the other Object SSA, stamp, checker and dup compact classes become
+     * references to their EqualsConsistentObject counterparts.
      *
      * @param task the gradle task that regenerates the copy
      * @param sourceClassName the name of the class to edit to change the copy
-     * @param objectPath the path of the Object class
+     * @param objectPath the path of the generated Object class
      * @return the path of the EqualsConsistentObject class
      */
     static String equalsConsistentObjectCopy(final String task, final String sourceClassName,
@@ -115,19 +114,16 @@ public class ReplicateSegmentedSortedArray {
                 objectFile.getName().replaceAll(OBJECT_CLASS_PATTERN, OBJECT_CLASS_REPLACEMENT)).getPath();
         if (copyPath.equals(objectPath)) {
             throw new IllegalArgumentException(
-                    objectPath + " is not an Object SSA, stamp, checker, dup compact or binary search kernel class");
+                    objectPath + " is not an Object SSA, stamp, checker or dup compact class");
         }
 
-        List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset()).stream()
-                .dropWhile(line -> line.startsWith("//") || line.isEmpty())
-                .collect(Collectors.toList());
-        // the header names the class to edit, which may itself be an Object class, so it is added after the renaming
-        lines = globalReplacements(lines, OBJECT_CLASS_PATTERN, OBJECT_CLASS_REPLACEMENT);
+        List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
         lines = Stream.concat(
                 // the generated classes put the package line directly after the header, with no blank line
                 ReplicationUtils.fileHeaderStream(task, sourceClassName).filter(line -> !line.isEmpty()),
-                lines.stream())
+                lines.stream().dropWhile(line -> line.startsWith("//") || line.isEmpty()))
                 .collect(Collectors.toList());
+        lines = globalReplacements(lines, OBJECT_CLASS_PATTERN, OBJECT_CLASS_REPLACEMENT);
 
         if (lines.stream().anyMatch(line -> line.contains("region equality function"))) {
             lines = simpleFixup(lines, "equality function", "ObjectComparisons\\.compareEquals\\(lhs, rhs\\)",

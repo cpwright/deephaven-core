@@ -29,10 +29,10 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Coverage for the {@link ObjectRegionBinarySearchKernel} match search over a type whose natural ordering is
- * inconsistent with equals, where the rows that compare equal to a search value must be tested for equality.
- * {@link ObjectRegionBinarySearchKernelTest} covers a type whose ordering is consistent with equals, for both this
- * kernel and {@link EqualsConsistentObjectRegionBinarySearchKernel}.
+ * Coverage for {@link ObjectRegionBinarySearchKernel#binarySearchMatchWithGeneralEquality} over a type whose natural
+ * ordering is inconsistent with equals, where the rows that compare equal to a search value must be tested for
+ * equality. {@link ObjectRegionBinarySearchKernelTest} covers a type whose ordering is consistent with equals, through
+ * {@link ObjectRegionBinarySearchKernel#binarySearchMatchWithConsistentEquality}.
  */
 @Category(ParallelTest.class)
 public class ObjectRegionBinarySearchKernelBigDecimalTest {
@@ -156,7 +156,7 @@ public class ObjectRegionBinarySearchKernelBigDecimalTest {
             }
         }
 
-        try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
+        try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchWithGeneralEquality(
                 makeBigDecimalRegion(data, smallPageSize), 0, size - 1,
                 SortColumn.asc(ColumnName.of("test")), new Object[] {scale1})) {
             final List<Long> actual = new ArrayList<>();
@@ -195,7 +195,7 @@ public class ObjectRegionBinarySearchKernelBigDecimalTest {
             final SortColumn sortColumn = descending
                     ? SortColumn.desc(ColumnName.of("test"))
                     : SortColumn.asc(ColumnName.of("test"));
-            try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
+            try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchWithGeneralEquality(
                     region, 0, data.size() - 1, sortColumn, toFind.toArray())) {
                 final List<Long> actual = new ArrayList<>();
                 matched.forAllRowKeys(actual::add);

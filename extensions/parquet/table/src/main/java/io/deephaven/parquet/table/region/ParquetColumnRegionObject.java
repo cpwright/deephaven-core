@@ -11,8 +11,6 @@ import io.deephaven.engine.table.impl.QueryTable;
 import io.deephaven.engine.table.impl.locations.TableDataException;
 import io.deephaven.engine.table.impl.select.*;
 import io.deephaven.engine.table.impl.sources.regioned.*;
-import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
-import io.deephaven.engine.table.impl.sources.regioned.kernel.EqualsConsistentObjectRegionBinarySearchKernel;
 import io.deephaven.engine.table.impl.sources.regioned.kernel.ObjectRegionBinarySearchKernel;
 import io.deephaven.parquet.table.pagestore.ColumnChunkPageStore;
 import io.deephaven.chunk.attributes.Any;
@@ -155,16 +153,10 @@ public final class ParquetColumnRegionObject<DATA_TYPE, ATTR extends Any> extend
         }
         final long firstKey = selection.firstRowKey();
         final long lastKey = selection.lastRowKey();
-        // Chosen once by the column's data type, so its match and range searches come from the same kernel.
-        final boolean equalsConsistent =
-                BinarySearchKernelHelper.compareConsistentWithEquality(ctx.columnSources().get(0).getType());
 
         if (ctx.matchFilter() != null) {
-            try (final RowSet matches = equalsConsistent
-                    ? EqualsConsistentObjectRegionBinarySearchKernel.binsearchMatchFilter(
-                            this, firstKey, lastKey, sortColumn, ctx.matchFilter())
-                    : ObjectRegionBinarySearchKernel.binsearchMatchFilter(
-                            this, firstKey, lastKey, sortColumn, ctx.matchFilter());
+            try (final RowSet matches = ObjectRegionBinarySearchKernel.binsearchMatchFilter(
+                    this, firstKey, lastKey, sortColumn, ctx.matchFilter());
                     // Handle normal / inverted match filters:
                     final RowSet pushdownMatches = ctx.matchFilter().getMatchOptions().inverted()
                             ? selection.minus(matches)
@@ -175,11 +167,8 @@ public final class ParquetColumnRegionObject<DATA_TYPE, ATTR extends Any> extend
 
         if (ctx.rangeFilter() instanceof SingleSidedComparableRangeFilter
                 || ctx.rangeFilter() instanceof ComparableRangeFilter) {
-            try (final RowSet matches = equalsConsistent
-                    ? EqualsConsistentObjectRegionBinarySearchKernel.binsearchRangeFilter(
-                            this, firstKey, lastKey, sortColumn, ctx.rangeFilter())
-                    : ObjectRegionBinarySearchKernel.binsearchRangeFilter(
-                            this, firstKey, lastKey, sortColumn, ctx.rangeFilter());
+            try (final RowSet matches = ObjectRegionBinarySearchKernel.binsearchRangeFilter(
+                    this, firstKey, lastKey, sortColumn, ctx.rangeFilter());
                     final RowSet pushdownMatches = matches.intersect(selection)) {
                 return PushdownResult.exactMatch(selection, pushdownMatches);
             }

@@ -7,6 +7,7 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.sources.regioned.kernel;
 
+import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.impl.select.AbstractRangeFilter;
 import io.deephaven.engine.table.impl.select.ComparableRangeFilter;
 import io.deephaven.engine.table.impl.select.SingleSidedComparableRangeFilter;
@@ -20,7 +21,6 @@ import io.deephaven.chunk.attributes.Any;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetBuilderSequential;
 import io.deephaven.engine.rowset.RowSetFactory;
-import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.ElementSource;
 import io.deephaven.engine.table.impl.sort.timsort.ObjectTimsortDescendingKernel;
 import io.deephaven.engine.table.impl.sort.timsort.ObjectTimsortKernel;
@@ -72,6 +72,12 @@ public class ObjectColumnBinarySearchKernel {
      * row keys.
      *
      * <p>
+     * Ordering alone decides a match: every row that compares equal to a search value is returned. This is valid for
+     * types whose values compare equal exactly when they are equal, as
+     * {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} describes; for any other type,
+     * {@link #binarySearchMatchWithGeneralEquality} applies.
+     *
+     * <p>
      * The binary search is performed over the positions defined by {@code selection}. {@link RowSet#get(long)} is used
      * to map positions to row keys, ensuring O(log n) performance even when the row key space is sparse.
      *
@@ -84,7 +90,7 @@ public class ObjectColumnBinarySearchKernel {
      *
      * @return A {@link RowSet} containing the row keys where the sorted keys were found.
      */
-    public static RowSet binarySearchMatch(
+    public static RowSet binarySearchMatchWithConsistentEquality(
             @NotNull final ElementSource<?> source,
             @NotNull final RowSet selection,
             @NotNull final SortColumn sortColumn,
@@ -160,12 +166,12 @@ public class ObjectColumnBinarySearchKernel {
 
     /**
      * Performs a binary search on a given sorted {@link ColumnSource} to find the row keys from a provided
-     * {@link RowSet} that hold a value equal to one of {@code searchValues}, where equality is
-     * {@link ObjectComparisons#eq(Object, Object)}. The method returns the {@link RowSet} containing the matched row keys.
+     * {@link RowSet} that hold a value equal to one of {@code searchValues}. The method returns the {@link RowSet}
+     * containing the matched row keys.
      *
      * <p>
-     * Where values compare equal exactly when they are equal, the result is the same as that of
-     * {@link #binarySearchMatch}.
+     * Correct for any {@link Comparable} type: ordering locates the run of rows that compare equal to a search
+     * value, and {@link ObjectComparisons#eq(Object, Object)} selects the rows of that run that match.
      *
      * @param source The column source in which the search will be performed.
      * @param selection The {@link RowSet} defining which rows are populated and the order in which they are searched.
@@ -175,15 +181,14 @@ public class ObjectColumnBinarySearchKernel {
      *
      * @return A {@link RowSet} containing the row keys that are equal to one of the search values.
      */
-    public static RowSet binarySearchMatchByEquality(
+    public static RowSet binarySearchMatchWithGeneralEquality(
             @NotNull final ColumnSource<?> source,
             @NotNull final RowSet selection,
             @NotNull final SortColumn sortColumn,
             @NotNull final Object[] searchValues,
             final boolean usePrev) {
-        // region matchByEquality
-        return ObjectColumnBinarySearchMatchHelper.binarySearchMatchByEquality(source, selection, sortColumn, searchValues, usePrev);
-        // endregion matchByEquality
+        return ObjectColumnBinarySearchMatchHelper.binarySearchMatchWithGeneralEquality(source, selection, sortColumn,
+                searchValues, usePrev);
     }
 
     /**

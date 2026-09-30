@@ -72,6 +72,11 @@ public class ObjectRegionBinarySearchKernel {
      * keys that hold one of them. The filter's {@link io.deephaven.engine.table.MatchOptions#inverted() inverted} flag
      * is not applied here; the caller must invert the result itself.
      *
+     * <p>
+     * The filter's column type chooses the search: {@link #binarySearchMatchWithConsistentEquality} when
+     * {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} holds for it, and
+     * {@link #binarySearchMatchWithGeneralEquality} otherwise.
+     *
      * @param region The column region to search.
      * @param firstKey The first key in the column region to consider for the search.
      * @param lastKey The last key in the column region to consider for the search.
@@ -89,13 +94,21 @@ public class ObjectRegionBinarySearchKernel {
             // Nothing to search for, so nothing matches, and the data need not be touched at all.
             return RowSetFactory.empty();
         }
-        return binarySearchMatchByEquality(region, firstKey, lastKey, sortColumn, filter.getValues());
+        return BinarySearchKernelHelper.compareConsistentWithEquality(filter.getColumnType())
+                ? binarySearchMatchWithConsistentEquality(region, firstKey, lastKey, sortColumn, filter.getValues())
+                : binarySearchMatchWithGeneralEquality(region, firstKey, lastKey, sortColumn, filter.getValues());
     }
     // endregion binsearchMatchFilter
 
     /**
      * Performs a binary search on a given column region to find the positions (row keys) of specified keys. The method
      * returns the RowSet containing the matched row keys.
+     *
+     * <p>
+     * Ordering alone decides a match: every row that compares equal to a search value is returned. This is valid for
+     * types whose values compare equal exactly when they are equal, as
+     * {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} describes; for any other type,
+     * {@link #binarySearchMatchWithGeneralEquality} applies.
      *
      * @param region The column region in which the search will be performed.
      * @param firstKey The first key in the column region to consider for the search.
@@ -105,7 +118,7 @@ public class ObjectRegionBinarySearchKernel {
      *
      * @return A {@link RowSet} containing the row keys where the sorted keys were found.
      */
-    public static RowSet binarySearchMatch(
+    public static RowSet binarySearchMatchWithConsistentEquality(
             ColumnRegionObject<?, ?> region,
             long firstKey,
             final long lastKey,
@@ -164,12 +177,11 @@ public class ObjectRegionBinarySearchKernel {
 
     /**
      * Performs a binary search on a given column region to find the row keys holding a value equal to one of
-     * {@code searchValues}, where equality is {@link ObjectComparisons#eq(Object, Object)}. The method returns the
-     * {@link RowSet} containing the matched row keys.
+     * {@code searchValues}. The method returns the {@link RowSet} containing the matched row keys.
      *
      * <p>
-     * Where values compare equal exactly when they are equal, the result is the same as that of
-     * {@link #binarySearchMatch}.
+     * Correct for any {@link Comparable} type: ordering locates the run of rows that compare equal to a search
+     * value, and {@link ObjectComparisons#eq(Object, Object)} selects the rows of that run that match.
      *
      * @param region The column region in which the search will be performed.
      * @param firstKey The first key in the column region to consider for the search.
@@ -179,15 +191,14 @@ public class ObjectRegionBinarySearchKernel {
      *
      * @return A {@link RowSet} containing the row keys that are equal to one of the search values.
      */
-    public static RowSet binarySearchMatchByEquality(
+    public static RowSet binarySearchMatchWithGeneralEquality(
             @NotNull final ColumnRegionObject<?, ?> region,
             final long firstKey,
             final long lastKey,
             @NotNull final SortColumn sortColumn,
             @NotNull final Object[] searchValues) {
-        // region matchByEquality
-        return ObjectRegionBinarySearchMatchHelper.binarySearchMatchByEquality(region, firstKey, lastKey, sortColumn, searchValues);
-        // endregion matchByEquality
+        return ObjectRegionBinarySearchMatchHelper.binarySearchMatchWithGeneralEquality(region, firstKey, lastKey,
+                sortColumn, searchValues);
     }
 
     /**

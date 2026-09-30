@@ -93,11 +93,11 @@ public class BinarySearchKernelHelper {
      * {@link java.util.Objects#equals(Object, Object)} -- the same relation the chunk filter uses. When the two agree,
      * the ordering-equal run the search locates is exactly the set of matching rows and the search can answer the match
      * outright. When they disagree -- {@link java.math.BigDecimal} at differing scales, for one -- that run is only a
-     * superset, and the matches have to be picked out of it by equality. Sorted pushdown therefore searches a column of
-     * a type for which this holds with {@link EqualsConsistentObjectRegionBinarySearchKernel} or
-     * {@link EqualsConsistentObjectColumnBinarySearchKernel}, and a column of any other type with
-     * {@link ObjectRegionBinarySearchKernel} or {@link ObjectColumnBinarySearchKernel}; its match and range searches
-     * over one column come from the same kernel.
+     * superset, and the matches have to be picked out of it by equality. Sorted pushdown therefore matches a column of
+     * a type for which this holds with {@link ObjectRegionBinarySearchKernel#binarySearchMatchWithConsistentEquality}
+     * or {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithConsistentEquality}, and a column of any other type
+     * with {@link ObjectRegionBinarySearchKernel#binarySearchMatchWithGeneralEquality} or
+     * {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithGeneralEquality}.
      *
      * <p>
      * Only this stronger both-ways guarantee is checked, and only where documented, since {@link java.math.BigDecimal}

@@ -26,8 +26,8 @@ import static io.deephaven.engine.table.impl.sources.regioned.kernel.ObjectRegio
 import static io.deephaven.engine.table.impl.sources.regioned.kernel.ObjectRegionBinarySearchKernel.upperBoundDescending;
 
 /**
- * The equality match of {@link ObjectRegionBinarySearchKernel}, for Object types whose ordering need not be consistent
- * with equality.
+ * The match behind {@link ObjectRegionBinarySearchKernel#binarySearchMatchWithGeneralEquality}, which is correct for
+ * any {@link Comparable} type.
  */
 final class ObjectRegionBinarySearchMatchHelper {
     /**
@@ -62,7 +62,7 @@ final class ObjectRegionBinarySearchMatchHelper {
      *
      * @return A {@link RowSet} containing the row keys that are equal to one of the search values.
      */
-    static RowSet binarySearchMatchByEquality(
+    static RowSet binarySearchMatchWithGeneralEquality(
             @NotNull final ColumnRegionObject<?, ?> region,
             long firstKey,
             final long lastKey,

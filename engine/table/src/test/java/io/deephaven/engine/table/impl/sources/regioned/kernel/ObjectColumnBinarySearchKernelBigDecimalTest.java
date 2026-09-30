@@ -23,10 +23,10 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Coverage for the {@link ObjectColumnBinarySearchKernel} match search over a type whose natural ordering is
- * inconsistent with equals, where the rows that compare equal to a search value must be tested for equality.
- * {@link ObjectColumnBinarySearchKernelTest} covers a type whose ordering is consistent with equals, for both this
- * kernel and {@link EqualsConsistentObjectColumnBinarySearchKernel}.
+ * Coverage for {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithGeneralEquality} over a type whose natural
+ * ordering is inconsistent with equals, where the rows that compare equal to a search value must be tested for
+ * equality. {@link ObjectColumnBinarySearchKernelTest} covers a type whose ordering is consistent with equals, through
+ * {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithConsistentEquality}.
  */
 @Category(ParallelTest.class)
 public class ObjectColumnBinarySearchKernelBigDecimalTest {
@@ -141,7 +141,7 @@ public class ObjectColumnBinarySearchKernelBigDecimalTest {
                     ? SortColumn.desc(ColumnName.of("test"))
                     : SortColumn.asc(ColumnName.of("test"));
             try (final RowSet selection = RowSetFactory.fromRange(0, data.size() - 1);
-                    final RowSet matched = ObjectColumnBinarySearchKernel.binarySearchMatchByEquality(
+                    final RowSet matched = ObjectColumnBinarySearchKernel.binarySearchMatchWithGeneralEquality(
                             source, selection, sortColumn, toFind.toArray(), false)) {
                 final List<Long> actual = new ArrayList<>();
                 matched.forAllRowKeys(actual::add);

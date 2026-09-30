@@ -157,11 +157,12 @@ public class BinarySearchKernelHelperTest {
     }
 
     /**
-     * Sorted pushdown chooses its Object kernel by {@link BinarySearchKernelHelper#compareConsistentWithEquality}. The
-     * middle row of {@code [1a, 1b, 1a, 2a]} compares equal to {@code 1a} without being equal to it: a search that lets
-     * ordering alone decide a match returns it, and a search that tests each row for equality does not. A registered
-     * type takes the first kernel, as String, Instant and enums do; an unregistered type or {@link BigDecimal} takes
-     * the second.
+     * Sorted pushdown chooses its Object match by {@link BinarySearchKernelHelper#compareConsistentWithEquality}. The
+     * middle row of {@code [1a, 1b, 1a, 2a]} compares equal to {@code 1a} without being equal to it:
+     * {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithConsistentEquality}, which lets ordering alone decide
+     * a match, returns it, and {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithGeneralEquality}, which tests
+     * each row for equality, does not. A registered type takes the first, as String, Instant and enums do; an
+     * unregistered type or {@link BigDecimal} takes the second.
      */
     @Test
     public void sortedPushdownChoosesKernelByType() {
@@ -180,7 +181,7 @@ public class BinarySearchKernelHelperTest {
                         new BigDecimal("2.0")},
                 new BigDecimal("1.0"), 0, 2);
 
-        // The types that are consistent with equality answer correctly on either kernel.
+        // The types that are consistent with equality answer correctly through either match.
         assertMatch(String.class, new String[] {"a", "b", "b", "c"}, "b", 1, 2);
         assertMatch(Instant.class, new Instant[] {Instant.ofEpochSecond(1), Instant.ofEpochSecond(2),
                 Instant.ofEpochSecond(2), Instant.ofEpochSecond(3)}, Instant.ofEpochSecond(2), 1, 2);

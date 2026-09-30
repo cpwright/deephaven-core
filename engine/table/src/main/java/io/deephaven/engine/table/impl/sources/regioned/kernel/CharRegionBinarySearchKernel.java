@@ -79,7 +79,7 @@ public class CharRegionBinarySearchKernel {
             // Nothing to search for, so nothing matches, and the data need not be touched at all.
             return RowSetFactory.empty();
         }
-        return binarySearchMatchByEquality(region, firstKey, lastKey, sortColumn, filter.getValues());
+        return binarySearchMatch(region, firstKey, lastKey, sortColumn, filter.getValues());
     }
     // endregion binsearchMatchFilter
 
@@ -150,34 +150,6 @@ public class CharRegionBinarySearchKernel {
         }
 
         return builder.build();
-    }
-
-    /**
-     * Performs a binary search on a given column region to find the row keys holding a value equal to one of
-     * {@code searchValues}, where equality is {@link CharComparisons#eq(char, char)}. The method returns the
-     * {@link RowSet} containing the matched row keys.
-     *
-     * <p>
-     * Where values compare equal exactly when they are equal, the result is the same as that of
-     * {@link #binarySearchMatch}.
-     *
-     * @param region The column region in which the search will be performed.
-     * @param firstKey The first key in the column region to consider for the search.
-     * @param lastKey The last key in the column region to consider for the search.
-     * @param sortColumn A {@link SortColumn} object representing the sorting order of the column.
-     * @param searchValues An array of keys to find within the column region.
-     *
-     * @return A {@link RowSet} containing the row keys that are equal to one of the search values.
-     */
-    public static RowSet binarySearchMatchByEquality(
-            @NotNull final ColumnRegionChar<?> region,
-            final long firstKey,
-            final long lastKey,
-            @NotNull final SortColumn sortColumn,
-            @NotNull final Object[] searchValues) {
-        // region matchByEquality
-        return binarySearchMatch(region, firstKey, lastKey, sortColumn, searchValues);
-        // endregion matchByEquality
     }
 
     /**

@@ -134,10 +134,10 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
      * remove any user-provided NaN from the search values when nanMatch is false.
      *
      * <p>
-     * A non-primitive type uses {@link EqualsConsistentObjectColumnBinarySearchKernel}, which lets ordering alone
-     * decide a match, when {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} holds for it, and
-     * {@link ObjectColumnBinarySearchKernel}, which tests the rows that compare equal to a search value for equality,
-     * otherwise.
+     * A non-primitive type uses {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithConsistentEquality}, which
+     * lets ordering alone decide a match, when {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}
+     * holds for it, and {@link ObjectColumnBinarySearchKernel#binarySearchMatchWithGeneralEquality}, which tests the
+     * rows that compare equal to a search value for equality, otherwise.
      */
     public static RowSet binarySearchMatch(
             @NotNull final ColumnSource<?> source,
@@ -148,37 +148,33 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
             final boolean usePrev) {
 
         if (dataType == char.class || dataType == Character.class) {
-            return CharColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return CharColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
         }
         if (dataType == byte.class || dataType == Byte.class) {
-            return ByteColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return ByteColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
         }
         if (dataType == short.class || dataType == Short.class) {
-            return ShortColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return ShortColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
+                    usePrev);
         }
         if (dataType == int.class || dataType == Integer.class) {
-            return IntColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return IntColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
         }
         if (dataType == long.class || dataType == Long.class) {
-            return LongColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return LongColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
         }
         if (dataType == float.class || dataType == Float.class) {
-            return FloatColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return FloatColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
+                    usePrev);
         }
         if (dataType == double.class || dataType == Double.class) {
-            return DoubleColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
-                    searchValues, usePrev);
+            return DoubleColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
+                    usePrev);
         }
         return BinarySearchKernelHelper.compareConsistentWithEquality(dataType)
-                ? EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection,
-                        sortColumn, searchValues, usePrev)
-                : ObjectColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                ? ObjectColumnBinarySearchKernel.binarySearchMatchWithConsistentEquality(source, selection, sortColumn,
+                        searchValues, usePrev)
+                : ObjectColumnBinarySearchKernel.binarySearchMatchWithGeneralEquality(source, selection, sortColumn,
                         searchValues, usePrev);
     }
 
@@ -221,12 +217,8 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
             return DoubleColumnBinarySearchKernel.binsearchRangeFilter(
                     maybeReinterpreted, selection, sortColumn, (DoubleRangeFilter) rangeFilter, usePrev);
         }
-        // Use the original-typed source, and the same Object kernel that a match over its type uses.
-        return BinarySearchKernelHelper.compareConsistentWithEquality(source.getType())
-                ? EqualsConsistentObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn,
-                        rangeFilter, usePrev)
-                : ObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn, rangeFilter,
-                        usePrev);
+        // Use the original-typed source.
+        return ObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn, rangeFilter, usePrev);
     }
 
     private static boolean isSupportedRangeFilter(final AbstractRangeFilter rangeFilter) {
