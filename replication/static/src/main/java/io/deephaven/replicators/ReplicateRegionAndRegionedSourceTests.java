@@ -26,5 +26,11 @@ public class ReplicateRegionAndRegionedSourceTests {
                 "engine/table/src/test/java/io/deephaven/engine/table/impl/sources/regioned/kernel/FloatColumnBinarySearchKernelTest.java");
         floatToAllFloatingPoints("replicateRegionAndRegionedSourceTests",
                 "engine/table/src/test/java/io/deephaven/engine/table/impl/sources/regioned/kernel/FloatRegionBinarySearchKernelTest.java");
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy("replicateRegionAndRegionedSourceTests",
+                "ObjectRegionBinarySearchKernelTest",
+                "engine/table/src/test/java/io/deephaven/engine/table/impl/sources/regioned/kernel/ObjectRegionBinarySearchKernelTest.java");
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy("replicateRegionAndRegionedSourceTests",
+                "ObjectColumnBinarySearchKernelTest",
+                "engine/table/src/test/java/io/deephaven/engine/table/impl/sources/regioned/kernel/ObjectColumnBinarySearchKernelTest.java");
     }
 }

@@ -134,10 +134,10 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
      * remove any user-provided NaN from the search values when nanMatch is false.
      *
      * <p>
-     * A non-primitive type takes the ordering-consistent-with-equals fast path only when
-     * {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} shows that compareTo() operations can bound
-     * the search values exactly. Otherwise, will use {@link ComparableColumnBinarySearchKernel} which further tests for
-     * equality before declaring a match.
+     * A non-primitive type uses {@link EqualsConsistentObjectColumnBinarySearchKernel}, which lets ordering alone
+     * decide a match, when {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)} holds for it, and
+     * {@link ObjectColumnBinarySearchKernel}, which tests the rows that compare equal to a search value for equality,
+     * otherwise.
      */
     public static RowSet binarySearchMatch(
             @NotNull final ColumnSource<?> source,
@@ -171,13 +171,11 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
             return DoubleColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
                     usePrev);
         }
-        // We can take the fast path if the comparison of the column is consistent with equality.
-        if (BinarySearchKernelHelper.compareConsistentWithEquality(dataType)) {
-            return ObjectColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                    usePrev);
-        }
-        return ComparableColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                usePrev);
+        return BinarySearchKernelHelper.compareConsistentWithEquality(dataType)
+                ? EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn,
+                        searchValues, usePrev)
+                : ObjectColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
+                        usePrev);
     }
 
     /**
@@ -219,8 +217,12 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
             return DoubleColumnBinarySearchKernel.binsearchRangeFilter(
                     maybeReinterpreted, selection, sortColumn, (DoubleRangeFilter) rangeFilter, usePrev);
         }
-        // Use the original-typed source.
-        return ObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn, rangeFilter, usePrev);
+        // Use the original-typed source, and the same Object kernel that a match over its type uses.
+        return BinarySearchKernelHelper.compareConsistentWithEquality(source.getType())
+                ? EqualsConsistentObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn,
+                        rangeFilter, usePrev)
+                : ObjectColumnBinarySearchKernel.binsearchRangeFilter(source, selection, sortColumn, rangeFilter,
+                        usePrev);
     }
 
     private static boolean isSupportedRangeFilter(final AbstractRangeFilter rangeFilter) {

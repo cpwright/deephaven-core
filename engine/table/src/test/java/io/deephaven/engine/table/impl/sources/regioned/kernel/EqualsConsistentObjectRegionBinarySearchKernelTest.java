@@ -1,6 +1,11 @@
 //
 // Copyright (c) 2016-2026 Deephaven Data Labs and Patent Pending
 //
+// ****** AUTO-GENERATED CLASS - DO NOT EDIT MANUALLY
+// ****** Edit ObjectRegionBinarySearchKernelTest and run "./gradlew replicateRegionAndRegionedSourceTests" to
+// regenerate
+//
+// @formatter:off
 package io.deephaven.engine.table.impl.sources.regioned.kernel;
 
 import io.deephaven.api.ColumnName;
@@ -36,7 +41,7 @@ import java.util.function.IntToLongFunction;
 import static org.junit.Assert.*;
 
 @Category(ParallelTest.class)
-public class ObjectRegionBinarySearchKernelTest {
+public class EqualsConsistentObjectRegionBinarySearchKernelTest {
     private static final int[] SIZES = {10, 100, 1000000};
     private static final int MAX_FAILED_LOOKUPS = 1000;
     private static final int NUM_NEGATIVE_LOOKUPS = 100;
@@ -106,9 +111,9 @@ public class ObjectRegionBinarySearchKernelTest {
             final long startRow = Math.max(0, firstKey.applyAsLong(ii));
             final long endRow = Math.min(size - 1, lastKey.applyAsLong(ii));
             // Test match search and min/max search give the same results for this value.
-            try (final RowSet matchRs = ObjectRegionBinarySearchKernel.binarySearchMatch(
+            try (final RowSet matchRs = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(
                     region, startRow, endRow, sortColumn, new String[] {value});
-                    final RowSet minMaxRs = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+                    final RowSet minMaxRs = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                             region, startRow, endRow, sortColumn, value, value, true, true)) {
                 // Ensure match search and min/max search give the same results.
                 assertEquals(matchRs, minMaxRs);
@@ -126,15 +131,15 @@ public class ObjectRegionBinarySearchKernelTest {
                 }
             }
             // Ensure not found when not expected.
-            try (final RowSet valuesFound = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                     region, startRow, endRow, sortColumn, value, value, true, false)) {
                 assertTrue(valuesFound.isEmpty());
             }
-            try (final RowSet valuesFound = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                     region, startRow, endRow, sortColumn, value, value, false, true)) {
                 assertTrue(valuesFound.isEmpty());
             }
-            try (final RowSet valuesFound = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                     region, startRow, endRow, sortColumn, value, value, false, false)) {
                 assertTrue(valuesFound.isEmpty());
             }
@@ -146,11 +151,11 @@ public class ObjectRegionBinarySearchKernelTest {
         for (String missingValue : missingValues) {
             final long startRow = 0;
             final long endRow = size - 1;
-            try (final RowSet valuesFound = ObjectRegionBinarySearchKernel.binarySearchMatch(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(
                     region, startRow, endRow, sortColumn, new String[] {missingValue})) {
                 assertTrue(valuesFound.isEmpty());
             }
-            try (final RowSet valuesFound = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                     region, startRow, endRow, sortColumn, missingValue, missingValue, true, true)) {
                 assertTrue(valuesFound.isEmpty());
             }
@@ -450,7 +455,7 @@ public class ObjectRegionBinarySearchKernelTest {
                 inverted ? data.size() - 1 - expectedFirstRowAsc : expectedLastRowAsc;
 
         final ColumnRegionObject<String, Values> region = makeColumnRegionObject(data);
-        try (final RowSet result = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+        try (final RowSet result = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                 region, 0, data.size() - 1, sortColumn,
                 minValue, maxValue, minInclusive, maxInclusive)) {
             assertEquals(expectedSize, result.size());
@@ -480,7 +485,7 @@ public class ObjectRegionBinarySearchKernelTest {
 
         final ColumnRegionObject<String, Values> region = makeColumnRegionObject(dataToUse);
 
-        try (final RowSet result = ObjectRegionBinarySearchKernel.binarySearchMax(
+        try (final RowSet result = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMax(
                 region, firstKey, lastKey, sortColumn, maxValue, maxInclusive)) {
 
             // Test from 0 to firstKey - 1 to make sure no false positives are found below the first key.
@@ -534,7 +539,7 @@ public class ObjectRegionBinarySearchKernelTest {
 
         final ColumnRegionObject<String, Values> region = makeColumnRegionObject(dataToUse);
 
-        try (final RowSet result = ObjectRegionBinarySearchKernel.binarySearchMin(
+        try (final RowSet result = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMin(
                 region, firstKey, lastKey, sortColumn, minValue, minInclusive)) {
             // Test from 0 to firstKey - 1 to make sure no false positives are found below the first key.
             if (firstKey > 0) {
@@ -589,7 +594,7 @@ public class ObjectRegionBinarySearchKernelTest {
 
         final ColumnRegionObject<String, Values> region = makeColumnRegionObject(dataToUse);
 
-        try (final RowSet result = ObjectRegionBinarySearchKernel.binarySearchMinMax(
+        try (final RowSet result = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                 region, firstKey, lastKey, sortColumn, minValue, maxValue, minInclusive, maxInclusive)) {
 
             // Test from 0 to firstKey - 1 to make sure no false positives are found below the first key.
@@ -680,16 +685,16 @@ public class ObjectRegionBinarySearchKernelTest {
 
             for (final boolean inclusive : new boolean[] {false, true}) {
                 // Greater-than: only the lower bound is searched.
-                try (final RowSet viaFilter = ObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0, lastKey,
+                try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0, lastKey,
                         sortColumn, SingleSidedComparableRangeFilter.makeForTest("test", "e", inclusive, true));
-                        final RowSet viaSearch = ObjectRegionBinarySearchKernel.binarySearchMin(region, 0, lastKey,
+                        final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMin(region, 0, lastKey,
                                 sortColumn, "e", inclusive)) {
                     assertEquals("descending=" + descending + " inclusive=" + inclusive, viaSearch, viaFilter);
                 }
                 // Less-than: only the upper bound is searched.
-                try (final RowSet viaFilter = ObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0, lastKey,
+                try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0, lastKey,
                         sortColumn, SingleSidedComparableRangeFilter.makeForTest("test", "e", inclusive, false));
-                        final RowSet viaSearch = ObjectRegionBinarySearchKernel.binarySearchMax(region, 0, lastKey,
+                        final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMax(region, 0, lastKey,
                                 sortColumn, "e", inclusive)) {
                     assertEquals("descending=" + descending + " inclusive=" + inclusive, viaSearch, viaFilter);
                 }
@@ -698,10 +703,10 @@ public class ObjectRegionBinarySearchKernelTest {
             // Two-sided: both bounds are searched.
             for (final boolean lowerInc : new boolean[] {false, true}) {
                 for (final boolean upperInc : new boolean[] {false, true}) {
-                    try (final RowSet viaFilter = ObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0,
+                    try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchRangeFilter(region, 0,
                             lastKey, sortColumn,
                             ComparableRangeFilter.makeForTest("test", "c", "e", lowerInc, upperInc));
-                            final RowSet viaSearch = ObjectRegionBinarySearchKernel.binarySearchMinMax(region, 0,
+                            final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(region, 0,
                                     lastKey, sortColumn, "c", "e", lowerInc, upperInc)) {
                         assertEquals("descending=" + descending + " lowerInc=" + lowerInc + " upperInc=" + upperInc,
                                 viaSearch, viaFilter);
@@ -728,9 +733,9 @@ public class ObjectRegionBinarySearchKernelTest {
         final MatchFilter matchFilter = new MatchFilter(MatchOptions.REGULAR, "test", "e", "a");
         matchFilter.init(tableDefinition);
         assertTrue(BinarySearchKernelHelper.compareConsistentWithEquality(matchFilter.getColumnType()));
-        try (final RowSet viaFilter = ObjectRegionBinarySearchKernel.binsearchMatchFilter(region, 0, lastKey,
+        try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchMatchFilter(region, 0, lastKey,
                 sortColumn, matchFilter);
-                final RowSet viaSearch = ObjectRegionBinarySearchKernel.binarySearchMatch(region, 0, lastKey,
+                final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(region, 0, lastKey,
                         sortColumn, new Object[] {"e", "a"})) {
             assertEquals(viaSearch, viaFilter);
         }
@@ -738,7 +743,7 @@ public class ObjectRegionBinarySearchKernelTest {
         // No values to look for, so nothing matches and the search is skipped outright.
         final MatchFilter emptyFilter = new MatchFilter(MatchOptions.REGULAR, "test");
         emptyFilter.init(tableDefinition);
-        try (final RowSet viaFilter = ObjectRegionBinarySearchKernel.binsearchMatchFilter(region, 0, lastKey,
+        try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchMatchFilter(region, 0, lastKey,
                 sortColumn, emptyFilter)) {
             assertTrue(viaFilter.isEmpty());
         }

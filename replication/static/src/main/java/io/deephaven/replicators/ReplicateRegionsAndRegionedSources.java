@@ -38,6 +38,13 @@ public class ReplicateRegionsAndRegionedSources {
     private static final String GENERIC_COLUMN_BINARY_SEARCH_KERNEL_PATH =
             "engine/table/src/main/java/io/deephaven/engine/table/impl/sources/regioned/kernel/CharColumnBinarySearchKernel.java";
 
+    /** The region holding the match that lets ordering alone decide which rows are equal to a search value. */
+    private static final String MATCH_BY_ORDERING = "matchByOrdering";
+    /** The region holding the match that tests each row of a compare-equal run for equality with a search value. */
+    private static final String MATCH_BY_EQUALITY = "matchByEquality";
+    /** The imports that only the {@link #MATCH_BY_EQUALITY} region uses. */
+    private static final String MATCH_BY_EQUALITY_IMPORTS = "matchByEqualityImports";
+
     public static void main(String... args) throws IOException {
         // Note that Byte and Object regions are not replicated!
         charToAllButBooleanAndByte(TASK,
@@ -50,11 +57,8 @@ public class ReplicateRegionsAndRegionedSources {
         fixupParquetColumnRegions(charToAllButBooleanAndByte(TASK, PARQUET_REGION_CHAR_PATH));
         fixupChunkColumnRegionByte(charToByte(TASK, PARQUET_REGION_CHAR_PATH));
 
-        fixupFloatingPointUpperRange(charToAllButBoolean(TASK, GENERIC_REGION_BINARY_SEARCH_KERNEL_PATH));
-        fixupBinSearchObject(charToObject(TASK, GENERIC_REGION_BINARY_SEARCH_KERNEL_PATH));
-
-        fixupFloatingPointUpperRange(charToAllButBoolean(TASK, GENERIC_COLUMN_BINARY_SEARCH_KERNEL_PATH));
-        fixupBinSearchObject(charToObject(TASK, GENERIC_COLUMN_BINARY_SEARCH_KERNEL_PATH));
+        replicateBinarySearchKernel(GENERIC_REGION_BINARY_SEARCH_KERNEL_PATH);
+        replicateBinarySearchKernel(GENERIC_COLUMN_BINARY_SEARCH_KERNEL_PATH);
         charToAllButBooleanAndByte(TASK, GENERIC_REGION_CHAR_PATH);
         fixupChunkColumnRegionByte(charToByte(TASK, GENERIC_REGION_CHAR_PATH));
         fixupChunkColumnRegionObject(charToObject(TASK, GENERIC_REGION_CHAR_PATH));
@@ -63,6 +67,88 @@ public class ReplicateRegionsAndRegionedSources {
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/sources/regioned/RegionedColumnSourceChar.java");
         fixupRegionedColumnSourceLong(paths.stream().filter(p -> p.contains("Long")).findFirst().get());
         fixupRegionedColumnSourceByte(paths.stream().filter(p -> p.contains("Byte")).findFirst().get());
+    }
+
+    /**
+     * Replicate a binary search kernel from its Char source. The source carries two matches: the primitive kernels and
+     * the EqualsConsistentObject kernel keep the one that lets ordering alone decide a match, which is valid when
+     * values compare equal exactly when they are equal, and the Object kernel keeps the one that picks the matches out
+     * of each compare-equal run by equality, which is valid for any Comparable. The Object and EqualsConsistentObject
+     * kernels are otherwise identical.
+     */
+    private static void replicateBinarySearchKernel(final String charPath) throws IOException {
+        final List<String> primitivePaths = charToAllButBoolean(TASK, charPath);
+        fixupFloatingPointUpperRange(primitivePaths);
+        for (final String path : primitivePaths) {
+            selectMatch(path, false);
+        }
+
+        final String objectPath = charToObject(TASK, charPath);
+        fixupBinSearchObject(objectPath);
+        selectMatch(ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, className(charPath), objectPath),
+                false);
+        selectMatch(objectPath, true);
+    }
+
+    /**
+     * Keep one of the two matches in a replicated binary search kernel, removing the other and every region marker that
+     * delimits them.
+     */
+    private static void selectMatch(final String path, final boolean byEquality) throws IOException {
+        final File file = new File(path);
+        List<String> lines = FileUtils.readLines(file, Charset.defaultCharset());
+        if (byEquality) {
+            lines = removeRegionAndMarkers(lines, MATCH_BY_ORDERING);
+            lines = removeRegionMarkers(lines, MATCH_BY_EQUALITY);
+            lines = removeRegionMarkers(lines, MATCH_BY_EQUALITY_IMPORTS);
+            lines = globalReplacements(lines, "\\bbinarySearchMatchByEquality\\b", "binarySearchMatch");
+        } else {
+            lines = removeRegionMarkers(lines, MATCH_BY_ORDERING);
+            lines = removeRegionAndMarkers(lines, MATCH_BY_EQUALITY);
+            lines = removeRegionAndMarkers(lines, MATCH_BY_EQUALITY_IMPORTS);
+        }
+        FileUtils.writeLines(file, lines);
+    }
+
+    /** Remove the marker lines of a region, keeping its contents. */
+    private static List<String> removeRegionMarkers(final List<String> lines, final String region) {
+        final List<String> newLines = new ArrayList<>(lines);
+        newLines.remove(markerIndex(newLines, "// region " + region));
+        newLines.remove(markerIndex(newLines, "// endregion " + region));
+        return newLines;
+    }
+
+    /**
+     * Remove a region together with its markers. When that leaves two blank lines in a row, which happens when the
+     * region stood between two blank-separated members, one of them goes too.
+     */
+    private static List<String> removeRegionAndMarkers(final List<String> lines, final String region) {
+        final List<String> newLines = new ArrayList<>(lines);
+        final int start = markerIndex(newLines, "// region " + region);
+        final int end = markerIndex(newLines, "// endregion " + region);
+        newLines.subList(start, end + 1).clear();
+        if (start > 0 && start < newLines.size() && newLines.get(start - 1).isEmpty()
+                && newLines.get(start).isEmpty()) {
+            newLines.remove(start);
+        }
+        return newLines;
+    }
+
+    /** The index of the one line that is {@code marker}, ignoring indentation. */
+    private static int markerIndex(final List<String> lines, final String marker) {
+        int found = -1;
+        for (int ii = 0; ii < lines.size(); ++ii) {
+            if (lines.get(ii).trim().equals(marker)) {
+                if (found >= 0) {
+                    throw new IllegalStateException("More than one " + marker);
+                }
+                found = ii;
+            }
+        }
+        if (found < 0) {
+            throw new IllegalStateException("No " + marker);
+        }
+        return found;
     }
 
     private static void fixupChunkColumnRegionByte(final String bytePath) throws IOException {
@@ -300,6 +386,7 @@ public class ReplicateRegionsAndRegionedSources {
                 "final Object\\[\\] unboxed = ArrayTypeUtils.getUnboxedObjectArray\\(searchValues\\);",
                 "final Object[] copiedValues = Arrays.copyOf(searchValues, searchValues.length);",
                 "unboxed", "copiedValues");
+        lines = fixupChunkAttributes(lines, "?");
         lines = addImport(lines, "import java.util.Arrays;");
         if (file.getName().contains("Column")) {
             lines = replaceRegion(lines, "binsearchRangeFilter", Arrays.asList(
@@ -379,43 +466,6 @@ public class ReplicateRegionsAndRegionedSources {
                     "        return binarySearchMinMax(region, firstKey, lastKey, sortColumn,",
                     "                rangeFilter.getLower(), rangeFilter.getUpper(),",
                     "                rangeFilter.isLowerInclusive(), rangeFilter.isUpperInclusive());",
-                    "    }"));
-            lines = replaceRegion(lines, "binsearchMatchFilter", Arrays.asList(
-                    "    /**",
-                    "     * Performs a binary search on a sorted column region for the values of a"
-                            + " {@link MatchFilter}, returning the row",
-                    "     * keys that hold one of them. The filter's"
-                            + " {@link io.deephaven.engine.table.MatchOptions#inverted() inverted} flag",
-                    "     * is not applied here; the caller must invert the result itself.",
-                    "     *",
-                    "     * <p>",
-                    "     * Ordering alone decides a match only for a type whose comparison is consistent with"
-                            + " equality. For any other type",
-                    "     * the ordered search returns a superset, and"
-                            + " {@link ComparableRegionBinarySearchKernel} picks the matches out of",
-                    "     * it by equality.",
-                    "     *",
-                    "     * @param region The column region to search.",
-                    "     * @param firstKey The first key in the column region to consider for the search.",
-                    "     * @param lastKey The last key in the column region to consider for the search.",
-                    "     * @param sortColumn A {@link SortColumn} representing the sorting order.",
-                    "     * @param filter The match filter supplying the values to find.",
-                    "     * @return A {@link RowSet} containing the row keys holding one of the filter's values.",
-                    "     */",
-                    "    public static RowSet binsearchMatchFilter(",
-                    "            @NotNull final ColumnRegionObject<?, ?> region,",
-                    "            final long firstKey,",
-                    "            final long lastKey,",
-                    "            @NotNull final SortColumn sortColumn,",
-                    "            @NotNull final MatchFilter filter) {",
-                    "        if (filter.getValues().length == 0) {",
-                    "            // Nothing to search for, so nothing matches, and the data need not be touched at all.",
-                    "            return RowSetFactory.empty();",
-                    "        }",
-                    "        return BinarySearchKernelHelper.compareConsistentWithEquality(filter.getColumnType())",
-                    "                ? binarySearchMatch(region, firstKey, lastKey, sortColumn, filter.getValues())",
-                    "                : ComparableRegionBinarySearchKernel.binarySearchMatch(region, firstKey, lastKey, sortColumn,",
-                    "                        filter.getValues());",
                     "    }"));
             lines = addImport(lines,
                     "import io.deephaven.engine.table.impl.select.AbstractRangeFilter;",
