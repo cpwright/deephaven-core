@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.deephaven.replication.ReplicatePrimitiveCode.*;
 import static io.deephaven.replication.ReplicationUtils.*;
@@ -61,11 +62,13 @@ public class ReplicateSegmentedSortedMultiset {
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/ssms/CharSegmentedSortedMultiset.java");
         fixupObjectSsm(objectSsm, ReplicateSegmentedSortedMultiset::fixupNulls,
                 ReplicateSegmentedSortedMultiset::fixupObjectGeneric,
+                ReplicateSegmentedSortedMultiset::fixupObjectSsmSupertype,
                 ReplicateSegmentedSortedMultiset::fixupObjectHashes,
                 ReplicateSegmentedSortedMultiset::fixupSsmConstructor,
                 ReplicateSegmentedSortedMultiset::fixupObjectCompare,
                 ReplicateSegmentedSortedMultiset::fixupObjectIterator,
                 ReplicateSegmentedSortedMultiset::fixupKeyArrayAllocation);
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, "CharSegmentedSortedMultiset", objectSsm);
 
         final List<String> files = charToAllButBoolean(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmminmax/CharSetResult.java");
@@ -97,7 +100,8 @@ public class ReplicateSegmentedSortedMultiset {
         fixupObjectSsm(
                 charToObject(TASK,
                         "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmminmax/CharSetResult.java"),
-                ReplicateSegmentedSortedMultiset::fixupNulls);
+                ReplicateSegmentedSortedMultiset::fixupNulls,
+                ReplicateSegmentedSortedMultiset::fixupObjectSetResult);
 
         charToAllButBoolean(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmpercentile/CharPercentileTypeHelper.java");
@@ -108,7 +112,8 @@ public class ReplicateSegmentedSortedMultiset {
         fixupObjectSsm(
                 charToObject(TASK,
                         "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmpercentile/CharPercentileTypeHelper.java"),
-                ReplicateSegmentedSortedMultiset::fixupNulls);
+                ReplicateSegmentedSortedMultiset::fixupNulls,
+                ReplicateSegmentedSortedMultiset::fixupObjectPercentileTypeHelper);
 
         charToIntegers(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmpercentile/CharPercentileTypeMedianHelper.java");
@@ -122,9 +127,17 @@ public class ReplicateSegmentedSortedMultiset {
         objectSsm = charToObject(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmcountdistinct/CharSsmBackedSource.java");
         fixupObjectSsm(objectSsm,
+                ReplicateSegmentedSortedMultiset::useAbstractObjectSsm,
                 ReplicateSegmentedSortedMultiset::fixupSourceConstructor,
-                (l) -> replaceRegion(l, "CreateNew", Collections.singletonList(
-                        "            underlying.set(key, ssm = new ObjectSegmentedSortedMultiset(SsmDistinctContext.NODE_SIZE, componentType));")));
+                (l) -> replaceRegion(l, "CreateNew", Arrays.asList(
+                        "            ssm = equalsConsistent",
+                        "                    ? new EqualsConsistentObjectSegmentedSortedMultiset(SsmDistinctContext.NODE_SIZE, componentType)",
+                        "                    : new ObjectSegmentedSortedMultiset(SsmDistinctContext.NODE_SIZE, componentType);",
+                        "            underlying.set(key, ssm);")),
+                (l) -> addImport(l,
+                        "import io.deephaven.engine.table.impl.ssms.EqualsConsistentObjectSegmentedSortedMultiset;",
+                        "import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;",
+                        "import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;"));
 
         final String compactModificationsPath =
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmcountdistinct/compactmodifications/CharCompactModifications.java";
@@ -136,7 +149,10 @@ public class ReplicateSegmentedSortedMultiset {
                 fixupFloatCompactModifications(compactModification, "Double");
             }
         }
-        fixupObjectCompactModifications(charToObject(TASK, compactModificationsPath));
+        final String objectCompactModifications = charToObject(TASK, compactModificationsPath);
+        fixupObjectCompactModifications(objectCompactModifications);
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, "CharCompactModifications",
+                objectCompactModifications);
 
         charToAllButBoolean(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/by/ssmcountdistinct/count/CharChunkedCountDistinctOperator.java");
@@ -267,7 +283,16 @@ public class ReplicateSegmentedSortedMultiset {
         lines = replaceRegion(lines, "Constructor",
                 indent(Collections.singletonList("Class<?> type,"), 12));
         lines = replaceRegion(lines, "SsmCreation",
-                indent(Collections.singletonList("this." + ssmVarName + " = new ObjectSsmBackedSource(type);"), 8));
+                indent(Arrays.asList(
+                        "this.equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);",
+                        "this." + ssmVarName + " = new ObjectSsmBackedSource(type);"), 8));
+        lines = globalReplacements(lines, "^    private final String name;$",
+                "    private final String name;\n    private final boolean equalsConsistent;");
+        lines = useAbstractObjectSsm(lines);
+        lines = dispatchEqualsConsistent(lines, "ObjectCompactKernel", "compactAndCount");
+        lines = dispatchEqualsConsistent(lines, "ObjectCompactModifications", "compactAndCountModifications");
+        lines = addImport(lines,
+                "import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;");
         lines = replaceRegion(lines, "ResultCreation",
                 indent(Collections.singletonList("this.internalResult = new ObjectArraySource(type);"), 8));
         lines = globalReplacements(lines, "\\(WritableObjectChunk<\\? extends Values>\\)",
@@ -295,6 +320,120 @@ public class ReplicateSegmentedSortedMultiset {
         }
 
         FileUtils.writeLines(objectFile, lines);
+    }
+
+    /**
+     * The Object SSM and its EqualsConsistentObject counterpart share {@code AbstractObjectSegmentedSortedMultiset},
+     * which declares the methods the aggregation operators call.
+     */
+    private static List<String> fixupObjectSsmSupertype(List<String> lines) {
+        return globalReplacements(lines,
+                "public final class ObjectSegmentedSortedMultiset implements SegmentedSortedMultiSet<Object>, ObjectVector<Object> \\{",
+                "public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmentedSortedMultiset {");
+    }
+
+    /**
+     * Refer to the Object SSMs through {@code AbstractObjectSegmentedSortedMultiset}, so that either implementation
+     * serves without a cast.
+     */
+    private static List<String> useAbstractObjectSsm(List<String> lines) {
+        return globalReplacements(lines, "\\bObjectSegmentedSortedMultiset\\b",
+                "AbstractObjectSegmentedSortedMultiset");
+    }
+
+    /**
+     * Read the minimum and maximum through {@code SegmentedSortedMultiSet}, without a cast to an Object SSM class.
+     */
+    private static List<String> fixupObjectSetResult(List<String> lines) {
+        lines = lines.stream()
+                .filter(line -> !line.equals(
+                        "            final ObjectSegmentedSortedMultiset ObjectSsm = (ObjectSegmentedSortedMultiset) ssm;"))
+                .collect(Collectors.toList());
+        lines = globalReplacements(lines,
+                "ObjectSsm\\.getMinObject\\(\\) : ObjectSsm\\.getMaxObject\\(\\)", "ssm.getMin() : ssm.getMax()");
+        return removeImport(lines, "\\s*import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;");
+    }
+
+    /**
+     * Read the maximum through {@code SegmentedSortedMultiSet}, without a cast to an Object SSM class.
+     */
+    private static List<String> fixupObjectPercentileTypeHelper(List<String> lines) {
+        lines = globalReplacements(lines,
+                "\\(\\(ObjectSegmentedSortedMultiset\\) ssmLo\\)\\.getMaxObject\\(\\)", "ssmLo.getMax()",
+                "final ObjectSegmentedSortedMultiset ssmLo = \\(ObjectSegmentedSortedMultiset\\) segmentedSortedMultiSet;",
+                "final SegmentedSortedMultiSet ssmLo = segmentedSortedMultiSet;",
+                "ssmLo\\.getMaxObject\\(\\)", "ssmLo.getMax()");
+        return removeImport(lines, "\\s*import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;");
+    }
+
+    /**
+     * Rewrite each call of {@code className.methodName} into a dispatch on the {@code equalsConsistent} field between
+     * the EqualsConsistentObject class, which tests equality with {@code equals}, and the Object class, which tests
+     * equality with {@code compareEquals}. A call that is a whole statement becomes an if statement; a call within an
+     * expression becomes a conditional expression.
+     */
+    private static List<String> dispatchEqualsConsistent(List<String> lines, String className, String methodName) {
+        final String text = String.join("\n", lines);
+        final String call = className + "." + methodName + "(";
+        final StringBuilder result = new StringBuilder();
+        int from = 0;
+        int at;
+        boolean dispatched = false;
+        while ((at = text.indexOf(call, from)) >= 0) {
+            if (at > 0 && Character.isJavaIdentifierPart(text.charAt(at - 1))) {
+                result.append(text, from, at + call.length());
+                from = at + call.length();
+                continue;
+            }
+            int end = at + call.length();
+            int depth = 1;
+            while (depth > 0) {
+                final char current = text.charAt(end++);
+                if (current == '(') {
+                    depth++;
+                } else if (current == ')') {
+                    depth--;
+                }
+            }
+            if (text.charAt(end) != ';') {
+                throw new IllegalStateException("Call of " + call + " is not followed by a semicolon");
+            }
+            final int lineStart = text.lastIndexOf('\n', at) + 1;
+            final String prefix = text.substring(lineStart, at);
+            final String indent = prefix.substring(0, prefix.length() - prefix.stripLeading().length());
+            final String invocation = text.substring(at + className.length(), end);
+            if (prefix.isBlank()) {
+                result.append(text, from, lineStart);
+                result.append(indent).append("if (equalsConsistent) {\n");
+                result.append(indent).append("    EqualsConsistent").append(className)
+                        .append(invocation.replace("\n", "\n    ")).append(";\n");
+                result.append(indent).append("} else {\n");
+                result.append(indent).append("    ").append(className)
+                        .append(invocation.replace("\n", "\n    ")).append(";\n");
+                result.append(indent).append("}");
+                from = end + 1;
+            } else {
+                result.append(text, from, at);
+                final String continuation = "\n" + indent + "        ";
+                result.append("equalsConsistent");
+                result.append(continuation).append("? EqualsConsistent").append(className)
+                        .append(invocation.replace("\n", "\n        "));
+                result.append(continuation).append(": ").append(className)
+                        .append(invocation.replace("\n", "\n        "));
+                from = end;
+            }
+            dispatched = true;
+        }
+        result.append(text.substring(from));
+        List<String> dispatchedLines = Arrays.asList(result.toString().split("\n", -1));
+        if (dispatched) {
+            final String packageName =
+                    className.endsWith("CompactKernel") ? "io.deephaven.engine.table.impl.util.compact"
+                            : "io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications";
+            dispatchedLines =
+                    addImport(dispatchedLines, "import " + packageName + ".EqualsConsistent" + className + ";");
+        }
+        return dispatchedLines;
     }
 
     private static List<String> fixupKeyArrayAllocation(List<String> lines) {
@@ -383,7 +522,7 @@ public class ReplicateSegmentedSortedMultiset {
                 Collections.singletonList("    private final Class componentType;\n" +
                         "\n" +
                         "    /**\n" +
-                        "     * Create a ObjectSegmentedSortedArray with the given leafSize.\n" +
+                        "     * Create an ObjectSegmentedSortedMultiset with the given leafSize.\n" +
                         "     *\n" +
                         "     * @param leafSize the maximumSize for any leaf\n" +
                         "     * @param componentType the type of the underlying Object\n" +
@@ -407,9 +546,13 @@ public class ReplicateSegmentedSortedMultiset {
 
     private static List<String> fixupSourceConstructor(List<String> lines) {
         return replaceRegion(lines, "Constructor",
-                Collections.singletonList("    public ObjectSsmBackedSource(Class type) {\n" +
+                Collections.singletonList("    private final boolean equalsConsistent;\n" +
+                        "\n" +
+                        "    public ObjectSsmBackedSource(Class type) {\n" +
                         "        super(ObjectVector.class, type);\n" +
-                        "        underlying = new ObjectArraySource<>(ObjectSegmentedSortedMultiset.class, type);\n" +
+                        "        underlying = new ObjectArraySource<>(AbstractObjectSegmentedSortedMultiset.class, type);\n"
+                        +
+                        "        equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);\n" +
                         "    }"));
     }
 

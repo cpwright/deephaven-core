@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.NoSuchElementException;
 
 
-public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmentedSortedMultiset {
+public final class EqualsConsistentObjectSegmentedSortedMultiset extends AbstractObjectSegmentedSortedMultiset {
     private final int leafSize;
     private int leafCount;
     private int size;
@@ -76,12 +76,12 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
     private final Class componentType;
 
     /**
-     * Create an ObjectSegmentedSortedMultiset with the given leafSize.
+     * Create an EqualsConsistentObjectSegmentedSortedMultiset with the given leafSize.
      *
      * @param leafSize the maximumSize for any leaf
      * @param componentType the type of the underlying Object
      */
-    public ObjectSegmentedSortedMultiset(int leafSize, Class<?> componentType) {
+    public EqualsConsistentObjectSegmentedSortedMultiset(int leafSize, Class<?> componentType) {
         this.leafSize = leafSize;
         this.componentType = componentType;
         leafCount = 0;
@@ -1112,7 +1112,7 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
      */
     private static boolean eq(Object lhs, Object rhs) {
         // region equality function
-        return ObjectComparisons.compareEquals(lhs, rhs);
+        return ObjectComparisons.eq(lhs, rhs);
         // endregion equality function
     }
 
@@ -2016,7 +2016,7 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
     // region Moving
     @Override
     public void moveFrontToBack(SegmentedSortedMultiSet untypedDestination, long count) {
-        final ObjectSegmentedSortedMultiset destination = (ObjectSegmentedSortedMultiset) untypedDestination;
+        final EqualsConsistentObjectSegmentedSortedMultiset destination = (EqualsConsistentObjectSegmentedSortedMultiset) untypedDestination;
         validate();
         destination.validate();
 
@@ -2475,7 +2475,7 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
 
     @Override
     public void moveBackToFront(SegmentedSortedMultiSet untypedDestination, long count) {
-        final ObjectSegmentedSortedMultiset destination = (ObjectSegmentedSortedMultiset) untypedDestination;
+        final EqualsConsistentObjectSegmentedSortedMultiset destination = (EqualsConsistentObjectSegmentedSortedMultiset) untypedDestination;
         validate();
         destination.validate();
 
@@ -3212,7 +3212,7 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
      * <p>
      * Walking the leaves here rather than delegating to the helper avoids an iterator per call, which is worth roughly
      * 2x once the values span more than one leaf. Since that duplicates the helper's formula,
-     * {@code TestObjectSegmentedSortedMultiset#testHashCodeMatchesVectorHelper} pins the two against each other across
+     * {@code TestEqualsConsistentObjectSegmentedSortedMultiset#testHashCodeMatchesVectorHelper} pins the two against each other across
      * every representation so they cannot drift apart.
      */
     @Override

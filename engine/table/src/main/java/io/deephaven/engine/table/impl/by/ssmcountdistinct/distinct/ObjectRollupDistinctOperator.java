@@ -7,6 +7,12 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.distinct;
 
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
+
+import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
+
+import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
+
 import io.deephaven.engine.context.ExecutionContext;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.RowSet;
@@ -25,7 +31,7 @@ import io.deephaven.chunk.attributes.Values;
 import io.deephaven.chunk.*;
 import io.deephaven.chunk.sized.SizedChunk;
 import io.deephaven.chunk.sized.SizedIntChunk;
-import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;
+import io.deephaven.engine.table.impl.ssms.AbstractObjectSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.util.compact.ObjectCompactKernel;
 import org.jetbrains.annotations.NotNull;
@@ -39,6 +45,7 @@ import java.util.function.Supplier;
  */
 public class ObjectRollupDistinctOperator implements IterativeChunkedAggregationOperator {
     private final String name;
+    private final boolean equalsConsistent;
 
     private final ObjectSsmBackedSource internalResult;
     private final ColumnSource<?> externalResult;
@@ -57,6 +64,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
         this.name = name;
         this.countNullNaN = countNullNaN;
         // region SsmCreation
+        this.equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);
         this.internalResult = new ObjectSsmBackedSource(type);
         // endregion SsmCreation
         // region ResultAssignment
@@ -70,7 +78,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             Chunk<? extends Values> inputs,
             IntChunk<ChunkPositions> starts,
             IntChunk<ChunkLengths> lengths) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
 
         bucketedContext.lengthCopy.setSize(lengths.size());
         bucketedContext.starts.setSize(lengths.size());
@@ -88,7 +96,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             final int curLength = lengths.get(ii);
             int newLength = 0;
             for (int kk = startPos; kk < startPos + curLength; kk++) {
-                final ObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
+                final AbstractObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
                 final int size;
                 if (ssm == null || (size = ssm.intSize()) == 0) {
                     continue;
@@ -106,8 +114,11 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             if (newLength > 0) {
                 bucketedContext.counts.ensureCapacityPreserve(currentPos + newLength);
                 bucketedContext.counts.get().setSize(currentPos + newLength);
-                newLength = ObjectCompactKernel.compactAndCount(bucketedContext.valueCopy.get().asWritableObjectChunk(),
-                        bucketedContext.counts.get(), currentPos, newLength, countNullNaN, countNullNaN);
+                newLength = equalsConsistent
+                        ? EqualsConsistentObjectCompactKernel.compactAndCount(bucketedContext.valueCopy.get().asWritableObjectChunk(),
+                                bucketedContext.counts.get(), currentPos, newLength, countNullNaN, countNullNaN)
+                        : ObjectCompactKernel.compactAndCount(bucketedContext.valueCopy.get().asWritableObjectChunk(),
+                                bucketedContext.counts.get(), currentPos, newLength, countNullNaN, countNullNaN);
             }
 
             bucketedContext.lengthCopy.set(ii, newLength);
@@ -138,7 +149,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             final int origStartPos = startPositions.get(ii);
             final long destination = destinations.get(origStartPos);
 
-            final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+            final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
             stateModified.set(ii, ssm.insert(valueCopy, counts, startPosition, runLength));
         }
     }
@@ -147,7 +158,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             Chunk<? extends Values> inputs,
             IntChunk<ChunkPositions> starts,
             IntChunk<ChunkLengths> lengths) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
 
         context.lengthCopy.setSize(lengths.size());
         context.starts.setSize(lengths.size());
@@ -165,7 +176,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             final int curLength = lengths.get(ii);
             int newLength = 0;
             for (int kk = startPos; kk < startPos + curLength; kk++) {
-                final ObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
+                final AbstractObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
                 final int size;
                 if (ssm == null || (size = ssm.getRemovedSize()) == 0) {
                     continue;
@@ -183,8 +194,11 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             if (newLength > 0) {
                 context.counts.ensureCapacityPreserve(currentPos + newLength);
                 context.counts.get().setSize(currentPos + newLength);
-                newLength = ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(),
-                        context.counts.get(), currentPos, newLength, countNullNaN, countNullNaN);
+                newLength = equalsConsistent
+                        ? EqualsConsistentObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(),
+                                context.counts.get(), currentPos, newLength, countNullNaN, countNullNaN)
+                        : ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(),
+                                context.counts.get(), currentPos, newLength, countNullNaN, countNullNaN);
             }
 
             context.lengthCopy.set(ii, newLength);
@@ -216,7 +230,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             final int origStartPos = startPositions.get(ii);
             final long destination = destinations.get(origStartPos);
 
-            final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+            final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
             stateModified.set(ii, ssm.remove(removeContext, valueCopy, counts, startPosition, runLength));
             if (ssm.isEmpty()) {
                 clearSsm(destination);
@@ -235,7 +249,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             WritableIntChunk<ChunkPositions> targetStarts, WritableIntChunk<ChunkLengths> targetLengths,
             Chunk<? extends Values> inputs, IntChunk<ChunkPositions> starts, IntChunk<ChunkLengths> lengths,
             boolean removed) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> inputValues = inputs.asObjectChunk();
 
         targetLengths.setSize(lengths.size());
         targetStarts.setSize(lengths.size());
@@ -251,7 +265,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             final int curLength = lengths.get(ii);
             int newLength = 0;
             for (int kk = startPos; kk < startPos + curLength; kk++) {
-                final ObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
+                final AbstractObjectSegmentedSortedMultiset ssm = inputValues.get(kk);
                 final int size;
                 if (ssm == null || (size = removed ? ssm.getRemovedSize() : ssm.getAddedSize()) == 0) {
                     continue;
@@ -299,14 +313,20 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
         for (int ii = 0; ii < startPositions.size(); ++ii) {
             final int origStartPosition = startPositions.get(ii);
             final long destination = destinations.get(origStartPosition);
-            final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+            final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
 
             final int removedRunLength = context.lengthCopy.get(ii);
             final int addedRunLength = context.postLengthCopy.get(ii);
             if (removedRunLength != 0 || addedRunLength != 0) {
-                ObjectCompactModifications.compactAndCountModifications(preValueCopy, removedCounts, postValueCopy,
-                        addedCounts, context.starts.get(ii), removedRunLength, context.postStarts.get(ii),
-                        addedRunLength, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+                if (equalsConsistent) {
+                    EqualsConsistentObjectCompactModifications.compactAndCountModifications(preValueCopy, removedCounts, postValueCopy,
+                            addedCounts, context.starts.get(ii), removedRunLength, context.postStarts.get(ii),
+                            addedRunLength, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+                } else {
+                    ObjectCompactModifications.compactAndCountModifications(preValueCopy, removedCounts, postValueCopy,
+                            addedCounts, context.starts.get(ii), removedRunLength, context.postStarts.get(ii),
+                            addedRunLength, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+                }
                 final int removed = context.removedSize.get();
                 if (removed > 0) {
                     ssm.remove(removeContext, preValueCopy, removedCounts, context.starts.get(ii), removed);
@@ -328,7 +348,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
     // region Singleton Updates
     private SsmDistinctRollupContext updateAddValues(SsmDistinctRollupContext context,
             Chunk<? extends Values> inputs) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
 
         if (context.valueCopy.get() != null) {
             context.valueCopy.get().setSize(0);
@@ -341,7 +361,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
 
         int currentPos = 0;
         for (int ii = 0; ii < values.size(); ii++) {
-            final ObjectSegmentedSortedMultiset ssm = values.get(ii);
+            final AbstractObjectSegmentedSortedMultiset ssm = values.get(ii);
             final int size;
             if (ssm == null || (size = ssm.intSize()) == 0) {
                 continue;
@@ -356,8 +376,13 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
         if (currentPos > 0) {
             context.counts.ensureCapacityPreserve(currentPos);
             context.counts.get().setSize(currentPos);
-            ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
-                    countNullNaN, countNullNaN);
+            if (equalsConsistent) {
+                EqualsConsistentObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
+                        countNullNaN, countNullNaN);
+            } else {
+                ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
+                        countNullNaN, countNullNaN);
+            }
         }
         return context;
     }
@@ -371,13 +396,13 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             return false;
         }
 
-        final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+        final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
         return ssm.insert(updatedValues, context.counts.get());
     }
 
     private SsmDistinctRollupContext updateRemoveValues(SsmDistinctRollupContext context,
             Chunk<? extends Values> inputs) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
 
         if (context.valueCopy.get() != null) {
             context.valueCopy.get().setSize(0);
@@ -389,7 +414,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
 
         int currentPos = 0;
         for (int ii = 0; ii < values.size(); ii++) {
-            final ObjectSegmentedSortedMultiset ssm = values.get(ii);
+            final AbstractObjectSegmentedSortedMultiset ssm = values.get(ii);
             final int size;
             if (ssm == null || (size = ssm.getRemovedSize()) == 0) {
                 continue;
@@ -405,8 +430,13 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
         if (currentPos > 0) {
             context.counts.ensureCapacityPreserve(currentPos);
             context.counts.get().setSize(currentPos);
-            ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
-                    countNullNaN, countNullNaN);
+            if (equalsConsistent) {
+                EqualsConsistentObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
+                        countNullNaN, countNullNaN);
+            } else {
+                ObjectCompactKernel.compactAndCount(context.valueCopy.get().asWritableObjectChunk(), context.counts.get(),
+                        countNullNaN, countNullNaN);
+            }
         }
         return context;
     }
@@ -421,7 +451,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             return false;
         }
 
-        final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+        final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
         final boolean anyRemoved = ssm.remove(context.removeContext, updatedValues, context.counts.get());
         if (ssm.isEmpty()) {
             clearSsm(destination);
@@ -437,7 +467,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
      */
     private int flattenDeltas(SizedChunk<Values> targetValues, SizedIntChunk<ChunkLengths> targetCounts,
             Chunk<? extends Values> inputs, boolean removed) {
-        final ObjectChunk<ObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
+        final ObjectChunk<AbstractObjectSegmentedSortedMultiset, ? extends Values> values = inputs.asObjectChunk();
 
         if (targetValues.get() != null) {
             targetValues.get().setSize(0);
@@ -445,7 +475,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
 
         int currentPos = 0;
         for (int ii = 0; ii < values.size(); ii++) {
-            final ObjectSegmentedSortedMultiset ssm = values.get(ii);
+            final AbstractObjectSegmentedSortedMultiset ssm = values.get(ii);
             final int size;
             if (ssm == null || (size = removed ? ssm.getRemovedSize() : ssm.getAddedSize()) == 0) {
                 continue;
@@ -480,10 +510,16 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
             return false;
         }
 
-        ObjectCompactModifications.compactAndCountModifications(context.valueCopy.get().asWritableObjectChunk(),
-                context.counts.get(), context.postValues.get().asWritableObjectChunk(), context.postCounts.get(),
-                0, removedTotal, 0, addedTotal, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
-        final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactModifications.compactAndCountModifications(context.valueCopy.get().asWritableObjectChunk(),
+                    context.counts.get(), context.postValues.get().asWritableObjectChunk(), context.postCounts.get(),
+                    0, removedTotal, 0, addedTotal, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+        } else {
+            ObjectCompactModifications.compactAndCountModifications(context.valueCopy.get().asWritableObjectChunk(),
+                    context.counts.get(), context.postValues.get().asWritableObjectChunk(), context.postCounts.get(),
+                    0, removedTotal, 0, addedTotal, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+        }
+        final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
         final int removed = context.removedSize.get();
         if (removed > 0) {
             ssm.remove(context.removeContext, context.valueCopy.get(), context.counts.get(), 0, removed);
@@ -547,7 +583,7 @@ public class ObjectRollupDistinctOperator implements IterativeChunkedAggregation
     // endregion
 
     // region Private Helpers
-    private ObjectSegmentedSortedMultiset ssmForSlot(long destination) {
+    private AbstractObjectSegmentedSortedMultiset ssmForSlot(long destination) {
         return internalResult.getOrCreate(destination);
     }
 

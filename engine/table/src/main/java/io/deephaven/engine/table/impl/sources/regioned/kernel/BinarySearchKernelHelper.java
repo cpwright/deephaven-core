@@ -108,7 +108,8 @@ public class BinarySearchKernelHelper {
      *
      * <p>
      * The same answer selects between the EqualsConsistentObject and Object segmented sorted array, SSA stamp,
-     * duplicate compaction, and compaction kernels, which test equality with {@code equals} and with
+     * duplicate compaction, compaction, segmented sorted multiset, and compact modifications classes, which test
+     * equality with {@code equals} and with
      * {@link io.deephaven.util.compare.ObjectComparisons#compareEquals(Object, Object)} respectively.
      *
      * <p>

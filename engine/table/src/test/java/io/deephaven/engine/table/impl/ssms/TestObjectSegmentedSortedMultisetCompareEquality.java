@@ -9,6 +9,7 @@ import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.WritableObjectChunk;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.table.impl.by.ssmcountdistinct.ObjectSsmBackedSource;
 import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
@@ -247,5 +248,42 @@ public class TestObjectSegmentedSortedMultisetCompareEquality {
         for (final CompactKernel kernel : new CompactKernel[] {consistent, general}) {
             assertCompactsToOneValue(kernel, new String("a"), new String("a"), new String("a"));
         }
+    }
+
+    @Test
+    public void testSsmFactoriesChooseByDataType() {
+        for (final Class<?> dataType : new Class<?>[] {String.class, Boolean.class, java.time.Instant.class}) {
+            final SegmentedSortedMultiSet<?> ssm = SegmentedSortedMultiSet.make(ChunkType.Object, NODE_SIZE, dataType);
+            assertTrue(dataType.getName(), ssm instanceof EqualsConsistentObjectSegmentedSortedMultiset);
+            final ObjectSsmBackedSource source = new ObjectSsmBackedSource(dataType);
+            source.ensureCapacity(1);
+            assertTrue(dataType.getName(),
+                    source.getOrCreate(0) instanceof EqualsConsistentObjectSegmentedSortedMultiset);
+        }
+        for (final Class<?> dataType : new Class<?>[] {BigDecimal.class, CharSequence.class, Object.class}) {
+            final SegmentedSortedMultiSet<?> ssm = SegmentedSortedMultiSet.make(ChunkType.Object, NODE_SIZE, dataType);
+            assertTrue(dataType.getName(), ssm instanceof ObjectSegmentedSortedMultiset);
+            final ObjectSsmBackedSource source = new ObjectSsmBackedSource(dataType);
+            source.ensureCapacity(1);
+            assertTrue(dataType.getName(), source.getOrCreate(0) instanceof ObjectSegmentedSortedMultiset);
+        }
+    }
+
+    @Test
+    public void testEqualsConsistentSsmMergesEqualInstances() {
+        final EqualsConsistentObjectSegmentedSortedMultiset ssm =
+                new EqualsConsistentObjectSegmentedSortedMultiset(NODE_SIZE, String.class);
+        for (int ii = 0; ii < VALUE_COUNT; ++ii) {
+            ssm.insert(Integer.toString(100 + ii), 1);
+        }
+        for (int ii = 0; ii < VALUE_COUNT; ++ii) {
+            ssm.insert(new String(Integer.toString(100 + ii).toCharArray()), 1);
+        }
+        assertEquals(VALUE_COUNT, ssm.size());
+        assertEquals(2 * VALUE_COUNT, ssm.totalSize());
+        for (int ii = 0; ii < VALUE_COUNT; ++ii) {
+            assertTrue(ssm.remove(new String(Integer.toString(100 + ii).toCharArray()), 2));
+        }
+        assertEquals(0, ssm.size());
     }
 }

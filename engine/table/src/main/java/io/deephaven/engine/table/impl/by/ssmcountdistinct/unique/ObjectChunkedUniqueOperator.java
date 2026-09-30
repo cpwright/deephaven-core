@@ -7,6 +7,12 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.unique;
 
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
+
+import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
+
+import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
+
 import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.table.impl.by.RollupConstants;
 import io.deephaven.engine.table.impl.by.IterativeChunkedAggregationOperator;
@@ -21,7 +27,7 @@ import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.ChunkPositions;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.chunk.attributes.Values;
-import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;
+import io.deephaven.engine.table.impl.ssms.AbstractObjectSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.ObjectCompactModifications;
 import io.deephaven.engine.table.impl.util.compact.ObjectCompactKernel;
@@ -40,7 +46,7 @@ import static io.deephaven.util.QueryConstants.NULL_LONG;
  * 'no value key' is used. If there are more than one values for the state, the 'non unique key' is used.
  *
  * <p>
- * A state holding zero values or one distinct value is stored without a {@link ObjectSegmentedSortedMultiset SSM}: the
+ * A state holding zero values or one distinct value is stored without a {@link AbstractObjectSegmentedSortedMultiset SSM}: the
  * value lives in {@code internalResult} and its multiplicity in {@code singletonCount}. {@code singletonCount} encodes
  * the state: {@code NULL_LONG} or {@code 0} means empty, {@code > 0} means the single value in {@code internalResult}
  * is present that many times, and {@code -1} means the state holds two or more distinct values and an SSM in
@@ -49,6 +55,7 @@ import static io.deephaven.util.QueryConstants.NULL_LONG;
  */
 public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationOperator {
     private final String name;
+    private final boolean equalsConsistent;
 
     private final Supplier<SegmentedSortedMultiSet.RemoveContext> removeContextFactory;
     private final boolean countNullNaN;
@@ -73,6 +80,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         this.nonUniqueSentinel = nonUniqueSentinel;
 
         // region SsmCreation
+        this.equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);
         this.ssms = new ObjectSsmBackedSource(type);
         // endregion SsmCreation
         // region ResultCreation
@@ -98,8 +106,13 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.lengthCopy.setSize(length.size());
         context.lengthCopy.copyFromChunk(length, 0, 0, length.size());
 
-        ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                startPositions, context.lengthCopy, countNullNaN, countNullNaN);
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    startPositions, context.lengthCopy, countNullNaN, countNullNaN);
+        } else {
+            ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    startPositions, context.lengthCopy, countNullNaN, countNullNaN);
+        }
         return context;
     }
 
@@ -172,9 +185,15 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
 
             // reduce the bucket's modify to its net effect: net removals in preValueCopy, net additions in
             // postValueCopy, with the unchanged overlap cancelled
-            ObjectCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
-                    postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
-                    countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+            if (equalsConsistent) {
+                EqualsConsistentObjectCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
+                        postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
+                        countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+            } else {
+                ObjectCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
+                        postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
+                        countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+            }
 
             stateModified.set(ii, modifyState(destination, removeContext, preValueCopy, context.counts, startPosition,
                     context.removedSize.get(), postValueCopy, context.postCounts, startPosition,
@@ -190,8 +209,13 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
 
         context.valueCopy.setSize(values.size());
         context.valueCopy.copyFromChunk(values, 0, 0, values.size());
-        ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                countNullNaN, countNullNaN);
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    countNullNaN, countNullNaN);
+        } else {
+            ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    countNullNaN, countNullNaN);
+        }
         return context;
     }
 
@@ -206,10 +230,17 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.valueCopy.copyFromChunk(preValues, 0, 0, length);
         context.postValues.setSize(length);
         context.postValues.copyFromChunk(postValues, 0, 0, length);
-        ObjectCompactModifications.compactAndCountModifications(
-                (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
-                0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactModifications.compactAndCountModifications(
+                    (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
+                    0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+        } else {
+            ObjectCompactModifications.compactAndCountModifications(
+                    (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                    (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
+                    0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
+        }
         return context;
     }
 
@@ -264,7 +295,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
                 return exposeInternal;
             }
             // a second distinct value is arriving; materialize an SSM seeded with the held value, then add the rest
-            final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+            final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
             ssm.insert(held, priorState);
             ssm.insert(values, counts, start, len);
             setNonUnique(destination);
@@ -307,7 +338,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
             singletonCount.set(destination, remaining);
             return exposeInternal; // value unchanged; only the (internal) count moves
         }
-        final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+        final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
         ssm.remove(removeContext, values, counts, start, len);
         return finishFromSsm(destination, ssm);
     }
@@ -324,7 +355,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
             WritableObjectChunk<Object, ? extends Values> addedValues, WritableIntChunk<ChunkLengths> addedCounts,
             int addedStart, int added) {
         if (isNonUnique(singletonCount.getUnsafe(destination))) {
-            final ObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
+            final AbstractObjectSegmentedSortedMultiset ssm = ssmForSlot(destination);
             if (removed > 0) {
                 ssm.remove(removeContext, removedValues, removedCounts, removedStart, removed);
             }
@@ -348,7 +379,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
      * if it has collapsed to zero or one distinct value, otherwise remain non-unique. Returns whether the result
      * changed.
      */
-    private boolean finishFromSsm(long destination, ObjectSegmentedSortedMultiset ssm) {
+    private boolean finishFromSsm(long destination, AbstractObjectSegmentedSortedMultiset ssm) {
         if (ssm.isEmpty()) {
             clearSsm(destination);
             setEmpty(destination);
@@ -435,7 +466,7 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
     // endregion
 
     // region Private Helpers
-    private ObjectSegmentedSortedMultiset ssmForSlot(long destination) {
+    private AbstractObjectSegmentedSortedMultiset ssmForSlot(long destination) {
         return ssms.getOrCreate(destination);
     }
 

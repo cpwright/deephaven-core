@@ -1656,6 +1656,26 @@ public class TestAggBy extends RefreshingTableTestCase {
     }
 
     @Test
+    public void testSortedAggregationsBooleanValues() {
+        final QueryTable source = testRefreshingTable(i(0, 1, 2).toTracking(), col("V", true, false, true));
+        final Table result = source.aggBy(List.of(AggMax("Max=V"), AggMin("Min=V"), AggMed("Med=V"),
+                AggCountDistinct("Count=V"), AggDistinct("Distinct=V"), AggUnique("Unique=V")));
+        assertEquals(true, singleValue(result, "Max"));
+        assertEquals(false, singleValue(result, "Min"));
+        assertEquals(true, singleValue(result, "Med"));
+        assertEquals(2L, singleValue(result, "Count"));
+        assertEquals(List.of(false, true), vectorValues(singleValue(result, "Distinct")));
+
+        removeRowsInCycle(source, i(1));
+        assertEquals(true, singleValue(result, "Max"));
+        assertEquals(true, singleValue(result, "Min"));
+        assertEquals(true, singleValue(result, "Med"));
+        assertEquals(1L, singleValue(result, "Count"));
+        assertEquals(List.of(true), vectorValues(singleValue(result, "Distinct")));
+        assertEquals(true, singleValue(result, "Unique"));
+    }
+
+    @Test
     public void testStaticDistinctCompareEqualValuesIndependentOfOrder() {
         for (final Table source : List.of(
                 newTable(col("V", ONE_SCALE_ONE, ONE_SCALE_TWO, ONE_SCALE_ONE)),

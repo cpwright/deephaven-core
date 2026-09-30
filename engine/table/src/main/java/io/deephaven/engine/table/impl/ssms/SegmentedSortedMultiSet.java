@@ -4,6 +4,7 @@
 package io.deephaven.engine.table.impl.ssms;
 
 import io.deephaven.configuration.Configuration;
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
 import io.deephaven.chunk.ChunkType;
 import io.deephaven.chunk.WritableChunk;
 import io.deephaven.chunk.WritableIntChunk;
@@ -26,10 +27,32 @@ public interface SegmentedSortedMultiSet<T> extends LongSizedDataStructure {
     boolean SEGMENTED_SORTED_MULTISET_VALIDATION =
             Configuration.getInstance().getBooleanWithDefault("SegmentedSortedMultiSet.validation", false);
 
+    /**
+     * Make a SegmentedSortedMultiSet for values of the given type.
+     *
+     * @param chunkType the chunk type of the values
+     * @param nodeSize the leaf size of the set
+     * @param objectType the data type of the values; for Object values whose natural ordering is consistent with equals
+     *        (see {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}) the set tests equality with
+     *        {@code equals}, otherwise with
+     *        {@link io.deephaven.util.compare.ObjectComparisons#compareEquals(Object, Object)}
+     * @return a new, empty set
+     */
     static SegmentedSortedMultiSet make(ChunkType chunkType, int nodeSize, Class<?> objectType) {
         return makeFactory(chunkType, nodeSize, objectType).get();
     }
 
+    /**
+     * Make a factory for SegmentedSortedMultiSets of values of the given type, choosing the implementation once.
+     *
+     * @param chunkType the chunk type of the values
+     * @param nodeSize the leaf size of the sets
+     * @param objectType the data type of the values; for Object values whose natural ordering is consistent with equals
+     *        (see {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}) the sets test equality with
+     *        {@code equals}, otherwise with
+     *        {@link io.deephaven.util.compare.ObjectComparisons#compareEquals(Object, Object)}
+     * @return a factory for new, empty sets
+     */
     static Supplier<SegmentedSortedMultiSet> makeFactory(ChunkType chunkType, int nodeSize, Class<?> objectType) {
         switch (chunkType) {
             case Char:
@@ -47,6 +70,9 @@ public interface SegmentedSortedMultiSet<T> extends LongSizedDataStructure {
             case Double:
                 return () -> new DoubleSegmentedSortedMultiset(nodeSize);
             case Object:
+                if (BinarySearchKernelHelper.compareConsistentWithEquality(objectType)) {
+                    return () -> new EqualsConsistentObjectSegmentedSortedMultiset(nodeSize, objectType);
+                }
                 return () -> new ObjectSegmentedSortedMultiset(nodeSize, objectType);
             default:
             case Boolean:

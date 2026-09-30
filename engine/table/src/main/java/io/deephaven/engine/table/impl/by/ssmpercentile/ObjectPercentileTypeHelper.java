@@ -15,7 +15,6 @@ import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.chunk.ObjectChunk;
 import io.deephaven.chunk.Chunk;
 import io.deephaven.chunk.IntChunk;
-import io.deephaven.engine.table.impl.ssms.ObjectSegmentedSortedMultiset;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.util.mutable.MutableInt;
 
@@ -49,7 +48,7 @@ public class ObjectPercentileTypeHelper implements SsmChunkedPercentileOperator.
                 ssmLo.moveBackToFront(ssmHi, loSize - targetLo);
             }
 
-            return setResult(destination, ((ObjectSegmentedSortedMultiset) ssmLo).getMaxObject());
+            return setResult(destination, ssmLo.getMax());
         }
     }
 
@@ -67,8 +66,8 @@ public class ObjectPercentileTypeHelper implements SsmChunkedPercentileOperator.
     public int pivot(SegmentedSortedMultiSet segmentedSortedMultiSet, Chunk<? extends Values> valueCopy,
             IntChunk<ChunkLengths> counts, int startPosition, int runLength, MutableInt leftOvers) {
         final ObjectChunk<Object, ? extends Values> asObjectChunk = valueCopy.asObjectChunk();
-        final ObjectSegmentedSortedMultiset ssmLo = (ObjectSegmentedSortedMultiset) segmentedSortedMultiSet;
-        final Object hiValue = ssmLo.getMaxObject();
+        final SegmentedSortedMultiSet ssmLo = segmentedSortedMultiSet;
+        final Object hiValue = ssmLo.getMax();
 
         final int result = upperBound(asObjectChunk, startPosition, startPosition + runLength, hiValue);
 
@@ -87,8 +86,8 @@ public class ObjectPercentileTypeHelper implements SsmChunkedPercentileOperator.
     public int pivot(SegmentedSortedMultiSet segmentedSortedMultiSet, Chunk<? extends Values> valueCopy,
             IntChunk<ChunkLengths> counts, int startPosition, int runLength) {
         final ObjectChunk<Object, ? extends Values> asObjectChunk = valueCopy.asObjectChunk();
-        final ObjectSegmentedSortedMultiset ssmLo = (ObjectSegmentedSortedMultiset) segmentedSortedMultiSet;
-        final Object hiValue = ssmLo.getMaxObject();
+        final SegmentedSortedMultiSet ssmLo = segmentedSortedMultiSet;
+        final Object hiValue = ssmLo.getMax();
 
         final int result = upperBound(asObjectChunk, startPosition, startPosition + runLength, hiValue);
 
