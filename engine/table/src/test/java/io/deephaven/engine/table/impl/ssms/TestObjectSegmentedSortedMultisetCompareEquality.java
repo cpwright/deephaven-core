@@ -4,15 +4,21 @@
 package io.deephaven.engine.table.impl.ssms;
 
 import io.deephaven.base.verify.AssertionFailure;
+import io.deephaven.chunk.ChunkType;
 import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.WritableObjectChunk;
 import io.deephaven.chunk.attributes.ChunkLengths;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
+import io.deephaven.engine.table.impl.util.compact.CompactKernel;
+import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
+import io.deephaven.engine.table.impl.util.compact.ObjectCompactKernel;
 import org.junit.Test;
 
 import java.math.BigDecimal;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -209,5 +215,37 @@ public class TestObjectSegmentedSortedMultisetCompareEquality {
         single.moveFrontToBack(lo, 1);
         assertEquals(2, lo.size());
         assertEquals(scaled(1, 3), lo.getMaxObject());
+    }
+
+    private static void assertCompactsToOneValue(final CompactKernel kernel, final Object... values) {
+        try (final WritableObjectChunk<Object, Values> chunk = WritableObjectChunk.makeWritableChunk(values.length);
+                final WritableIntChunk<ChunkLengths> counts = WritableIntChunk.makeWritableChunk(values.length)) {
+            for (int ii = 0; ii < values.length; ++ii) {
+                chunk.set(ii, values[ii]);
+            }
+            kernel.compactAndCount(chunk, counts);
+            assertEquals(1, chunk.size());
+            assertSame(values[0], chunk.get(0));
+            assertEquals(values.length, counts.get(0));
+        }
+    }
+
+    @Test
+    public void testCompactKernelCompactsCompareEqualValues() {
+        final CompactKernel kernel = CompactKernel.makeCompact(ChunkType.Object,
+                BinarySearchKernelHelper.compareConsistentWithEquality(BigDecimal.class));
+        assertTrue(kernel instanceof ObjectCompactKernel);
+        assertCompactsToOneValue(kernel, scaled(1, 1), scaled(1, 2), scaled(1, 1), scaled(1, 3));
+    }
+
+    @Test
+    public void testCompactKernelChoosesByDecision() {
+        final CompactKernel consistent = CompactKernel.makeCompact(ChunkType.Object, true);
+        assertTrue(consistent instanceof EqualsConsistentObjectCompactKernel);
+        final CompactKernel general = CompactKernel.makeCompact(ChunkType.Object, false);
+        assertTrue(general instanceof ObjectCompactKernel);
+        for (final CompactKernel kernel : new CompactKernel[] {consistent, general}) {
+            assertCompactsToOneValue(kernel, new String("a"), new String("a"), new String("a"));
+        }
     }
 }

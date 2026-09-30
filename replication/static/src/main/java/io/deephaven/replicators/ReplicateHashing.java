@@ -55,6 +55,7 @@ public class ReplicateHashing {
         final String objectCompact = charToObject(TASK,
                 "engine/table/src/main/java/io/deephaven/engine/table/impl/util/compact/CharCompactKernel.java");
         fixupObjectCompact(objectCompact);
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, "CharCompactKernel", objectCompact);
         // noinspection OptionalGetWithoutIsPresent
         fixupBooleanCompact(compactKernels.stream().filter(x -> x.contains("Boolean")).findFirst().get());
         fixupFloatCompact(compactKernels.stream().filter(x -> x.contains("Double")).findFirst().get(), "Double");

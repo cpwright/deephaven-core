@@ -21,6 +21,7 @@ import io.deephaven.engine.table.ChunkSource;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.SharedContext;
 import io.deephaven.engine.table.impl.util.TypedHasherUtil;
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.util.SafeCloseableArray;
 import org.jetbrains.annotations.Nullable;
@@ -45,13 +46,18 @@ public class ChangedKeyRows {
     // per key-column compaction kernels, used to compact the previous key chunks down to the changed rows
     private final CompactKernel[] keyCompactKernels;
 
-    public ChangedKeyRows(final ChunkType[] chunkTypes) {
-        this.chunkTypes = chunkTypes;
-        keyChunkEquals = new ChunkEquals[chunkTypes.length];
-        keyCompactKernels = new CompactKernel[chunkTypes.length];
-        for (int cc = 0; cc < chunkTypes.length; ++cc) {
+    /**
+     * @param keySources the key sources, one per key column
+     */
+    public ChangedKeyRows(final ColumnSource<?>[] keySources) {
+        chunkTypes = new ChunkType[keySources.length];
+        keyChunkEquals = new ChunkEquals[keySources.length];
+        keyCompactKernels = new CompactKernel[keySources.length];
+        for (int cc = 0; cc < keySources.length; ++cc) {
+            chunkTypes[cc] = keySources[cc].getChunkType();
             keyChunkEquals[cc] = ChunkEquals.makeEqual(chunkTypes[cc]);
-            keyCompactKernels[cc] = CompactKernel.makeCompact(chunkTypes[cc]);
+            keyCompactKernels[cc] = CompactKernel.makeCompact(chunkTypes[cc],
+                    BinarySearchKernelHelper.compareConsistentWithEquality(keySources[cc].getType()));
         }
     }
 

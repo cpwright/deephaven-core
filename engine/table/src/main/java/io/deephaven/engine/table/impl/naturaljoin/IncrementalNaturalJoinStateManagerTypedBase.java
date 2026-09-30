@@ -143,7 +143,7 @@ public abstract class IncrementalNaturalJoinStateManagerTypedBase extends Static
             mainKeySources[ii] = InMemoryColumnSource.getImmutableMemoryColumnSource(tableSize,
                     tableKeySources[ii].getType(), tableKeySources[ii].getComponentType());
         }
-        changedKeyRows = new ChangedKeyRows(chunkTypes);
+        changedKeyRows = new ChangedKeyRows(tableKeySources);
 
         this.maximumLoadFactor = maximumLoadFactor;
 

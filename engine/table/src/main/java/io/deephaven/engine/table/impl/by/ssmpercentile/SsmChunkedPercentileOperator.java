@@ -15,6 +15,7 @@ import io.deephaven.engine.table.impl.by.IterativeChunkedAggregationOperator;
 import io.deephaven.engine.table.impl.sources.*;
 import io.deephaven.chunk.*;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.util.mutable.MutableInt;
 import org.jetbrains.annotations.NotNull;
@@ -78,7 +79,8 @@ public class SsmChunkedPercentileOperator implements IterativeChunkedAggregation
             }
             externalResult = internalResult;
         }
-        compactAndCountKernel = CompactKernel.makeCompact(chunkType);
+        compactAndCountKernel = CompactKernel.makeCompact(chunkType,
+                BinarySearchKernelHelper.compareConsistentWithEquality(type));
         ssmFactory = SegmentedSortedMultiSet.makeFactory(chunkType, NODE_SIZE, type);
         removeContextFactory = SegmentedSortedMultiSet.makeRemoveContextFactory(NODE_SIZE);
         percentileTypeHelper = makeTypeHelper(chunkType, type, percentile, averageEvenlyDivided, internalResult);

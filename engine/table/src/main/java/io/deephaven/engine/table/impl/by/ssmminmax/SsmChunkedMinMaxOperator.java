@@ -15,6 +15,7 @@ import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.impl.sources.ObjectArraySource;
 import io.deephaven.chunk.*;
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
+import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 
 import java.time.Instant;
@@ -52,7 +53,8 @@ public class SsmChunkedMinMaxOperator implements IterativeChunkedAggregationOper
         } else {
             chunkType = ChunkType.fromElementType(type);
         }
-        compactAndCountKernel = CompactKernel.makeCompact(chunkType);
+        compactAndCountKernel = CompactKernel.makeCompact(chunkType,
+                BinarySearchKernelHelper.compareConsistentWithEquality(type));
         ssmFactory = SegmentedSortedMultiSet.makeFactory(chunkType, NODE_SIZE, type);
         removeContextFactory = SegmentedSortedMultiSet.makeRemoveContextFactory(NODE_SIZE);
         setResult = makeSetResult(chunkType, type, minimum, resultColumn);
