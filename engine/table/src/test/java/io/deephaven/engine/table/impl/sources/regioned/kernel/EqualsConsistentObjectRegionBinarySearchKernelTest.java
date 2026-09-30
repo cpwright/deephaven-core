@@ -111,7 +111,7 @@ public class EqualsConsistentObjectRegionBinarySearchKernelTest {
             final long startRow = Math.max(0, firstKey.applyAsLong(ii));
             final long endRow = Math.min(size - 1, lastKey.applyAsLong(ii));
             // Test match search and min/max search give the same results for this value.
-            try (final RowSet matchRs = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(
+            try (final RowSet matchRs = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
                     region, startRow, endRow, sortColumn, new String[] {value});
                     final RowSet minMaxRs = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMinMax(
                             region, startRow, endRow, sortColumn, value, value, true, true)) {
@@ -151,7 +151,7 @@ public class EqualsConsistentObjectRegionBinarySearchKernelTest {
         for (String missingValue : missingValues) {
             final long startRow = 0;
             final long endRow = size - 1;
-            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(
+            try (final RowSet valuesFound = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
                     region, startRow, endRow, sortColumn, new String[] {missingValue})) {
                 assertTrue(valuesFound.isEmpty());
             }
@@ -735,7 +735,7 @@ public class EqualsConsistentObjectRegionBinarySearchKernelTest {
         assertTrue(BinarySearchKernelHelper.compareConsistentWithEquality(matchFilter.getColumnType()));
         try (final RowSet viaFilter = EqualsConsistentObjectRegionBinarySearchKernel.binsearchMatchFilter(region, 0, lastKey,
                 sortColumn, matchFilter);
-                final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatch(region, 0, lastKey,
+                final RowSet viaSearch = EqualsConsistentObjectRegionBinarySearchKernel.binarySearchMatchByEquality(region, 0, lastKey,
                         sortColumn, new Object[] {"e", "a"})) {
             assertEquals(viaSearch, viaFilter);
         }

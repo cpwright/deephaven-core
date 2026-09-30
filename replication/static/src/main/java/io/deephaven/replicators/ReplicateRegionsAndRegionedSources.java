@@ -38,12 +38,8 @@ public class ReplicateRegionsAndRegionedSources {
     private static final String GENERIC_COLUMN_BINARY_SEARCH_KERNEL_PATH =
             "engine/table/src/main/java/io/deephaven/engine/table/impl/sources/regioned/kernel/CharColumnBinarySearchKernel.java";
 
-    /** The region holding the match that lets ordering alone decide which rows are equal to a search value. */
-    private static final String MATCH_BY_ORDERING = "matchByOrdering";
-    /** The region holding the match that tests each row of a compare-equal run for equality with a search value. */
+    /** The region holding the body of the match that returns the rows equal to a search value. */
     private static final String MATCH_BY_EQUALITY = "matchByEquality";
-    /** The imports that only the {@link #MATCH_BY_EQUALITY} region uses. */
-    private static final String MATCH_BY_EQUALITY_IMPORTS = "matchByEqualityImports";
 
     public static void main(String... args) throws IOException {
         // Note that Byte and Object regions are not replicated!
@@ -70,85 +66,36 @@ public class ReplicateRegionsAndRegionedSources {
     }
 
     /**
-     * Replicate a binary search kernel from its Char source. The source carries two matches: the primitive kernels and
-     * the EqualsConsistentObject kernel keep the one that lets ordering alone decide a match, which is valid when
-     * values compare equal exactly when they are equal, and the Object kernel keeps the one that picks the matches out
-     * of each compare-equal run by equality, which is valid for any Comparable. The Object and EqualsConsistentObject
-     * kernels are otherwise identical.
+     * Replicate a binary search kernel from its Char source. The equality match of the Object kernel calls its
+     * hand-written match helper, which tests each row of a compare-equal run for equality and is therefore valid for
+     * any Comparable. Every other kernel, the EqualsConsistentObject kernel included, keeps the source's equality
+     * match, which lets ordering alone decide a match. The Object and EqualsConsistentObject kernels are otherwise
+     * identical.
      */
     private static void replicateBinarySearchKernel(final String charPath) throws IOException {
-        final List<String> primitivePaths = charToAllButBoolean(TASK, charPath);
-        fixupFloatingPointUpperRange(primitivePaths);
-        for (final String path : primitivePaths) {
-            selectMatch(path, false);
-        }
+        fixupFloatingPointUpperRange(charToAllButBoolean(TASK, charPath));
 
         final String objectPath = charToObject(TASK, charPath);
         fixupBinSearchObject(objectPath);
-        selectMatch(ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, className(charPath), objectPath),
-                false);
-        selectMatch(objectPath, true);
+        ReplicateSegmentedSortedArray.equalsConsistentObjectCopy(TASK, className(charPath), objectPath);
+        callMatchHelper(objectPath);
     }
 
     /**
-     * Keep one of the two matches in a replicated binary search kernel, removing the other and every region marker that
-     * delimits them.
+     * Make the equality match of an Object binary search kernel call the kernel's match helper, the class named like
+     * the kernel with {@code MatchHelper} in place of {@code Kernel}.
      */
-    private static void selectMatch(final String path, final boolean byEquality) throws IOException {
-        final File file = new File(path);
+    private static void callMatchHelper(final String objectPath) throws IOException {
+        final File file = new File(objectPath);
+        final String helperCall = className(objectPath).replaceFirst("Kernel$", "MatchHelper")
+                + ".binarySearchMatchByEquality(";
         List<String> lines = FileUtils.readLines(file, Charset.defaultCharset());
-        if (byEquality) {
-            lines = removeRegionAndMarkers(lines, MATCH_BY_ORDERING);
-            lines = removeRegionMarkers(lines, MATCH_BY_EQUALITY);
-            lines = removeRegionMarkers(lines, MATCH_BY_EQUALITY_IMPORTS);
-            lines = globalReplacements(lines, "\\bbinarySearchMatchByEquality\\b", "binarySearchMatch");
-        } else {
-            lines = removeRegionMarkers(lines, MATCH_BY_ORDERING);
-            lines = removeRegionAndMarkers(lines, MATCH_BY_EQUALITY);
-            lines = removeRegionAndMarkers(lines, MATCH_BY_EQUALITY_IMPORTS);
+        lines = simpleFixup(lines, MATCH_BY_EQUALITY, "return binarySearchMatch\\(", "return " + helperCall);
+        if (lines.stream().noneMatch(line -> line.contains(helperCall))) {
+            throw new IllegalStateException(objectPath + ": no binarySearchMatch call in the " + MATCH_BY_EQUALITY
+                    + " region");
         }
         FileUtils.writeLines(file, lines);
-    }
-
-    /** Remove the marker lines of a region, keeping its contents. */
-    private static List<String> removeRegionMarkers(final List<String> lines, final String region) {
-        final List<String> newLines = new ArrayList<>(lines);
-        newLines.remove(markerIndex(newLines, "// region " + region));
-        newLines.remove(markerIndex(newLines, "// endregion " + region));
-        return newLines;
-    }
-
-    /**
-     * Remove a region together with its markers. When that leaves two blank lines in a row, which happens when the
-     * region stood between two blank-separated members, one of them goes too.
-     */
-    private static List<String> removeRegionAndMarkers(final List<String> lines, final String region) {
-        final List<String> newLines = new ArrayList<>(lines);
-        final int start = markerIndex(newLines, "// region " + region);
-        final int end = markerIndex(newLines, "// endregion " + region);
-        newLines.subList(start, end + 1).clear();
-        if (start > 0 && start < newLines.size() && newLines.get(start - 1).isEmpty()
-                && newLines.get(start).isEmpty()) {
-            newLines.remove(start);
-        }
-        return newLines;
-    }
-
-    /** The index of the one line that is {@code marker}, ignoring indentation. */
-    private static int markerIndex(final List<String> lines, final String marker) {
-        int found = -1;
-        for (int ii = 0; ii < lines.size(); ++ii) {
-            if (lines.get(ii).trim().equals(marker)) {
-                if (found >= 0) {
-                    throw new IllegalStateException("More than one " + marker);
-                }
-                found = ii;
-            }
-        }
-        if (found < 0) {
-            throw new IllegalStateException("No " + marker);
-        }
-        return found;
     }
 
     private static void fixupChunkColumnRegionByte(final String bytePath) throws IOException {

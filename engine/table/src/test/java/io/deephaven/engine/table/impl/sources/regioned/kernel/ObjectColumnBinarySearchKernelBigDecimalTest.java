@@ -141,7 +141,7 @@ public class ObjectColumnBinarySearchKernelBigDecimalTest {
                     ? SortColumn.desc(ColumnName.of("test"))
                     : SortColumn.asc(ColumnName.of("test"));
             try (final RowSet selection = RowSetFactory.fromRange(0, data.size() - 1);
-                    final RowSet matched = ObjectColumnBinarySearchKernel.binarySearchMatch(
+                    final RowSet matched = ObjectColumnBinarySearchKernel.binarySearchMatchByEquality(
                             source, selection, sortColumn, toFind.toArray(), false)) {
                 final List<Long> actual = new ArrayList<>();
                 matched.forAllRowKeys(actual::add);

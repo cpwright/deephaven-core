@@ -14,6 +14,7 @@ import io.deephaven.chunk.attributes.Any;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetBuilderSequential;
 import io.deephaven.engine.rowset.RowSetFactory;
+import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.ElementSource;
 import io.deephaven.engine.table.impl.select.IntRangeFilter;
 import io.deephaven.engine.table.impl.sort.timsort.IntTimsortDescendingKernel;
@@ -149,6 +150,34 @@ public class IntColumnBinarySearchKernel {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Performs a binary search on a given sorted {@link ColumnSource} to find the row keys from a provided
+     * {@link RowSet} that hold a value equal to one of {@code searchValues}, where equality is
+     * {@link IntComparisons#eq(int, int)}. The method returns the {@link RowSet} containing the matched row keys.
+     *
+     * <p>
+     * Where values compare equal exactly when they are equal, the result is the same as that of
+     * {@link #binarySearchMatch}.
+     *
+     * @param source The column source in which the search will be performed.
+     * @param selection The {@link RowSet} defining which rows are populated and the order in which they are searched.
+     * @param sortColumn A {@link SortColumn} object representing the sorting order of the column.
+     * @param searchValues An array of keys to find within the source.
+     * @param usePrev If true, the search will use the previous values instead of current values.
+     *
+     * @return A {@link RowSet} containing the row keys that are equal to one of the search values.
+     */
+    public static RowSet binarySearchMatchByEquality(
+            @NotNull final ColumnSource<?> source,
+            @NotNull final RowSet selection,
+            @NotNull final SortColumn sortColumn,
+            @NotNull final Object[] searchValues,
+            final boolean usePrev) {
+        // region matchByEquality
+        return binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+        // endregion matchByEquality
     }
 
     /**

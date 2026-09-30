@@ -148,34 +148,38 @@ public class SortedColumnPushdownManager implements PushdownPredicateManager {
             final boolean usePrev) {
 
         if (dataType == char.class || dataType == Character.class) {
-            return CharColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+            return CharColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == byte.class || dataType == Byte.class) {
-            return ByteColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+            return ByteColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == short.class || dataType == Short.class) {
-            return ShortColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                    usePrev);
+            return ShortColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == int.class || dataType == Integer.class) {
-            return IntColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+            return IntColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == long.class || dataType == Long.class) {
-            return LongColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+            return LongColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == float.class || dataType == Float.class) {
-            return FloatColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                    usePrev);
+            return FloatColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         if (dataType == double.class || dataType == Double.class) {
-            return DoubleColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                    usePrev);
+            return DoubleColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                    searchValues, usePrev);
         }
         return BinarySearchKernelHelper.compareConsistentWithEquality(dataType)
-                ? EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn,
-                        searchValues, usePrev)
-                : ObjectColumnBinarySearchKernel.binarySearchMatch(source, selection, sortColumn, searchValues,
-                        usePrev);
+                ? EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection,
+                        sortColumn, searchValues, usePrev)
+                : ObjectColumnBinarySearchKernel.binarySearchMatchByEquality(source, selection, sortColumn,
+                        searchValues, usePrev);
     }
 
     /**

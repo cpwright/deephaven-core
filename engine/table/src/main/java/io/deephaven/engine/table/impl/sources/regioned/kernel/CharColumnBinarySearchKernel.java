@@ -14,6 +14,7 @@ import io.deephaven.chunk.attributes.Any;
 import io.deephaven.engine.rowset.RowSet;
 import io.deephaven.engine.rowset.RowSetBuilderSequential;
 import io.deephaven.engine.rowset.RowSetFactory;
+import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.engine.table.ElementSource;
 import io.deephaven.engine.table.impl.select.CharRangeFilter;
 import io.deephaven.engine.table.impl.sort.timsort.CharTimsortDescendingKernel;
@@ -25,14 +26,6 @@ import static io.deephaven.util.QueryConstants.MAX_CHAR;
 import static io.deephaven.util.QueryConstants.NULL_CHAR;
 import io.deephaven.util.type.ArrayTypeUtils;
 import org.jetbrains.annotations.NotNull;
-// region matchByEqualityImports
-import io.deephaven.chunk.CharChunk;
-import io.deephaven.chunk.WritableLongChunk;
-import io.deephaven.chunk.attributes.Values;
-import io.deephaven.engine.rowset.RowSequence;
-import io.deephaven.engine.rowset.chunkattributes.OrderedRowKeys;
-import io.deephaven.engine.table.ColumnSource;
-// endregion matchByEqualityImports
 
 public class CharColumnBinarySearchKernel {
     // region binsearchRangeFilter
@@ -67,7 +60,6 @@ public class CharColumnBinarySearchKernel {
     }
     // endregion binsearchRangeFilter
 
-    // region matchByOrdering
     /**
      * Performs a binary search on a given sorted {@link ElementSource} to find the row keys from a provided
      * {@link RowSet} that pass a range or match filter. The method returns the {@link RowSet} containing the matched
@@ -159,32 +151,15 @@ public class CharColumnBinarySearchKernel {
 
         return builder.build();
     }
-    // endregion matchByOrdering
-
-    // region matchByEquality
-    /**
-     * Rows per slice when scanning a run of rows that compare equal to a search value. Matches the other chunked scans
-     * in {@code engine/table}.
-     */
-    private static final int CHUNK_SIZE = 1 << 12;
 
     /**
      * Performs a binary search on a given sorted {@link ColumnSource} to find the row keys from a provided
-     * {@link RowSet} that hold a value equal to one of {@code searchValues}. The method returns the {@link RowSet}
-     * containing the matched row keys.
+     * {@link RowSet} that hold a value equal to one of {@code searchValues}, where equality is
+     * {@link CharComparisons#eq(char, char)}. The method returns the {@link RowSet} containing the matched row keys.
      *
      * <p>
-     * The ordering only locates the rows to test: the bounds find the run of positions whose values compare equal to a
-     * search value, and each row of that run is returned exactly when {@link CharComparisons#eq(char, char)} holds for
-     * it and one of the search values that compare equal to the run. The result is therefore correct even where values
-     * that compare equal are not all equal.
-     *
-     * <p>
-     * The binary search is performed over the positions defined by {@code selection}. {@link RowSet#get(long)} is used
-     * to map positions to row keys, ensuring O(log n) performance even when the row key space is sparse. Each run is
-     * read in chunks, gathered through a {@link RowSequence} iterator advanced across the runs rather than addressed as
-     * a contiguous row key range: mapping a position to a row key is far more expensive than advancing the iterator, so
-     * the iterator is advanced once and reused instead of resolving each run's start independently.
+     * Where values compare equal exactly when they are equal, the result is the same as that of
+     * {@link #binarySearchMatch}.
      *
      * @param source The column source in which the search will be performed.
      * @param selection The {@link RowSet} defining which rows are populated and the order in which they are searched.
@@ -200,84 +175,10 @@ public class CharColumnBinarySearchKernel {
             @NotNull final SortColumn sortColumn,
             @NotNull final Object[] searchValues,
             final boolean usePrev) {
-        final char[] unboxed = ArrayTypeUtils.getUnboxedCharArray(searchValues);
-        if (sortColumn.isAscending()) {
-            try (final CharTimsortKernel.CharSortKernelContext<Any> context =
-                    CharTimsortKernel.createContext(unboxed.length)) {
-                context.sort(WritableCharChunk.writableChunkWrap(unboxed));
-            }
-        } else {
-            try (final CharTimsortDescendingKernel.CharSortKernelContext<Any> context =
-                    CharTimsortDescendingKernel.createContext(unboxed.length)) {
-                context.sort(WritableCharChunk.writableChunkWrap(unboxed));
-            }
-        }
-
-        final RowSetBuilderSequential builder = RowSetFactory.builderSequential();
-        final long lastPos = selection.size() - 1;
-        final boolean ascending = sortColumn.isAscending();
-        long firstPos = 0;
-
-        // Everything a run scan needs is allocated once here and reused across every run: the context and chunks are
-        // sized together, and runs are located in increasing position order, so one iterator can advance across all
-        // of them.
-        final int contextSize = (int) Math.min(CHUNK_SIZE, selection.size());
-        try (final ColumnSource.GetContext getContext = source.makeGetContext(contextSize);
-                final WritableLongChunk<OrderedRowKeys> keys = WritableLongChunk.makeWritableChunk(contextSize);
-                final WritableLongChunk<OrderedRowKeys> matches = WritableLongChunk.makeWritableChunk(contextSize);
-                final RowSequence.Iterator rsIt = selection.getRowSequenceIterator()) {
-            for (int idx = 0; idx < unboxed.length && firstPos <= lastPos;) {
-                // First, identify the group of search values that compare equal to each other.
-                int groupEnd = idx + 1;
-                while (groupEnd < unboxed.length && CharComparisons.compare(unboxed[groupEnd], unboxed[idx]) == 0) {
-                    ++groupEnd;
-                }
-                // Second, find the bounds of the run in the column that compares equal to the group. These bounds are
-                // positions within selection, not row keys, so their difference is a row count even when selection is
-                // sparse.
-                final char toFind = unboxed[idx];
-                final long lowerResult = ascending
-                        ? lowerBoundAscending(source, selection, firstPos, lastPos, toFind, true, usePrev)
-                        : lowerBoundDescending(source, selection, firstPos, lastPos, toFind, true, usePrev);
-                final long runStartPos = lowerResult >= 0 ? lowerResult : insertionPoint(lowerResult);
-                final long upperResult = ascending
-                        ? upperBoundAscending(source, selection, runStartPos, lastPos, toFind, true, usePrev)
-                        : upperBoundDescending(source, selection, runStartPos, lastPos, toFind, true, usePrev);
-                final long runEndPos = upperResult >= 0 ? upperResult + 1 : insertionPoint(upperResult);
-                if (runEndPos > runStartPos) {
-                    // Third, keep each row of the run that is equal to a member of the group. Resolving runStartPos is
-                    // the only place a position becomes a row key; runs advance forward, so the one iterator serves
-                    // them all.
-                    rsIt.advance(selection.get(runStartPos));
-                    long remaining = runEndPos - runStartPos;
-                    while (remaining > 0 && rsIt.hasMore()) {
-                        final RowSequence rows = rsIt.getNextRowSequenceWithLength(Math.min(contextSize, remaining));
-                        final CharChunk<? extends Values> valueChunk = (usePrev
-                                ? source.getPrevChunk(getContext, rows)
-                                : source.getChunk(getContext, rows)).asCharChunk();
-                        rows.fillRowKeyChunk(keys);
-                        matches.setSize(0);
-                        for (int ii = 0; ii < valueChunk.size(); ++ii) {
-                            final char value = valueChunk.get(ii);
-                            for (int valueIdx = idx; valueIdx < groupEnd; ++valueIdx) {
-                                if (CharComparisons.eq(value, unboxed[valueIdx])) {
-                                    matches.add(keys.get(ii));
-                                    break;
-                                }
-                            }
-                        }
-                        builder.appendOrderedRowKeysChunk(matches);
-                        remaining -= valueChunk.size();
-                    }
-                }
-                firstPos = runEndPos;
-                idx = groupEnd;
-            }
-        }
-
-        return builder.build();
+        // region matchByEquality
+        return binarySearchMatch(source, selection, sortColumn, searchValues, usePrev);
+        // endregion matchByEquality
     }
-    // endregion matchByEquality
 
     /**
      * Performs a binary search on a given sorted {@link ElementSource} to find the positions (row keys) of values

@@ -132,7 +132,7 @@ public class EqualsConsistentObjectColumnBinarySearchKernelTest {
                 final String value = data.get(ii);
 
                 // Test match search and min/max search give the same results for this value.
-                try (final RowSet matchRs = EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatch(
+                try (final RowSet matchRs = EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatchByEquality(
                         source, selection, sortColumn, new String[] {value}, false);
                      final RowSet minMaxRs = EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMinMax(
                              source, selection, sortColumn, value, value, true, true, false)) {
@@ -151,7 +151,7 @@ public class EqualsConsistentObjectColumnBinarySearchKernelTest {
             final List<String> missingValues =
                     findAbsentValues(sortedData, NUM_NEGATIVE_LOOKUPS, MAX_FAILED_LOOKUPS, rnd);
             for (String missingValue : missingValues) {
-                try (final RowSet valuesFound = EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatch(
+                try (final RowSet valuesFound = EqualsConsistentObjectColumnBinarySearchKernel.binarySearchMatchByEquality(
                         source, selection, sortColumn, new String[] {missingValue}, false)) {
                     assertTrue(valuesFound.isEmpty());
                 }

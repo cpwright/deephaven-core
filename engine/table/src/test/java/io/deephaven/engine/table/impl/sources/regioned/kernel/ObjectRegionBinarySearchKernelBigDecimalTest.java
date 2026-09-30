@@ -156,7 +156,7 @@ public class ObjectRegionBinarySearchKernelBigDecimalTest {
             }
         }
 
-        try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatch(
+        try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
                 makeBigDecimalRegion(data, smallPageSize), 0, size - 1,
                 SortColumn.asc(ColumnName.of("test")), new Object[] {scale1})) {
             final List<Long> actual = new ArrayList<>();
@@ -195,7 +195,7 @@ public class ObjectRegionBinarySearchKernelBigDecimalTest {
             final SortColumn sortColumn = descending
                     ? SortColumn.desc(ColumnName.of("test"))
                     : SortColumn.asc(ColumnName.of("test"));
-            try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatch(
+            try (final RowSet matched = ObjectRegionBinarySearchKernel.binarySearchMatchByEquality(
                     region, 0, data.size() - 1, sortColumn, toFind.toArray())) {
                 final List<Long> actual = new ArrayList<>();
                 matched.forAllRowKeys(actual::add);
