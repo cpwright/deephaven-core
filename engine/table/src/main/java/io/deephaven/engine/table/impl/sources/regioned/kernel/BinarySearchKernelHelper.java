@@ -56,7 +56,7 @@ public class BinarySearchKernelHelper {
      *
      * <p>
      * The property is not verified; registering a type that lacks it will produce incorrect filter, as-of join, range
-     * join, sorted first or last, and minimum, maximum, median or percentile results.
+     * join, sorted first or last, minimum, maximum, median, percentile, count distinct, distinct and unique results.
      *
      * <p>
      * Registration is additive and idempotent, and a type cannot be withdrawn. Register types during startup: a search
