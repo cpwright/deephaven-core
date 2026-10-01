@@ -152,20 +152,20 @@ ColumnExpressionValidator.annotationSets.myapp=static_math_methods,string_helper
 
 Use this approach when you want to allow methods from libraries you don't control (like Java's built-in classes, third-party libraries, etc.).
 
-Since you can't add annotations to external code, you use pointcut expressions - patterns that match method signatures. The pattern syntax is adapted from AspectJ method patterns, and is a simple way to match one or more Java methods.
+Since you can't add annotations to external code, you use pointcut expressions — patterns that match method signatures. The pattern syntax is adapted from AspectJ method patterns, and is a simple way to match one or more Java methods.
 
 ### Understanding pointcut patterns
 
 A pointcut expression has three parts:
 
-1. **Class name**: The full package and class name (e.g., `java.lang.String`). Write a nested class as `java.util.Map.Entry` or `java.util.Map$Entry`.
+1. **Class name**: The full package and class name (e.g., `java.util.Collections`). A class in `java.lang` may omit its package (`String` is the same as `java.lang.String`). Write a nested class as `java.util.Map.Entry` or `java.util.Map$Entry`, and use `*..*` for every class.
 2. **Method name**: The specific method, `<constructor>` for a constructor, or `*` for any method or constructor.
-3. **Parameters**: The parameter types or `(..)` for any parameters. Parameter types must be fully qualified, except for types in `java.lang` such as `String`.
+3. **Parameters**: The parameter types or `(..)` for any parameters. Write primitive types by their keyword (`int`, `double`). Other types must be fully qualified, except for types in `java.lang` such as `String`.
 
 ### Pattern matching symbols
 
 - `*` = Match any single item (one method name, one parameter type, one package or class name, etc.).
-- `..` = In a parameter list, match any number of parameters of any type. In a class name, match any number of packages (`java.util..*` matches every class in `java.util` and its sub-packages, while `java.util.*` does not include sub-packages).
+- `..` = In a parameter list, match any number of parameters of any type. In a class name, match any number of packages — `java.util..*` matches every class in `java.util` and its sub-packages, while `java.util.*` does not include sub-packages.
 - `;` = Separate multiple patterns in one property.
 
 ### Inherited methods
