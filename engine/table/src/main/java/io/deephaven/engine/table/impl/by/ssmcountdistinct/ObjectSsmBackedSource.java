@@ -37,8 +37,10 @@ public class ObjectSsmBackedSource extends AbstractColumnSource<ObjectVector>
     private final boolean equalsConsistent;
 
     /**
-     * Create an ObjectSsmBackedSource whose sets hold values of the given type. The data type of
-     * {@link #getUnderlyingSource()} is the class of the sets it holds.
+     * Create an ObjectSsmBackedSource whose sets hold values of the given type. The underlying source is
+     * declared over {@link AbstractObjectSegmentedSortedMultiset}, and its {@code getType()} is the
+     * concrete class of the sets it holds, so an operator that reads these sets learns from that type which
+     * equality they test.
      *
      * @param type the component type of the values
      * @param equalsConsistent true when values of the type compare equal exactly when they are equal (see
