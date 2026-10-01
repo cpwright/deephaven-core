@@ -42,12 +42,17 @@ public class ChangedKeyRows {
     private final ChunkType[] chunkTypes;
     // per key-column equality kernels
     private final ChunkEquals[] keyChunkEquals;
+    // per key-column compaction kernels, used to compact the previous key chunks down to the changed rows; key equality
+    // in a hash-based operation is equals, consistent with hashCode
+    private final CompactKernel[] keyCompactKernels;
 
     public ChangedKeyRows(final ChunkType[] chunkTypes) {
         this.chunkTypes = chunkTypes;
         keyChunkEquals = new ChunkEquals[chunkTypes.length];
+        keyCompactKernels = new CompactKernel[chunkTypes.length];
         for (int cc = 0; cc < chunkTypes.length; ++cc) {
             keyChunkEquals[cc] = ChunkEquals.makeEqual(chunkTypes[cc]);
+            keyCompactKernels[cc] = CompactKernel.makeCompact(chunkTypes[cc], true);
         }
     }
 
@@ -137,10 +142,8 @@ public class ChangedKeyRows {
                 comparisonResults.setSize(chunkRsSize);
 
                 if (previousKeyProbe != null && changedInChunk > 0) {
-                    // key equality here is equals based, consistent with the hash table; the compaction selects the
-                    // changed rows by position and tests no key values for equality
                     for (int cc = 0; cc < numColumns; ++cc) {
-                        CompactKernel.compactRetained(prevKeys[cc], comparisonResults);
+                        keyCompactKernels[cc].compact(prevKeys[cc], comparisonResults);
                     }
                     compactedPreRowKeys.setSize(changedInChunk);
                     try (final RowSequence changedRows =
