@@ -65,7 +65,8 @@ public class FloatCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final float removedValue = removedValues.get(rRead);
             final float addedValue = addedValues.get(aRead);
-            if (eq(removedValue, addedValue)) {
+            final int comparison = FloatComparisons.compare(removedValue, addedValue);
+            if (comparison == 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -81,7 +82,7 @@ public class FloatCompactModifications {
                         aWrite++;
                     }
                 }
-            } else if (FloatComparisons.lt(removedValue, addedValue)) {
+            } else if (comparison < 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 rRead += removedRun;
                 if (!ignore(removedValue, countNull, countNaN)) {

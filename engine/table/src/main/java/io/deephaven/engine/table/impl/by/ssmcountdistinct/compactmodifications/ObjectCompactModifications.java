@@ -64,7 +64,8 @@ public class ObjectCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final T removedValue = removedValues.get(rRead);
             final T addedValue = addedValues.get(aRead);
-            if (eq(removedValue, addedValue)) {
+            final int comparison = ObjectComparisons.compare(removedValue, addedValue);
+            if (comparison == 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -80,7 +81,7 @@ public class ObjectCompactModifications {
                         aWrite++;
                     }
                 }
-            } else if (ObjectComparisons.lt(removedValue, addedValue)) {
+            } else if (comparison < 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 rRead += removedRun;
                 if (!ignore(removedValue, countNull, countNaN)) {

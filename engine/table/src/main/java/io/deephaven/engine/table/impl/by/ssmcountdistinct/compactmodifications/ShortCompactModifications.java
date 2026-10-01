@@ -65,7 +65,8 @@ public class ShortCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final short removedValue = removedValues.get(rRead);
             final short addedValue = addedValues.get(aRead);
-            if (eq(removedValue, addedValue)) {
+            final int comparison = ShortComparisons.compare(removedValue, addedValue);
+            if (comparison == 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -81,7 +82,7 @@ public class ShortCompactModifications {
                         aWrite++;
                     }
                 }
-            } else if (ShortComparisons.lt(removedValue, addedValue)) {
+            } else if (comparison < 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 rRead += removedRun;
                 if (!ignore(removedValue, countNull, countNaN)) {

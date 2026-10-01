@@ -137,21 +137,21 @@ public final class ByteSegmentedSortedMultiset implements SegmentedSortedMultiSe
         }
 
         final boolean added;
-        final byte max = getMaxByte();
-        if (ByteComparisons.gt(value, max)) {
+        final int maxComparison = ByteComparisons.compare(value, getMaxByte());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final byte min = getMinByte();
-            if (ByteComparisons.lt(value, min)) {
+            final int minComparison = ByteComparisons.compare(value, getMinByte());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

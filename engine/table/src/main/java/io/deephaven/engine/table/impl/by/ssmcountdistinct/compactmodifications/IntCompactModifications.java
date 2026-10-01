@@ -64,7 +64,8 @@ public class IntCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final int removedValue = removedValues.get(rRead);
             final int addedValue = addedValues.get(aRead);
-            if (eq(removedValue, addedValue)) {
+            final int comparison = IntComparisons.compare(removedValue, addedValue);
+            if (comparison == 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -80,7 +81,7 @@ public class IntCompactModifications {
                         aWrite++;
                     }
                 }
-            } else if (IntComparisons.lt(removedValue, addedValue)) {
+            } else if (comparison < 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 rRead += removedRun;
                 if (!ignore(removedValue, countNull, countNaN)) {

@@ -143,21 +143,21 @@ public final class LongSegmentedSortedMultiset implements SegmentedSortedMultiSe
         }
 
         final boolean added;
-        final long max = getMaxLong();
-        if (LongComparisons.gt(value, max)) {
+        final int maxComparison = LongComparisons.compare(value, getMaxLong());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final long min = getMinLong();
-            if (LongComparisons.lt(value, min)) {
+            final int minComparison = LongComparisons.compare(value, getMinLong());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

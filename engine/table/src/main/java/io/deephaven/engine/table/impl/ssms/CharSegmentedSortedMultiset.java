@@ -133,21 +133,21 @@ public final class CharSegmentedSortedMultiset implements SegmentedSortedMultiSe
         }
 
         final boolean added;
-        final char max = getMaxChar();
-        if (CharComparisons.gt(value, max)) {
+        final int maxComparison = CharComparisons.compare(value, getMaxChar());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final char min = getMinChar();
-            if (CharComparisons.lt(value, min)) {
+            final int minComparison = CharComparisons.compare(value, getMinChar());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

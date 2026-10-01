@@ -137,21 +137,21 @@ public final class IntSegmentedSortedMultiset implements SegmentedSortedMultiSet
         }
 
         final boolean added;
-        final int max = getMaxInt();
-        if (IntComparisons.gt(value, max)) {
+        final int maxComparison = IntComparisons.compare(value, getMaxInt());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final int min = getMinInt();
-            if (IntComparisons.lt(value, min)) {
+            final int minComparison = IntComparisons.compare(value, getMinInt());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

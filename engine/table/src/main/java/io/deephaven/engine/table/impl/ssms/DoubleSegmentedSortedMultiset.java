@@ -136,21 +136,21 @@ public final class DoubleSegmentedSortedMultiset implements SegmentedSortedMulti
         }
 
         final boolean added;
-        final double max = getMaxDouble();
-        if (DoubleComparisons.gt(value, max)) {
+        final int maxComparison = DoubleComparisons.compare(value, getMaxDouble());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final double min = getMinDouble();
-            if (DoubleComparisons.lt(value, min)) {
+            final int minComparison = DoubleComparisons.compare(value, getMinDouble());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

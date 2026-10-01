@@ -136,21 +136,21 @@ public final class FloatSegmentedSortedMultiset implements SegmentedSortedMultiS
         }
 
         final boolean added;
-        final float max = getMaxFloat();
-        if (FloatComparisons.gt(value, max)) {
+        final int maxComparison = FloatComparisons.compare(value, getMaxFloat());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final float min = getMinFloat();
-            if (FloatComparisons.lt(value, min)) {
+            final int minComparison = FloatComparisons.compare(value, getMinFloat());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

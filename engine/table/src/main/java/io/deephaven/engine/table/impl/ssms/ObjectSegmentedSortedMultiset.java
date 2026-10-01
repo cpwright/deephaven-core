@@ -150,21 +150,21 @@ public final class ObjectSegmentedSortedMultiset extends AbstractObjectSegmented
         }
 
         final boolean added;
-        final Object max = getMaxObject();
-        if (ObjectComparisons.gt(value, max)) {
+        final int maxComparison = ObjectComparisons.compare(value, getMaxObject());
+        if (maxComparison > 0) {
             maybeAccumulateAddition(value);
             appendMaximum(value, count);
             added = true;
-        } else if (eq(value, max)) {
+        } else if (maxComparison == 0) {
             addMaxCount(count);
             added = false;
         } else {
-            final Object min = getMinObject();
-            if (ObjectComparisons.lt(value, min)) {
+            final int minComparison = ObjectComparisons.compare(value, getMinObject());
+            if (minComparison < 0) {
                 maybeAccumulateAddition(value);
                 prependMinimum(value, count);
                 added = true;
-            } else if (eq(value, min)) {
+            } else if (minComparison == 0) {
                 addMinCount(count);
                 added = false;
             } else {

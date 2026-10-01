@@ -61,7 +61,8 @@ public class CharCompactModifications {
         while (rRead < removedEnd && aRead < addedEnd) {
             final char removedValue = removedValues.get(rRead);
             final char addedValue = addedValues.get(aRead);
-            if (eq(removedValue, addedValue)) {
+            final int comparison = CharComparisons.compare(removedValue, addedValue);
+            if (comparison == 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 final int addedRun = countRun(addedValues, aRead, addedEnd);
                 rRead += removedRun;
@@ -77,7 +78,7 @@ public class CharCompactModifications {
                         aWrite++;
                     }
                 }
-            } else if (CharComparisons.lt(removedValue, addedValue)) {
+            } else if (comparison < 0) {
                 final int removedRun = countRun(removedValues, rRead, removedEnd);
                 rRead += removedRun;
                 if (!ignore(removedValue, countNull, countNaN)) {
