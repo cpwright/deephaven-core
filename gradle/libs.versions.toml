@@ -2,6 +2,7 @@
 adbc = "0.21.0"
 airlift = "2.0.3"
 arrow = "19.0.0"
+aspectj = "1.9.25"
 autoservice = "1.1.1"
 avro = "1.12.2"
 awssdk = "2.29.52"
@@ -82,7 +83,6 @@ postgresql = "42.7.13"
 protobuf = "4.33.4"
 randelshofer = "2.0.1"
 rdblue = "0.1.1"
-rewrite-java = "8.90.4"
 selenium = "4.49.0"
 slf4j = "2.0.19"
 snappy = "1.1.10.8"
@@ -117,6 +117,7 @@ arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow"
 arrow-flight-core = { module = "org.apache.arrow:flight-core", version.ref = "arrow" }
 arrow-flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
 arrow-flight-sql-jdbc = { module = "org.apache.arrow:flight-sql-jdbc-driver", version.ref = "arrow" }
+aspectj-weaver = { module = "org.aspectj:aspectjweaver", version.ref = "aspectj" }
 
 autoservice = { module = "com.google.auto.service:auto-service-annotations", version.ref = "autoservice" }
 autoservice-compiler = { module = "com.google.auto.service:auto-service", version.ref = "autoservice" }
@@ -309,7 +310,6 @@ protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 randelshofer-fastdoubleparser = { module = "ch.randelshofer:fastdoubleparser", version.ref = "randelshofer" }
 
 rdblue-brotli-codec = { module = "com.github.rdblue:brotli-codec", version.ref = "rdblue" }
-rewrite-java = { module = "org.openrewrite:rewrite-java", version.ref= "rewrite-java"}
 
 selenium-remote-driver = { module = "org.seleniumhq.selenium:selenium-remote-driver", version.ref = "selenium" }
 
