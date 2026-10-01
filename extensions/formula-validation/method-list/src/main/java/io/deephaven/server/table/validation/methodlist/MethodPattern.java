@@ -12,7 +12,11 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -33,6 +37,9 @@ import java.util.regex.Pattern;
 final class MethodPattern {
     private static final String CONSTRUCTOR_NAME = "<constructor>";
     private static final String ANY_ARGUMENTS = "..";
+    private static final int EXPRESSION = 0;
+    private static final int WITHIN = 1;
+    private static final int ANCESTOR = 2;
     private static final Pattern TYPE_PATTERN =
             Pattern.compile("[\\p{javaJavaIdentifierPart}*]+(?:\\.\\.?[\\p{javaJavaIdentifierPart}*]+)*");
     private static final Pattern NAME_PATTERN = Pattern.compile("[\\p{javaJavaIdentifierPart}*]+");
@@ -40,13 +47,18 @@ final class MethodPattern {
 
     private final String pattern;
     private final String declaringType;
-    private final String expression;
+    /**
+     * The AspectJ expressions this pattern is matched with: {@link #EXPRESSION} is the whole pattern, {@link #WITHIN}
+     * restricts it to members of a class that itself matches the declaring class pattern, and {@link #ANCESTOR} matches
+     * only the declaring class and method name of such members.
+     */
+    private final String[] expressions = new String[3];
     private final ClassLoader defaultLoader = MethodPattern.class.getClassLoader();
     /**
-     * Parsed for {@link #defaultLoader}. AspectJ does not document matching as thread safe, so matches against this
-     * expression are synchronized on it.
+     * {@link #expressions} parsed for {@link #defaultLoader}. AspectJ does not document matching as thread safe, so
+     * matches against each are synchronized on it.
      */
-    private final PointcutExpression defaultExpression;
+    private final PointcutExpression[] defaultExpressions = new PointcutExpression[3];
 
     /**
      * Parse a pattern.
@@ -57,8 +69,15 @@ final class MethodPattern {
     MethodPattern(final String pattern) {
         this.pattern = pattern;
         declaringType = pattern.trim().substring(0, Math.max(0, pattern.trim().indexOf(' ')));
-        expression = toAspectJ(pattern);
-        defaultExpression = parse(expression, defaultLoader);
+        expressions[EXPRESSION] = toAspectJ(pattern);
+        expressions[WITHIN] = "(" + expressions[EXPRESSION] + ") && within(" + declaringType + ")";
+        final String trimmed = pattern.trim();
+        final String name = trimmed.substring(trimmed.indexOf(' ') + 1, trimmed.indexOf('(')).trim();
+        expressions[ANCESTOR] = name.equals(CONSTRUCTOR_NAME) ? expressions[WITHIN]
+                : "execution(* " + declaringType + "." + name + "(..)) && within(" + declaringType + ")";
+        for (int ei = 0; ei < expressions.length; ++ei) {
+            defaultExpressions[ei] = parse(expressions[ei], defaultLoader);
+        }
     }
 
     /**
@@ -68,7 +87,7 @@ final class MethodPattern {
      * @return true if the constructor matches
      */
     boolean matches(final Constructor<?> constructor) {
-        return matches(constructor, expression,
+        return matches(constructor, EXPRESSION,
                 (pe, member) -> pe.matchesConstructorExecution((Constructor<?>) member));
     }
 
@@ -84,49 +103,77 @@ final class MethodPattern {
      * @return true if the method matches
      */
     boolean matches(final Method method) {
-        if (!matches(method, expression, (pe, member) -> pe.matchesMethodExecution((Method) member))) {
+        if (!matches(method, EXPRESSION, METHOD_MATCHER)) {
             return false;
         }
-        final int modifiers = method.getModifiers();
-        if (Modifier.isPublic(modifiers) || Modifier.isProtected(modifiers)
-                || !hasSuperclassInAnotherRuntimePackage(method.getDeclaringClass())) {
+        if (matches(method, WITHIN, METHOD_MATCHER)) {
             return true;
         }
-        // AspectJ compares package names, but a package-private method only overrides within its runtime package,
-        // which is also scoped by class loader; require the declaring class itself to match
-        return matches(method, "(" + expression + ") && within(" + declaringType + ")",
-                (pe, member) -> pe.matchesMethodExecution((Method) member));
-    }
-
-    private static boolean hasSuperclassInAnotherRuntimePackage(final Class<?> type) {
-        for (Class<?> superclass = type.getSuperclass(); superclass != null; superclass =
-                superclass.getSuperclass()) {
-            if (superclass.getPackageName().equals(type.getPackageName())
-                    && superclass.getClassLoader() != type.getClassLoader()) {
-                return true;
+        // AspectJ matched through a supertype, but it treats a package-private method as inherited even outside its
+        // runtime package, which is scoped by class loader as well as name; require a matching supertype to declare a
+        // method with this name that this one can override; AspectJ has already matched the argument list
+        final Class<?> declaringClass = method.getDeclaringClass();
+        final Deque<Class<?>> pending = new ArrayDeque<>(directSupertypes(declaringClass));
+        final Set<Class<?>> visited = new HashSet<>();
+        while (!pending.isEmpty()) {
+            final Class<?> supertype = pending.pop();
+            if (!visited.add(supertype)) {
+                continue;
             }
+            for (final Method candidate : supertype.getDeclaredMethods()) {
+                if (candidate.getName().equals(method.getName())
+                        && candidate.getParameterCount() == method.getParameterCount()
+                        && canBeOverriddenFrom(candidate, declaringClass)
+                        && matches(candidate, ANCESTOR, METHOD_MATCHER)) {
+                    return true;
+                }
+            }
+            pending.addAll(directSupertypes(supertype));
         }
         return false;
+    }
+
+    private static List<Class<?>> directSupertypes(final Class<?> type) {
+        final List<Class<?>> result = new ArrayList<>(Arrays.asList(type.getInterfaces()));
+        if (type.getSuperclass() != null) {
+            result.add(type.getSuperclass());
+        } else if (type.isInterface()) {
+            // an interface implicitly declares the public methods of Object
+            result.add(Object.class);
+        }
+        return result;
+    }
+
+    private static boolean canBeOverriddenFrom(final Method candidate, final Class<?> overridingClass) {
+        final int modifiers = candidate.getModifiers();
+        if (Modifier.isStatic(modifiers) || Modifier.isPrivate(modifiers) || candidate.isBridge()) {
+            return false;
+        }
+        if (Modifier.isPublic(modifiers) || Modifier.isProtected(modifiers)) {
+            return true;
+        }
+        final Class<?> candidateClass = candidate.getDeclaringClass();
+        return candidateClass.getClassLoader() == overridingClass.getClassLoader()
+                && candidateClass.getPackageName().equals(overridingClass.getPackageName());
     }
 
     private interface Matcher {
         ShadowMatch match(PointcutExpression expression, Executable member);
     }
 
-    private boolean matches(final Executable member, final String aspectJExpression, final Matcher matcher) {
+    private static final Matcher METHOD_MATCHER = (pe, member) -> pe.matchesMethodExecution((Method) member);
+
+    private boolean matches(final Executable member, final int expressionIndex, final Matcher matcher) {
         try {
-            if (!aspectJExpression.equals(expression)) {
-                final ClassLoader loader = member.getDeclaringClass().getClassLoader();
-                return matcher.match(parse(aspectJExpression, loader == null ? defaultLoader : loader), member)
-                        .alwaysMatches();
-            }
             if (isVisibleByName(member.getDeclaringClass())) {
-                synchronized (defaultExpression) {
-                    return matcher.match(defaultExpression, member).alwaysMatches();
+                final PointcutExpression parsed = defaultExpressions[expressionIndex];
+                synchronized (parsed) {
+                    return matcher.match(parsed, member).alwaysMatches();
                 }
             }
             final ClassLoader loader = member.getDeclaringClass().getClassLoader();
-            return matcher.match(parse(expression, loader == null ? defaultLoader : loader), member).alwaysMatches();
+            return matcher.match(parse(expressions[expressionIndex], loader == null ? defaultLoader : loader),
+                    member).alwaysMatches();
         } catch (RuntimeException e) {
             // AspectJ reports a type it cannot resolve as an exception; a member we cannot reason about is not
             // permitted
