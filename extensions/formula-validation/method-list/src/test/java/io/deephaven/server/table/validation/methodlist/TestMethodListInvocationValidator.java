@@ -4,6 +4,7 @@
 package io.deephaven.server.table.validation.methodlist;
 
 import io.deephaven.UncheckedDeephavenException;
+import io.deephaven.server.table.validation.methodlist.other.OtherPackageSub;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -186,12 +187,25 @@ public class TestMethodListInvocationValidator {
     public void testPackagePrivateOverrides() throws Exception {
         final String pattern = PackagePrivateBase.class.getName() + " packagePrivate()";
         assertPermitted(pattern, PackagePrivateSub.class.getDeclaredMethod("packagePrivate"));
+        assertPermitted(pattern, PackagePrivatePublicSub.class.getDeclaredMethod("packagePrivate"));
+
+        // a method of the same name in another package does not override a package-private method
+        assertNotPermitted(pattern, OtherPackageSub.class.getDeclaredMethod("packagePrivate"));
 
         // the same package name in another class loader is a different runtime package, so there is no override
-        final Class<?> childSub = new ClassLoader(getClass().getClassLoader()) {
+        for (final Class<?> sub : List.of(PackagePrivateSub.class, PackagePrivatePublicSub.class)) {
+            final Class<?> childSub = loadInChildLoader(sub);
+            Assert.assertNotEquals(sub, childSub);
+            Assert.assertEquals(PackagePrivateBase.class, childSub.getSuperclass());
+            assertNotPermitted(pattern, childSub.getDeclaredMethod("packagePrivate"));
+        }
+    }
+
+    private Class<?> loadInChildLoader(final Class<?> type) throws ClassNotFoundException {
+        return new ClassLoader(getClass().getClassLoader()) {
             @Override
             protected Class<?> loadClass(final String name, final boolean resolve) throws ClassNotFoundException {
-                if (!name.equals(PackagePrivateSub.class.getName())) {
+                if (!name.equals(type.getName())) {
                     return super.loadClass(name, resolve);
                 }
                 final String resource = name.replace('.', '/') + ".class";
@@ -202,10 +216,7 @@ public class TestMethodListInvocationValidator {
                     throw new ClassNotFoundException(name, e);
                 }
             }
-        }.loadClass(PackagePrivateSub.class.getName());
-        Assert.assertNotEquals(PackagePrivateSub.class, childSub);
-        Assert.assertEquals(PackagePrivateBase.class, childSub.getSuperclass());
-        assertNotPermitted(pattern, childSub.getDeclaredMethod("packagePrivate"));
+        }.loadClass(type.getName());
     }
 
     @Test
