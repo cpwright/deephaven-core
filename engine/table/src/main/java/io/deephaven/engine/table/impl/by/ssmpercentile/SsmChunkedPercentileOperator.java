@@ -44,7 +44,18 @@ public class SsmChunkedPercentileOperator implements IterativeChunkedAggregation
     private final ChunkType chunkType;
     private final PercentileTypeHelper percentileTypeHelper;
 
-    public SsmChunkedPercentileOperator(Class<?> type, double percentile, boolean averageEvenlyDivided, String name) {
+    /**
+     * @param type the data type of the values
+     * @param equalsConsistent true when values of the type compare equal exactly when they are equal (see
+     *        {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}), which selects the
+     *        EqualsConsistentObject set and compact kernel that test Object equality with {@code equals}; other chunk
+     *        types ignore it
+     * @param percentile the percentile to compute
+     * @param averageEvenlyDivided see {@link io.deephaven.api.agg.spec.AggSpecPercentile#averageEvenlyDivided()}
+     * @param name the name of the result column
+     */
+    public SsmChunkedPercentileOperator(Class<?> type, boolean equalsConsistent, double percentile,
+            boolean averageEvenlyDivided, String name) {
         this.name = name;
         this.ssms = new ObjectArraySource<>(SegmentedSortedMultiSet.class);
         final boolean isInstant = type == Instant.class;
@@ -79,9 +90,8 @@ public class SsmChunkedPercentileOperator implements IterativeChunkedAggregation
             }
             externalResult = internalResult;
         }
-        compactAndCountKernel = CompactKernel.makeCompact(chunkType,
-                BinarySearchKernelHelper.compareConsistentWithEquality(type));
-        ssmFactory = SegmentedSortedMultiSet.makeFactory(chunkType, NODE_SIZE, type);
+        compactAndCountKernel = CompactKernel.makeCompact(chunkType, equalsConsistent);
+        ssmFactory = SegmentedSortedMultiSet.makeFactory(chunkType, NODE_SIZE, type, equalsConsistent);
         removeContextFactory = SegmentedSortedMultiSet.makeRemoveContextFactory(NODE_SIZE);
         percentileTypeHelper = makeTypeHelper(chunkType, type, percentile, averageEvenlyDivided, internalResult);
     }

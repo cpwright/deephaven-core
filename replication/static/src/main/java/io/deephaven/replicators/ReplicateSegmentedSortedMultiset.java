@@ -281,18 +281,16 @@ public class ReplicateSegmentedSortedMultiset {
         final File objectFile = new File(objectPath);
         List<String> lines = FileUtils.readLines(objectFile, Charset.defaultCharset());
         lines = replaceRegion(lines, "Constructor",
-                indent(Collections.singletonList("Class<?> type,"), 12));
+                indent(Arrays.asList("Class<?> type,", "boolean equalsConsistent,"), 12));
         lines = replaceRegion(lines, "SsmCreation",
                 indent(Arrays.asList(
-                        "this.equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);",
-                        "this." + ssmVarName + " = new ObjectSsmBackedSource(type);"), 8));
+                        "this.equalsConsistent = equalsConsistent;",
+                        "this." + ssmVarName + " = new ObjectSsmBackedSource(type, equalsConsistent);"), 8));
         lines = globalReplacements(lines, "^    private final String name;$",
                 "    private final String name;\n    private final boolean equalsConsistent;");
         lines = useAbstractObjectSsm(lines);
         lines = dispatchEqualsConsistent(lines, "ObjectCompactKernel", "compactAndCount");
         lines = dispatchEqualsConsistent(lines, "ObjectCompactModifications", "compactAndCountModifications");
-        lines = addImport(lines,
-                "import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;");
         lines = replaceRegion(lines, "ResultCreation",
                 indent(Collections.singletonList("this.internalResult = new ObjectArraySource(type);"), 8));
         lines = globalReplacements(lines, "\\(WritableObjectChunk<\\? extends Values>\\)",
@@ -546,13 +544,27 @@ public class ReplicateSegmentedSortedMultiset {
 
     private static List<String> fixupSourceConstructor(List<String> lines) {
         return replaceRegion(lines, "Constructor",
-                Collections.singletonList("    private final boolean equalsConsistent;\n" +
-                        "\n" +
-                        "    public ObjectSsmBackedSource(Class type) {\n" +
-                        "        super(ObjectVector.class, type);\n" +
-                        "        underlying = new ObjectArraySource<>(AbstractObjectSegmentedSortedMultiset.class, type);\n"
-                        +
-                        "        equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);\n" +
+                Arrays.asList(
+                        "    private final boolean equalsConsistent;",
+                        "",
+                        "    /**",
+                        "     * Create an ObjectSsmBackedSource whose sets hold values of the given type. The data type of",
+                        "     * {@link #getUnderlyingSource()} is the class of the sets it holds.",
+                        "     *",
+                        "     * @param type the component type of the values",
+                        "     * @param equalsConsistent true when values of the type compare equal exactly when they are equal (see",
+                        "     *        {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}), which selects the",
+                        "     *        EqualsConsistentObject sets that test equality with {@code equals}; when false, the sets test equality",
+                        "     *        with {@link ObjectComparisons#compareEquals(Object, Object)}",
+                        "     */",
+                        "    public ObjectSsmBackedSource(Class type, boolean equalsConsistent) {",
+                        "        super(ObjectVector.class, type);",
+                        "        final Class<? extends AbstractObjectSegmentedSortedMultiset> ssmClass = equalsConsistent",
+                        "                ? EqualsConsistentObjectSegmentedSortedMultiset.class",
+                        "                : ObjectSegmentedSortedMultiset.class;",
+                        "        // noinspection unchecked",
+                        "        underlying = new ObjectArraySource<>((Class<AbstractObjectSegmentedSortedMultiset>) ssmClass, type);",
+                        "        this.equalsConsistent = equalsConsistent;",
                         "    }"));
     }
 

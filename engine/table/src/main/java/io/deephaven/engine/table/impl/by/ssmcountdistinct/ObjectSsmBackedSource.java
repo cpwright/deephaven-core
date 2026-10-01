@@ -36,10 +36,24 @@ public class ObjectSsmBackedSource extends AbstractColumnSource<ObjectVector>
     // region Constructor
     private final boolean equalsConsistent;
 
-    public ObjectSsmBackedSource(Class type) {
+    /**
+     * Create an ObjectSsmBackedSource whose sets hold values of the given type. The data type of
+     * {@link #getUnderlyingSource()} is the class of the sets it holds.
+     *
+     * @param type the component type of the values
+     * @param equalsConsistent true when values of the type compare equal exactly when they are equal (see
+     *        {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}), which selects the
+     *        EqualsConsistentObject sets that test equality with {@code equals}; when false, the sets test equality
+     *        with {@link ObjectComparisons#compareEquals(Object, Object)}
+     */
+    public ObjectSsmBackedSource(Class type, boolean equalsConsistent) {
         super(ObjectVector.class, type);
-        underlying = new ObjectArraySource<>(AbstractObjectSegmentedSortedMultiset.class, type);
-        equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);
+        final Class<? extends AbstractObjectSegmentedSortedMultiset> ssmClass = equalsConsistent
+                ? EqualsConsistentObjectSegmentedSortedMultiset.class
+                : ObjectSegmentedSortedMultiset.class;
+        // noinspection unchecked
+        underlying = new ObjectArraySource<>((Class<AbstractObjectSegmentedSortedMultiset>) ssmClass, type);
+        this.equalsConsistent = equalsConsistent;
     }
     // endregion Constructor
 

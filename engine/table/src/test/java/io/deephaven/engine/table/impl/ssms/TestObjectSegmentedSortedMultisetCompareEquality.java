@@ -19,6 +19,7 @@ import org.junit.Test;
 import java.math.BigDecimal;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -251,21 +252,26 @@ public class TestObjectSegmentedSortedMultisetCompareEquality {
     }
 
     @Test
-    public void testSsmFactoriesChooseByDataType() {
+    public void testSsmFactoriesChooseByDecision() {
         for (final Class<?> dataType : new Class<?>[] {String.class, Boolean.class, java.time.Instant.class}) {
-            final SegmentedSortedMultiSet<?> ssm = SegmentedSortedMultiSet.make(ChunkType.Object, NODE_SIZE, dataType);
-            assertTrue(dataType.getName(), ssm instanceof EqualsConsistentObjectSegmentedSortedMultiset);
-            final ObjectSsmBackedSource source = new ObjectSsmBackedSource(dataType);
-            source.ensureCapacity(1);
-            assertTrue(dataType.getName(),
-                    source.getOrCreate(0) instanceof EqualsConsistentObjectSegmentedSortedMultiset);
+            assertTrue(dataType.getName(), BinarySearchKernelHelper.compareConsistentWithEquality(dataType));
         }
         for (final Class<?> dataType : new Class<?>[] {BigDecimal.class, CharSequence.class, Object.class}) {
-            final SegmentedSortedMultiSet<?> ssm = SegmentedSortedMultiSet.make(ChunkType.Object, NODE_SIZE, dataType);
-            assertTrue(dataType.getName(), ssm instanceof ObjectSegmentedSortedMultiset);
-            final ObjectSsmBackedSource source = new ObjectSsmBackedSource(dataType);
-            source.ensureCapacity(1);
-            assertTrue(dataType.getName(), source.getOrCreate(0) instanceof ObjectSegmentedSortedMultiset);
+            assertFalse(dataType.getName(), BinarySearchKernelHelper.compareConsistentWithEquality(dataType));
+        }
+        for (final Class<?> dataType : new Class<?>[] {String.class, BigDecimal.class, Object.class}) {
+            for (final boolean equalsConsistent : new boolean[] {true, false}) {
+                final Class<?> expected = equalsConsistent ? EqualsConsistentObjectSegmentedSortedMultiset.class
+                        : ObjectSegmentedSortedMultiset.class;
+                final String description = dataType.getName() + ", equalsConsistent=" + equalsConsistent;
+                final SegmentedSortedMultiSet<?> ssm =
+                        SegmentedSortedMultiSet.make(ChunkType.Object, NODE_SIZE, dataType, equalsConsistent);
+                assertEquals(description, expected, ssm.getClass());
+                final ObjectSsmBackedSource source = new ObjectSsmBackedSource(dataType, equalsConsistent);
+                source.ensureCapacity(1);
+                assertEquals(description, expected, source.getOrCreate(0).getClass());
+                assertEquals(description, expected, source.getUnderlyingSource().getType());
+            }
         }
     }
 

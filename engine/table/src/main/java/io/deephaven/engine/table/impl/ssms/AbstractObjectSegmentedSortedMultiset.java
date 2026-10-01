@@ -18,9 +18,9 @@ import io.deephaven.vector.ObjectVector;
  * {@link BinarySearchKernelHelper#compareConsistentWithEquality(Class)}).
  *
  * <p>
- * Aggregation operators hold their sets as this type. The choice between the two is made once, from the data type, when
- * the factory or source that creates the sets is constructed, and the per-bucket paths call these methods without
- * casts.
+ * Aggregation operators hold their sets as this type. An aggregation reads the registry once when it creates an
+ * operator and passes the decision to the factory or source that creates the operator's sets and to its compact
+ * kernels, and the per-bucket paths call these methods without casts.
  */
 public abstract class AbstractObjectSegmentedSortedMultiset
         implements SegmentedSortedMultiSet<Object>, ObjectVector<Object> {

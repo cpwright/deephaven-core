@@ -7,8 +7,6 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.distinct;
 
-import io.deephaven.engine.table.impl.sources.regioned.kernel.BinarySearchKernelHelper;
-
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
 
 import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
@@ -59,14 +57,15 @@ public class ObjectChunkedDistinctOperator implements IterativeChunkedAggregatio
     public ObjectChunkedDistinctOperator(
             // region Constructor
             Class<?> type,
+            boolean equalsConsistent,
             // endregion Constructor
             String name, boolean countNullNaN, boolean exposeInternal) {
         this.name = name;
         this.countNullNaN = countNullNaN;
         this.exposeInternal = exposeInternal;
         // region SsmCreation
-        this.equalsConsistent = BinarySearchKernelHelper.compareConsistentWithEquality(type);
-        this.internalResult = new ObjectSsmBackedSource(type);
+        this.equalsConsistent = equalsConsistent;
+        this.internalResult = new ObjectSsmBackedSource(type, equalsConsistent);
         // endregion SsmCreation
         // region ResultAssignment
         this.externalResult = internalResult;
