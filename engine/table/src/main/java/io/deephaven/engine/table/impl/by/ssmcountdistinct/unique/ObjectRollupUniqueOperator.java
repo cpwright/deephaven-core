@@ -7,9 +7,8 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.unique;
 
-import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
-
 import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
+import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
 
 import io.deephaven.engine.table.impl.by.RollupConstants;
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.*;
@@ -27,6 +26,7 @@ import io.deephaven.engine.table.impl.ssms.AbstractObjectSegmentedSortedMultiset
 import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.util.compact.ObjectCompactKernel;
 import io.deephaven.util.compare.ObjectComparisons;
+import io.deephaven.util.mutable.MutableInt;
 import io.deephaven.util.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
 
@@ -232,15 +232,9 @@ public class ObjectRollupUniqueOperator implements IterativeChunkedAggregationOp
                 }
             }
             // net the two so values unchanged across the modify cancel out, then apply the surviving removals/additions
-            if (equalsConsistent) {
-                EqualsConsistentObjectCompactModifications.compactAndCountModifications(removeValues, context.counts, addValues,
-                        context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize,
-                        context.addedSize);
-            } else {
-                ObjectCompactModifications.compactAndCountModifications(removeValues, context.counts, addValues,
-                        context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize,
-                        context.addedSize);
-            }
+            doCompactAndCountModifications(removeValues, context.counts, addValues,
+                    context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize,
+                    context.addedSize);
             applyRemoves(destination, removeValues, context.removedSize.get(), context.counts, context.removeContext,
                     count, ssmHolder);
             applyAdds(destination, addValues, context.addedSize.get(), context.postCounts, count, ssmHolder);
@@ -361,13 +355,8 @@ public class ObjectRollupUniqueOperator implements IterativeChunkedAggregationOp
             }
         }
         // net the two so values unchanged across the modify cancel out, then apply the surviving removals/additions
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactModifications.compactAndCountModifications(removeValues, context.counts, addValues,
-                    context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize, context.addedSize);
-        } else {
-            ObjectCompactModifications.compactAndCountModifications(removeValues, context.counts, addValues,
-                    context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize, context.addedSize);
-        }
+        doCompactAndCountModifications(removeValues, context.counts, addValues,
+                context.postCounts, 0, removeCount, 0, addCount, true, true, context.removedSize, context.addedSize);
         applyRemoves(destination, removeValues, context.removedSize.get(), context.counts, context.removeContext, count,
                 ssmHolder);
         applyAdds(destination, addValues, context.addedSize.get(), context.postCounts, count, ssmHolder);
@@ -409,11 +398,7 @@ public class ObjectRollupUniqueOperator implements IterativeChunkedAggregationOp
             return;
         }
         values.setSize(addCount);
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactKernel.compactAndCount(values, counts, true, true);
-        } else {
-            ObjectCompactKernel.compactAndCount(values, counts, true, true);
-        }
+        doCompactAndCount(values, counts, true, true);
         applyAdds(destination, values, values.size(), counts, count, ssmHolder);
     }
 
@@ -473,11 +458,7 @@ public class ObjectRollupUniqueOperator implements IterativeChunkedAggregationOp
             return;
         }
         values.setSize(removeCount);
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactKernel.compactAndCount(values, counts, true, true);
-        } else {
-            ObjectCompactKernel.compactAndCount(values, counts, true, true);
-        }
+        doCompactAndCount(values, counts, true, true);
         applyRemoves(destination, values, values.size(), counts, removeContext, count, ssmHolder);
     }
 
@@ -646,4 +627,36 @@ public class ObjectRollupUniqueOperator implements IterativeChunkedAggregationOp
         // endregion equality function
     }
     // endregion
+
+    /**
+     * Sorts {@code valueChunk}, compacts each run of equal values to one value, and sets each value's count in
+     * {@code counts}; both chunks are resized to the number of distinct values.
+     */
+    private void doCompactAndCount(WritableObjectChunk<Object, ? extends Values> valueChunk,
+            WritableIntChunk<ChunkLengths> counts, boolean countNull, boolean countNaN) {
+        // region CompactAndCount
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);
+        } else {
+            ObjectCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);
+        }
+        // endregion CompactAndCount
+    }
+
+    /**
+     * Reduces the removed and added ranges to their net removals and net additions, each compacted to distinct values
+     * with counts, and sets the surviving lengths in {@code removedSize} and {@code addedSize}.
+     */
+    private void doCompactAndCountModifications(WritableObjectChunk<Object, ? extends Values> removedValues,
+            WritableIntChunk<ChunkLengths> removedCounts, WritableObjectChunk<Object, ? extends Values> addedValues,
+            WritableIntChunk<ChunkLengths> addedCounts, int removedStart, int removedLength, int addedStart,
+            int addedLength, boolean countNull, boolean countNaN, MutableInt removedSize, MutableInt addedSize) {
+        // region CompactAndCountModifications
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, addedCounts, removedStart, removedLength, addedStart, addedLength, countNull, countNaN, removedSize, addedSize);
+        } else {
+            ObjectCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, addedCounts, removedStart, removedLength, addedStart, addedLength, countNull, countNaN, removedSize, addedSize);
+        }
+        // endregion CompactAndCountModifications
+    }
 }

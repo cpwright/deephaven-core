@@ -26,6 +26,7 @@ import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.DoubleCompactModifications;
 import io.deephaven.engine.table.impl.util.compact.DoubleCompactKernel;
 import io.deephaven.util.compare.DoubleComparisons;
+import io.deephaven.util.mutable.MutableInt;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
@@ -97,7 +98,7 @@ public class DoubleChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.lengthCopy.setSize(length.size());
         context.lengthCopy.copyFromChunk(length, 0, 0, length.size());
 
-        DoubleCompactKernel.compactAndCount((WritableDoubleChunk<? extends Values>) context.valueCopy, context.counts,
+        doCompactAndCount((WritableDoubleChunk<? extends Values>) context.valueCopy, context.counts,
                 startPositions, context.lengthCopy, countNullNaN, countNullNaN);
         return context;
     }
@@ -171,7 +172,7 @@ public class DoubleChunkedUniqueOperator implements IterativeChunkedAggregationO
 
             // reduce the bucket's modify to its net effect: net removals in preValueCopy, net additions in
             // postValueCopy, with the unchanged overlap cancelled
-            DoubleCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
+            doCompactAndCountModifications(preValueCopy, context.counts,
                     postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
                     countNullNaN, countNullNaN, context.removedSize, context.addedSize);
 
@@ -189,7 +190,7 @@ public class DoubleChunkedUniqueOperator implements IterativeChunkedAggregationO
 
         context.valueCopy.setSize(values.size());
         context.valueCopy.copyFromChunk(values, 0, 0, values.size());
-        DoubleCompactKernel.compactAndCount((WritableDoubleChunk<? extends Values>) context.valueCopy, context.counts,
+        doCompactAndCount((WritableDoubleChunk<? extends Values>) context.valueCopy, context.counts,
                 countNullNaN, countNullNaN);
         return context;
     }
@@ -205,7 +206,7 @@ public class DoubleChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.valueCopy.copyFromChunk(preValues, 0, 0, length);
         context.postValues.setSize(length);
         context.postValues.copyFromChunk(postValues, 0, 0, length);
-        DoubleCompactModifications.compactAndCountModifications(
+        doCompactAndCountModifications(
                 (WritableDoubleChunk<? extends Values>) context.valueCopy, context.counts,
                 (WritableDoubleChunk<? extends Values>) context.postValues, context.postCounts,
                 0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
@@ -452,4 +453,41 @@ public class DoubleChunkedUniqueOperator implements IterativeChunkedAggregationO
         // endregion equality function
     }
     // endregion
+
+    /**
+     * Sorts {@code valueChunk}, compacts each run of equal values to one value, and sets each value's count in
+     * {@code counts}; both chunks are resized to the number of distinct values.
+     */
+    private void doCompactAndCount(WritableDoubleChunk<? extends Values> valueChunk,
+            WritableIntChunk<ChunkLengths> counts, boolean countNull, boolean countNaN) {
+        // region CompactAndCount
+        DoubleCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);
+        // endregion CompactAndCount
+    }
+
+    /**
+     * Sorts and compacts each run of {@code valueChunk} given by {@code startPositions} and {@code lengths}, setting
+     * each distinct value's count in {@code counts} and each run's distinct value count in {@code lengths}.
+     */
+    private void doCompactAndCount(WritableDoubleChunk<? extends Values> valueChunk,
+            WritableIntChunk<ChunkLengths> counts, IntChunk<ChunkPositions> startPositions,
+            WritableIntChunk<ChunkLengths> lengths, boolean countNull, boolean countNaN) {
+        // region CompactAndCountRuns
+        DoubleCompactKernel.compactAndCount(valueChunk, counts, startPositions, lengths, countNull, countNaN);
+        // endregion CompactAndCountRuns
+    }
+
+    /**
+     * Reduces the removed and added ranges to their net removals and net additions, each compacted to distinct values
+     * with counts, and sets the surviving lengths in {@code removedSize} and {@code addedSize}.
+     */
+    private void doCompactAndCountModifications(WritableDoubleChunk<? extends Values> removedValues,
+            WritableIntChunk<ChunkLengths> removedCounts, WritableDoubleChunk<? extends Values> addedValues,
+            WritableIntChunk<ChunkLengths> addedCounts, int removedStart, int removedLength, int addedStart,
+            int addedLength, boolean countNull, boolean countNaN, MutableInt removedSize, MutableInt addedSize) {
+        // region CompactAndCountModifications
+        DoubleCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, addedCounts,
+                removedStart, removedLength, addedStart, addedLength, countNull, countNaN, removedSize, addedSize);
+        // endregion CompactAndCountModifications
+    }
 }

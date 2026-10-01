@@ -7,9 +7,8 @@
 // @formatter:off
 package io.deephaven.engine.table.impl.by.ssmcountdistinct.unique;
 
-import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
-
 import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;
+import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;
 
 import io.deephaven.base.verify.Assert;
 import io.deephaven.engine.table.impl.by.RollupConstants;
@@ -30,6 +29,7 @@ import io.deephaven.engine.table.impl.ssms.SegmentedSortedMultiSet;
 import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.ObjectCompactModifications;
 import io.deephaven.engine.table.impl.util.compact.ObjectCompactKernel;
 import io.deephaven.util.compare.ObjectComparisons;
+import io.deephaven.util.mutable.MutableInt;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
@@ -105,13 +105,8 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.lengthCopy.setSize(length.size());
         context.lengthCopy.copyFromChunk(length, 0, 0, length.size());
 
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    startPositions, context.lengthCopy, countNullNaN, countNullNaN);
-        } else {
-            ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    startPositions, context.lengthCopy, countNullNaN, countNullNaN);
-        }
+        doCompactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                startPositions, context.lengthCopy, countNullNaN, countNullNaN);
         return context;
     }
 
@@ -184,15 +179,9 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
 
             // reduce the bucket's modify to its net effect: net removals in preValueCopy, net additions in
             // postValueCopy, with the unchanged overlap cancelled
-            if (equalsConsistent) {
-                EqualsConsistentObjectCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
-                        postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
-                        countNullNaN, countNullNaN, context.removedSize, context.addedSize);
-            } else {
-                ObjectCompactModifications.compactAndCountModifications(preValueCopy, context.counts,
-                        postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
-                        countNullNaN, countNullNaN, context.removedSize, context.addedSize);
-            }
+            doCompactAndCountModifications(preValueCopy, context.counts,
+                    postValueCopy, context.postCounts, startPosition, runLength, startPosition, runLength,
+                    countNullNaN, countNullNaN, context.removedSize, context.addedSize);
 
             stateModified.set(ii, modifyState(destination, removeContext, preValueCopy, context.counts, startPosition,
                     context.removedSize.get(), postValueCopy, context.postCounts, startPosition,
@@ -208,13 +197,8 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
 
         context.valueCopy.setSize(values.size());
         context.valueCopy.copyFromChunk(values, 0, 0, values.size());
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    countNullNaN, countNullNaN);
-        } else {
-            ObjectCompactKernel.compactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    countNullNaN, countNullNaN);
-        }
+        doCompactAndCount((WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                countNullNaN, countNullNaN);
         return context;
     }
 
@@ -229,17 +213,10 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         context.valueCopy.copyFromChunk(preValues, 0, 0, length);
         context.postValues.setSize(length);
         context.postValues.copyFromChunk(postValues, 0, 0, length);
-        if (equalsConsistent) {
-            EqualsConsistentObjectCompactModifications.compactAndCountModifications(
-                    (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
-                    0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
-        } else {
-            ObjectCompactModifications.compactAndCountModifications(
-                    (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
-                    (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
-                    0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
-        }
+        doCompactAndCountModifications(
+                (WritableObjectChunk<Object, ? extends Values>) context.valueCopy, context.counts,
+                (WritableObjectChunk<Object, ? extends Values>) context.postValues, context.postCounts,
+                0, length, 0, length, countNullNaN, countNullNaN, context.removedSize, context.addedSize);
         return context;
     }
 
@@ -483,4 +460,52 @@ public class ObjectChunkedUniqueOperator implements IterativeChunkedAggregationO
         // endregion equality function
     }
     // endregion
+
+    /**
+     * Sorts {@code valueChunk}, compacts each run of equal values to one value, and sets each value's count in
+     * {@code counts}; both chunks are resized to the number of distinct values.
+     */
+    private void doCompactAndCount(WritableObjectChunk<Object, ? extends Values> valueChunk,
+            WritableIntChunk<ChunkLengths> counts, boolean countNull, boolean countNaN) {
+        // region CompactAndCount
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);
+        } else {
+            ObjectCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);
+        }
+        // endregion CompactAndCount
+    }
+
+    /**
+     * Sorts and compacts each run of {@code valueChunk} given by {@code startPositions} and {@code lengths}, setting
+     * each distinct value's count in {@code counts} and each run's distinct value count in {@code lengths}.
+     */
+    private void doCompactAndCount(WritableObjectChunk<Object, ? extends Values> valueChunk,
+            WritableIntChunk<ChunkLengths> counts, IntChunk<ChunkPositions> startPositions,
+            WritableIntChunk<ChunkLengths> lengths, boolean countNull, boolean countNaN) {
+        // region CompactAndCountRuns
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactKernel.compactAndCount(valueChunk, counts, startPositions, lengths, countNull, countNaN);
+        } else {
+            ObjectCompactKernel.compactAndCount(valueChunk, counts, startPositions, lengths, countNull, countNaN);
+        }
+        // endregion CompactAndCountRuns
+    }
+
+    /**
+     * Reduces the removed and added ranges to their net removals and net additions, each compacted to distinct values
+     * with counts, and sets the surviving lengths in {@code removedSize} and {@code addedSize}.
+     */
+    private void doCompactAndCountModifications(WritableObjectChunk<Object, ? extends Values> removedValues,
+            WritableIntChunk<ChunkLengths> removedCounts, WritableObjectChunk<Object, ? extends Values> addedValues,
+            WritableIntChunk<ChunkLengths> addedCounts, int removedStart, int removedLength, int addedStart,
+            int addedLength, boolean countNull, boolean countNaN, MutableInt removedSize, MutableInt addedSize) {
+        // region CompactAndCountModifications
+        if (equalsConsistent) {
+            EqualsConsistentObjectCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, addedCounts, removedStart, removedLength, addedStart, addedLength, countNull, countNaN, removedSize, addedSize);
+        } else {
+            ObjectCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, addedCounts, removedStart, removedLength, addedStart, addedLength, countNull, countNaN, removedSize, addedSize);
+        }
+        // endregion CompactAndCountModifications
+    }
 }

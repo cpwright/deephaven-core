@@ -289,8 +289,7 @@ public class ReplicateSegmentedSortedMultiset {
         lines = globalReplacements(lines, "^    private final String name;$",
                 "    private final String name;\n    private final boolean equalsConsistent;");
         lines = useAbstractObjectSsm(lines);
-        lines = dispatchEqualsConsistent(lines, "ObjectCompactKernel", "compactAndCount");
-        lines = dispatchEqualsConsistent(lines, "ObjectCompactModifications", "compactAndCountModifications");
+        lines = dispatchCompaction(lines);
         lines = replaceRegion(lines, "ResultCreation",
                 indent(Collections.singletonList("this.internalResult = new ObjectArraySource(type);"), 8));
         lines = globalReplacements(lines, "\\(WritableObjectChunk<\\? extends Values>\\)",
@@ -365,73 +364,37 @@ public class ReplicateSegmentedSortedMultiset {
     }
 
     /**
-     * Rewrite each call of {@code className.methodName} into a dispatch on the {@code equalsConsistent} field between
-     * the EqualsConsistentObject class, which tests equality with {@code equals}, and the Object class, which tests
-     * equality with {@code compareEquals}. A call that is a whole statement becomes an if statement; a call within an
-     * expression becomes a conditional expression.
+     * Fill the compaction helper regions with a choice on the {@code equalsConsistent} field between the
+     * EqualsConsistentObject kernels, which test equality with {@code equals}, and the Object kernels, which test
+     * equality with {@code compareEquals}.
      */
-    private static List<String> dispatchEqualsConsistent(List<String> lines, String className, String methodName) {
-        final String text = String.join("\n", lines);
-        final String call = className + "." + methodName + "(";
-        final StringBuilder result = new StringBuilder();
-        int from = 0;
-        int at;
-        boolean dispatched = false;
-        while ((at = text.indexOf(call, from)) >= 0) {
-            if (at > 0 && Character.isJavaIdentifierPart(text.charAt(at - 1))) {
-                result.append(text, from, at + call.length());
-                from = at + call.length();
-                continue;
-            }
-            int end = at + call.length();
-            int depth = 1;
-            while (depth > 0) {
-                final char current = text.charAt(end++);
-                if (current == '(') {
-                    depth++;
-                } else if (current == ')') {
-                    depth--;
-                }
-            }
-            if (text.charAt(end) != ';') {
-                throw new IllegalStateException("Call of " + call + " is not followed by a semicolon");
-            }
-            final int lineStart = text.lastIndexOf('\n', at) + 1;
-            final String prefix = text.substring(lineStart, at);
-            final String indent = prefix.substring(0, prefix.length() - prefix.stripLeading().length());
-            final String invocation = text.substring(at + className.length(), end);
-            if (prefix.isBlank()) {
-                result.append(text, from, lineStart);
-                result.append(indent).append("if (equalsConsistent) {\n");
-                result.append(indent).append("    EqualsConsistent").append(className)
-                        .append(invocation.replace("\n", "\n    ")).append(";\n");
-                result.append(indent).append("} else {\n");
-                result.append(indent).append("    ").append(className)
-                        .append(invocation.replace("\n", "\n    ")).append(";\n");
-                result.append(indent).append("}");
-                from = end + 1;
-            } else {
-                result.append(text, from, at);
-                final String continuation = "\n" + indent + "        ";
-                result.append("equalsConsistent");
-                result.append(continuation).append("? EqualsConsistent").append(className)
-                        .append(invocation.replace("\n", "\n        "));
-                result.append(continuation).append(": ").append(className)
-                        .append(invocation.replace("\n", "\n        "));
-                from = end;
-            }
-            dispatched = true;
-        }
-        result.append(text.substring(from));
-        List<String> dispatchedLines = Arrays.asList(result.toString().split("\n", -1));
-        if (dispatched) {
-            final String packageName =
-                    className.endsWith("CompactKernel") ? "io.deephaven.engine.table.impl.util.compact"
-                            : "io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications";
-            dispatchedLines =
-                    addImport(dispatchedLines, "import " + packageName + ".EqualsConsistent" + className + ";");
-        }
-        return dispatchedLines;
+    private static List<String> dispatchCompaction(List<String> lines) {
+        lines = replaceRegion(lines, "CompactAndCount", indent(chooseKernel(
+                "ObjectCompactKernel.compactAndCount(valueChunk, counts, countNull, countNaN);"), 8));
+        lines = replaceRegion(lines, "CompactAndCountRuns", indent(chooseKernel(
+                "ObjectCompactKernel.compactAndCount(valueChunk, counts, startPositions, lengths, countNull, countNaN);"),
+                8));
+        lines = replaceRegion(lines, "CompactAndCountRange", indent(Arrays.asList(
+                "return equalsConsistent",
+                "        ? EqualsConsistentObjectCompactKernel.compactAndCount(valueChunk, counts, start, length, countNull, countNaN)",
+                "        : ObjectCompactKernel.compactAndCount(valueChunk, counts, start, length, countNull, countNaN);"),
+                8));
+        lines = replaceRegion(lines, "CompactAndCountModifications", indent(chooseKernel(
+                "ObjectCompactModifications.compactAndCountModifications(removedValues, removedCounts, addedValues, "
+                        + "addedCounts, removedStart, removedLength, addedStart, addedLength, countNull, countNaN, "
+                        + "removedSize, addedSize);"),
+                8));
+        return addImport(lines,
+                "import io.deephaven.engine.table.impl.util.compact.EqualsConsistentObjectCompactKernel;",
+                "import io.deephaven.engine.table.impl.by.ssmcountdistinct.compactmodifications.EqualsConsistentObjectCompactModifications;");
+    }
+
+    /**
+     * An if statement that makes {@code call} on the EqualsConsistentObject class when {@code equalsConsistent} is
+     * true, and on the Object class otherwise.
+     */
+    private static List<String> chooseKernel(String call) {
+        return Arrays.asList("if (equalsConsistent) {", "    EqualsConsistent" + call, "} else {", "    " + call, "}");
     }
 
     private static List<String> fixupKeyArrayAllocation(List<String> lines) {
