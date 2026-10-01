@@ -134,6 +134,9 @@ public class TestMethodListInvocationValidator {
         assertPermitted("java.util.Collection size()", ArrayList.class.getMethod("size"));
         assertNotPermitted("java.util.List size()", ConcurrentHashMap.class.getMethod("size"));
         assertNotPermitted("java.util.List trimToSize()", ArrayList.class.getMethod("trimToSize"));
+        // a covariant return type still overrides
+        assertPermitted("java.lang.Appendable append(java.lang.CharSequence)",
+                StringBuilder.class.getMethod("append", CharSequence.class));
     }
 
     @Test
@@ -167,7 +170,7 @@ public class TestMethodListInvocationValidator {
 
     @Test
     public void testClassFromAnotherClassLoader() throws NoSuchMethodException {
-        // a proxy class lives in the class loader that defines it, so it can not be found by name elsewhere
+        // a proxy class lives in the class loader that defines it, so it cannot be found by name elsewhere
         final ClassLoader child = new URLClassLoader(new URL[0], getClass().getClassLoader());
         final Class<?> proxyClass = Proxy.newProxyInstance(child, new Class<?>[] {CharSequence.class},
                 (proxy, method, args) -> null).getClass();
@@ -180,10 +183,36 @@ public class TestMethodListInvocationValidator {
     }
 
     @Test
+    public void testPackagePrivateOverrides() throws Exception {
+        final String pattern = PackagePrivateBase.class.getName() + " packagePrivate()";
+        assertPermitted(pattern, PackagePrivateSub.class.getDeclaredMethod("packagePrivate"));
+
+        // the same package name in another class loader is a different runtime package, so there is no override
+        final Class<?> childSub = new ClassLoader(getClass().getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(final String name, final boolean resolve) throws ClassNotFoundException {
+                if (!name.equals(PackagePrivateSub.class.getName())) {
+                    return super.loadClass(name, resolve);
+                }
+                final String resource = name.replace('.', '/') + ".class";
+                try (final java.io.InputStream in = getParent().getResourceAsStream(resource)) {
+                    final byte[] bytes = in.readAllBytes();
+                    return defineClass(name, bytes, 0, bytes.length);
+                } catch (java.io.IOException e) {
+                    throw new ClassNotFoundException(name, e);
+                }
+            }
+        }.loadClass(PackagePrivateSub.class.getName());
+        Assert.assertNotEquals(PackagePrivateSub.class, childSub);
+        Assert.assertEquals(PackagePrivateBase.class, childSub.getSuperclass());
+        assertNotPermitted(pattern, childSub.getDeclaredMethod("packagePrivate"));
+    }
+
+    @Test
     public void testInvalidPatterns() {
         for (final String invalid : List.of("", "java.lang.String", "java.lang.String length", "length()",
                 "java.lang.String length(", "java.lang.String len-gth()", "java.lang.String length(int,)",
-                "java.lang.String length(java.lang.Object..., int)")) {
+                "java.lang.String length(java.lang.Object..., int)", "* toString()")) {
             Assert.assertThrows(invalid, UncheckedDeephavenException.class,
                     () -> new MethodListInvocationValidator(List.of(invalid)));
         }

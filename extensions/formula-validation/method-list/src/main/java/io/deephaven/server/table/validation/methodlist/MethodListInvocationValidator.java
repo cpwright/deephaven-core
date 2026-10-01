@@ -21,11 +21,11 @@ import java.util.*;
  * <P>
  * <B> #declaring class# #method name#(#argument list#) </B>
  * <ul>
- * <li>The declaring class must be fully qualified. A nested class may be written as {@code java.util.Map.Entry} or
- * {@code java.util.Map$Entry}.</li>
+ * <li>The declaring class must be fully qualified, except that a class in the {@code java.lang} package may be
+ * unqualified. A nested class may be written as {@code java.util.Map.Entry} or {@code java.util.Map$Entry}.</li>
  * <li>A wildcard character, "*", may be used in the declaring class or method name. In the declaring class it matches
  * within a single package or class name; "..", as in {@code java..*}, matches any number of intermediate packages, and
- * {@code *..*} matches every class.</li>
+ * {@code *..*} matches every class. A declaring class of only "*" is rejected.</li>
  * <li>The argument list is expressed as a comma-separated list of the argument types. A type in the {@code java.lang}
  * package may be unqualified, "*" matches any single argument, and the last argument may be written as either
  * {@code T[]} or {@code T...}.</li>

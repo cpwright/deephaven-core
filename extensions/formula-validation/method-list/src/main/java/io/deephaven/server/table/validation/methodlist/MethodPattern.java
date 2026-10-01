@@ -11,6 +11,7 @@ import org.aspectj.weaver.tools.ShadowMatch;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -23,7 +24,7 @@ import java.util.regex.Pattern;
  * constructors}. The syntax is described by {@link MethodListInvocationValidator}.
  *
  * <p>
- * AspectJ resolves the types named by a pointcut through a single class loader, and reports a class that loader can not
+ * AspectJ resolves the types named by a pointcut through a single class loader, and reports a class that loader cannot
  * find as an error. A member of a class that is not visible by name from this class's loader is therefore matched by an
  * expression parsed for the member's own loader. That expression is not retained, as it would keep the loader
  * reachable.
@@ -38,6 +39,7 @@ final class MethodPattern {
     private static final Pattern ARRAY_SUFFIX = Pattern.compile("(?:\\s*\\[\\s*])*");
 
     private final String pattern;
+    private final String declaringType;
     private final String expression;
     private final ClassLoader defaultLoader = MethodPattern.class.getClassLoader();
     /**
@@ -54,6 +56,7 @@ final class MethodPattern {
      */
     MethodPattern(final String pattern) {
         this.pattern = pattern;
+        declaringType = pattern.trim().substring(0, Math.max(0, pattern.trim().indexOf(' ')));
         expression = toAspectJ(pattern);
         defaultExpression = parse(expression, defaultLoader);
     }
@@ -65,7 +68,8 @@ final class MethodPattern {
      * @return true if the constructor matches
      */
     boolean matches(final Constructor<?> constructor) {
-        return matches(constructor, (pe, member) -> pe.matchesConstructorExecution((Constructor<?>) member));
+        return matches(constructor, expression,
+                (pe, member) -> pe.matchesConstructorExecution((Constructor<?>) member));
     }
 
     /**
@@ -80,15 +84,42 @@ final class MethodPattern {
      * @return true if the method matches
      */
     boolean matches(final Method method) {
-        return matches(method, (pe, member) -> pe.matchesMethodExecution((Method) member));
+        if (!matches(method, expression, (pe, member) -> pe.matchesMethodExecution((Method) member))) {
+            return false;
+        }
+        final int modifiers = method.getModifiers();
+        if (Modifier.isPublic(modifiers) || Modifier.isProtected(modifiers)
+                || !hasSuperclassInAnotherRuntimePackage(method.getDeclaringClass())) {
+            return true;
+        }
+        // AspectJ compares package names, but a package-private method only overrides within its runtime package,
+        // which is also scoped by class loader; require the declaring class itself to match
+        return matches(method, "(" + expression + ") && within(" + declaringType + ")",
+                (pe, member) -> pe.matchesMethodExecution((Method) member));
+    }
+
+    private static boolean hasSuperclassInAnotherRuntimePackage(final Class<?> type) {
+        for (Class<?> superclass = type.getSuperclass(); superclass != null; superclass =
+                superclass.getSuperclass()) {
+            if (superclass.getPackageName().equals(type.getPackageName())
+                    && superclass.getClassLoader() != type.getClassLoader()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private interface Matcher {
         ShadowMatch match(PointcutExpression expression, Executable member);
     }
 
-    private boolean matches(final Executable member, final Matcher matcher) {
+    private boolean matches(final Executable member, final String aspectJExpression, final Matcher matcher) {
         try {
+            if (!aspectJExpression.equals(expression)) {
+                final ClassLoader loader = member.getDeclaringClass().getClassLoader();
+                return matcher.match(parse(aspectJExpression, loader == null ? defaultLoader : loader), member)
+                        .alwaysMatches();
+            }
             if (isVisibleByName(member.getDeclaringClass())) {
                 synchronized (defaultExpression) {
                     return matcher.match(defaultExpression, member).alwaysMatches();
@@ -97,7 +128,7 @@ final class MethodPattern {
             final ClassLoader loader = member.getDeclaringClass().getClassLoader();
             return matcher.match(parse(expression, loader == null ? defaultLoader : loader), member).alwaysMatches();
         } catch (RuntimeException e) {
-            // AspectJ reports a type it can not resolve as an exception; a member we can not reason about is not
+            // AspectJ reports a type it cannot resolve as an exception; a member we cannot reason about is not
             // permitted
             return false;
         }
@@ -114,7 +145,7 @@ final class MethodPattern {
     private PointcutExpression parse(final String aspectJExpression, final ClassLoader loader) {
         final PointcutParser parser = PointcutParser
                 .getPointcutParserSupportingSpecifiedPrimitivesAndUsingSpecifiedClassLoaderForResolution(
-                        Set.of(PointcutPrimitive.EXECUTION), loader);
+                        Set.of(PointcutPrimitive.EXECUTION, PointcutPrimitive.WITHIN), loader);
         final Properties lint = new Properties();
         // a pattern may name a class that is not present, which matches nothing
         lint.setProperty("invalidAbsoluteTypeName", "ignore");
@@ -131,7 +162,7 @@ final class MethodPattern {
     /**
      * Translate our pattern to an AspectJ pointcut, e.g. {@code java.lang.String valueOf(char[])} becomes
      * {@code execution(* java.lang.String.valueOf(char[])) || execution(* java.lang.String.valueOf(char...))}. Each
-     * element is validated first, so that a pattern can not contain other pointcut syntax.
+     * element is validated first, so that a pattern cannot contain other pointcut syntax.
      */
     private static String toAspectJ(final String pattern) {
         final String trimmed = pattern.trim();
@@ -142,6 +173,10 @@ final class MethodPattern {
                     "Expected '<declaring class> <method name>(<argument list>)', but got '" + pattern + "'");
         }
         final String declaringType = trimmed.substring(0, space);
+        if (declaringType.equals("*")) {
+            throw new IllegalArgumentException("Use '*..*' rather than '*' to match every declaring class: '"
+                    + pattern + "'");
+        }
         if (!TYPE_PATTERN.matcher(declaringType).matches()) {
             throw new IllegalArgumentException("Invalid type pattern: '" + declaringType + "'");
         }
