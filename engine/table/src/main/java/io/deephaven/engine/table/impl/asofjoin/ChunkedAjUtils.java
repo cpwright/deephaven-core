@@ -10,6 +10,8 @@ import io.deephaven.engine.table.ChunkSource;
 import io.deephaven.engine.table.ColumnSource;
 import io.deephaven.chunk.attributes.Values;
 import io.deephaven.chunk.ChunkType;
+import io.deephaven.chunk.WritableChunk;
+import io.deephaven.chunk.WritableLongChunk;
 import io.deephaven.chunk.sized.SizedChunk;
 import io.deephaven.chunk.sized.SizedLongChunk;
 import io.deephaven.engine.table.impl.ssa.SegmentedSortedArray;
@@ -23,6 +25,54 @@ import io.deephaven.engine.table.impl.util.SizedSafeCloseable;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 
 public class ChunkedAjUtils {
+    /**
+     * Fill stamps and rowKeys with one chunk of the rows to add, sorted in the order of the SSA. The chunks are
+     * processed from the highest positions down, so processing index 0 holds the last chunkSize positions of rows.
+     */
+    public static void fillSortedAdditionChunk(RowSet rows, long processingIndex, long chunks, int chunkSize,
+            ColumnSource<?> stampSource, ChunkSource.FillContext fillContext, WritableChunk<Values> stamps,
+            WritableLongChunk<RowKeys> rowKeys, LongSortKernel<Values, RowKeys> sortKernel) {
+        final long chunkStart = (chunks - processingIndex - 1) * chunkSize;
+        try (final RowSet chunkRows = rows.subSetByPositionRange(chunkStart, chunkStart + chunkSize)) {
+            stampSource.fillChunk(fillContext, stamps, chunkRows);
+            rowKeys.setSize(chunkRows.intSize());
+            chunkRows.fillRowKeyChunk(rowKeys);
+        }
+        sortKernel.sort(rowKeys, stamps);
+    }
+
+    /**
+     * Insert the chunks of rows from firstProcessingIndex on into the SSA, with stamps and rowKeys as scratch space.
+     */
+    public static void insertAdditionChunks(SegmentedSortedArray ssa, RowSet rows, long firstProcessingIndex,
+            long chunks, int chunkSize, ColumnSource<?> stampSource, ChunkSource.FillContext fillContext,
+            WritableChunk<Values> stamps, WritableLongChunk<RowKeys> rowKeys,
+            LongSortKernel<Values, RowKeys> sortKernel) {
+        for (long ii = firstProcessingIndex; ii < chunks; ++ii) {
+            fillSortedAdditionChunk(rows, ii, chunks, chunkSize, stampSource, fillContext, stamps, rowKeys,
+                    sortKernel);
+            ssa.insert(stamps, rowKeys);
+        }
+    }
+
+    /**
+     * Remove rows from the SSA, in chunks of chunkSize, with stamps and rowKeys as scratch space. The stamps are the
+     * previous values of stampSource.
+     */
+    public static void removeRemovalChunks(SegmentedSortedArray ssa, RowSequence rows, int chunkSize,
+            ColumnSource<?> stampSource, ChunkSource.FillContext fillContext, WritableChunk<Values> stamps,
+            WritableLongChunk<RowKeys> rowKeys, LongSortKernel<Values, RowKeys> sortKernel) {
+        try (final RowSequence.Iterator removeIt = rows.getRowSequenceIterator()) {
+            while (removeIt.hasMore()) {
+                final RowSequence chunkOk = removeIt.getNextRowSequenceWithLength(chunkSize);
+                stampSource.fillPrevChunk(fillContext, stamps, chunkOk);
+                chunkOk.fillRowKeyChunk(rowKeys);
+                sortKernel.sort(rowKeys, stamps);
+                ssa.remove(stamps, rowKeys);
+            }
+        }
+    }
+
     static void bothIncrementalLeftSsaShift(RowSetShiftData shiftData, SegmentedSortedArray leftSsa,
             RowSet restampRemovals, QueryTable table,
             int nodeSize, ColumnSource<?> stampSource) {

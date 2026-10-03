@@ -88,7 +88,12 @@ public interface ChunkSsaStamp {
             WritableLongChunk<RowKeys> priorRedirections, WritableRowRedirection rowRedirection,
             RestampContext restampContext, RowSetBuilderRandom modifiedBuilder, boolean disallowExactMatch);
 
-    void processInsertion(Chunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
+    /**
+     * Restamps the left rows that the inserted right rows now match and adds them to {@code modifiedBuilder}.
+     *
+     * @return the number of left rows restamped
+     */
+    int processInsertion(Chunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
             Chunk<? extends Values> rightStampChunk, LongChunk<RowKeys> rightKeys, Chunk<Values> nextRightValue,
             WritableRowRedirection rowRedirection, RestampContext restampContext, RowSetBuilderRandom modifiedBuilder,
             boolean endsWithLastValue, boolean disallowExactMatch);

@@ -18,6 +18,15 @@ import static io.deephaven.engine.table.impl.JoinControl.BuildParameters.From.*;
 
 @VisibleForTesting
 public class JoinControl {
+    /**
+     * The default {@link #restampBudgetFactor()}. Right rows with random stamps added in n chunks restamp about
+     * {@code ln(n) + 0.58} times the left size in all (each left row is restamped by a chunk with probability one over
+     * the number of chunks inserted so far), even into an empty right side, so 5 keeps random stamps of up to about 80
+     * chunks on the cheaper chunk-at-a-time path. Stamps that run opposite to row key order restamp about half the left
+     * size per chunk, and are bounded at seven times the left size instead.
+     */
+    private static final int DEFAULT_RESTAMP_BUDGET_FACTOR = 5;
+
     public enum RedirectionType {
         Contiguous, Sparse, Hash
     }
@@ -285,5 +294,22 @@ public class JoinControl {
 
     public int leftChunkSize() {
         return rightChunkSize();
+    }
+
+    /**
+     * Bounds the restamping of an incremental as-of join bucket's left rows when one update adds right rows in more
+     * than one chunk of {@link #rightChunkSize()}.
+     * <p>
+     * Each chunk is inserted into the right SSA and the left rows it now matches are restamped at once, against an SSA
+     * that does not yet hold the chunks still to come, so a left row can be restamped once per chunk. Once a bucket's
+     * restamps in an update exceed this many times its left size, the remaining chunks are all inserted first and then
+     * restamped against the final SSA, which restamps each left row at most once more. The restamps of an update are
+     * thereby at most this factor plus two times the left size.
+     *
+     * @return the multiple of a bucket's left size that its restamps in one update may reach before the remaining
+     *         chunks are restamped against the final right SSA
+     */
+    public int restampBudgetFactor() {
+        return DEFAULT_RESTAMP_BUDGET_FACTOR;
     }
 }
