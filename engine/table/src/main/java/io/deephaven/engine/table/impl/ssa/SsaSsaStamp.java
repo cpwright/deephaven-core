@@ -95,8 +95,9 @@ public interface SsaSsaStamp {
      * Restamps the left rows that the inserted right rows now match and adds them to {@code modifiedBuilder}.
      *
      * @param modifiedKeys scratch space for the modified left row keys, owned by the caller and reused across calls
+     * @return the number of left rows restamped
      */
-    void processInsertion(SegmentedSortedArray leftSsa, Chunk<? extends Values> rightStampChunk,
+    int processInsertion(SegmentedSortedArray leftSsa, Chunk<? extends Values> rightStampChunk,
             LongChunk<RowKeys> rightKeys, Chunk<Values> nextRightValue,
             WritableRowRedirection rowRedirection,
             RowSetBuilderRandom modifiedBuilder, SizedLongChunk<RowKeys> modifiedKeys, boolean endsWithLastValue,

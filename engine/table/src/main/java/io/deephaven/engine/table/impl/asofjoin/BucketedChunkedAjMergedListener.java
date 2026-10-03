@@ -69,6 +69,7 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
 
     private final int leftChunkSize;
     private final int rightChunkSize;
+    private final int restampBudgetFactor;
 
     private final ChunkType stampChunkType;
     private final ChunkEquals stampChunkEquals;
@@ -137,6 +138,7 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
 
         leftChunkSize = control.leftChunkSize();
         rightChunkSize = control.rightChunkSize();
+        restampBudgetFactor = control.restampBudgetFactor();
 
         resultModifiedColumnSet = result.newModifiedColumnSet(result.getDefinition().getColumnNamesArray());
     }
@@ -385,6 +387,14 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                                 // with no left rows in the bucket, only the right SSA is maintained
                                 final boolean leftEmpty = leftSsa.size() == 0;
 
+                                // removals in more than one chunk are all removed from the SSA first, so that each
+                                // prior is a surviving row and each left row is restamped at most once
+                                final boolean removedFirst = !leftEmpty && rightRemoved.size() > cycleRightChunkSize;
+                                if (removedFirst) {
+                                    ChunkedAjUtils.removeRemovalChunks(rightSsa, rightRemoved, cycleRightChunkSize,
+                                            rightStampSource, fillContext, rightStampValues, rightStampKeys,
+                                            sortKernel);
+                                }
                                 try (final RowSequence.Iterator removeIt = rightRemoved.getRowSequenceIterator()) {
                                     while (removeIt.hasMore()) {
                                         final RowSequence chunkOk =
@@ -399,8 +409,14 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                                             continue;
                                         }
 
-                                        priorRedirections.setSize(cycleRightChunkSize);
-                                        rightSsa.removeAndGetPrior(rightStampValues, rightStampKeys, priorRedirections);
+                                        if (removedFirst) {
+                                            rightSsa.findPriorRowKeys(rightStampValues, rightStampKeys,
+                                                    priorRedirections);
+                                        } else {
+                                            priorRedirections.setSize(cycleRightChunkSize);
+                                            rightSsa.removeAndGetPrior(rightStampValues, rightStampKeys,
+                                                    priorRedirections);
+                                        }
 
                                         ssaSsaStamp.processRemovals(leftSsa, rightStampValues, rightStampKeys,
                                                 priorRedirections, rowRedirection, modifiedBuilder, modifiedKeys,
@@ -614,47 +630,54 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                                 final long addedSize = ownedRightAdded.size();
                                 final long chunks = addedSize / cycleRightChunkSize
                                         + (addedSize % cycleRightChunkSize == 0 ? 0 : 1);
+                                final long restampBudget = (long) restampBudgetFactor * leftSsa.size();
+                                long restamped = 0;
+                                // once the bucket's restamps exceed its budget, the remaining chunks are all inserted
+                                // into the SSA before any of them is restamped, so their next values are final
+                                boolean finalSsa = false;
                                 for (long ii = 0; ii < chunks; ++ii) {
-                                    final long chunkStart = (chunks - ii - 1) * cycleRightChunkSize;
-                                    try (final RowSet chunkOk = ownedRightAdded.subSetByPositionRange(chunkStart,
-                                            chunkStart + Math.min(cycleRightChunkSize, addedSize - chunkStart))) {
-                                        rightStampSource.fillChunk(rightFillContext, stampChunk, chunkOk);
-                                        insertedIndices.setSize(chunkOk.intSize());
-                                        chunkOk.fillRowKeyChunk(insertedIndices);
-
-                                        sortKernel.sort(insertedIndices, stampChunk);
-
-                                        if (leftEmpty) {
-                                            rightSsa.insert(stampChunk, insertedIndices);
-                                            continue;
-                                        }
-
-                                        final int valuesWithNext = rightSsa.insertAndGetNextValue(stampChunk,
-                                                insertedIndices, nextRightValue);
-
-                                        final boolean endsWithLastValue = valuesWithNext != stampChunk.size();
-                                        if (endsWithLastValue) {
-                                            Assert.eq(valuesWithNext, "valuesWithNext", stampChunk.size() - 1,
-                                                    "stampChunk.size() - 1");
-                                            stampChunk.setSize(valuesWithNext);
-                                            stampChunkEquals.notEqual(stampChunk, nextRightValue, retainStamps);
-                                            stampCompact.compact(nextRightValue, retainStamps);
-
-                                            retainStamps.setSize(chunkOk.intSize());
-                                            retainStamps.set(valuesWithNext, true);
-                                            stampChunk.setSize(chunkOk.intSize());
-                                        } else {
-                                            // remove duplicates
-                                            stampChunkEquals.notEqual(stampChunk, nextRightValue, retainStamps);
-                                            stampCompact.compact(nextRightValue, retainStamps);
-                                        }
-                                        LongCompactKernel.compact(insertedIndices, retainStamps);
-                                        stampCompact.compact(stampChunk, retainStamps);
-
-                                        ssaSsaStamp.processInsertion(leftSsa, stampChunk, insertedIndices,
-                                                nextRightValue, rowRedirection, modifiedBuilder, modifiedKeys,
-                                                endsWithLastValue, disallowExactMatch);
+                                    if (!finalSsa && restamped > restampBudget) {
+                                        finalSsa = true;
+                                        ChunkedAjUtils.insertAdditionChunks(rightSsa, ownedRightAdded, ii, chunks,
+                                                cycleRightChunkSize, rightStampSource, rightFillContext, stampChunk,
+                                                insertedIndices, sortKernel);
                                     }
+                                    ChunkedAjUtils.fillSortedAdditionChunk(ownedRightAdded, ii, chunks,
+                                            cycleRightChunkSize, rightStampSource, rightFillContext, stampChunk,
+                                            insertedIndices, sortKernel);
+                                    final int chunkSize = insertedIndices.size();
+
+                                    if (leftEmpty) {
+                                        rightSsa.insert(stampChunk, insertedIndices);
+                                        continue;
+                                    }
+
+                                    final int valuesWithNext = finalSsa
+                                            ? rightSsa.findNextValues(stampChunk, insertedIndices, nextRightValue)
+                                            : rightSsa.insertAndGetNextValue(stampChunk, insertedIndices,
+                                                    nextRightValue);
+
+                                    final boolean endsWithLastValue = valuesWithNext != chunkSize;
+                                    if (endsWithLastValue) {
+                                        Assert.eq(valuesWithNext, "valuesWithNext", chunkSize - 1, "chunkSize - 1");
+                                        stampChunk.setSize(valuesWithNext);
+                                        stampChunkEquals.notEqual(stampChunk, nextRightValue, retainStamps);
+                                        stampCompact.compact(nextRightValue, retainStamps);
+
+                                        retainStamps.setSize(chunkSize);
+                                        retainStamps.set(valuesWithNext, true);
+                                        stampChunk.setSize(chunkSize);
+                                    } else {
+                                        // remove duplicates
+                                        stampChunkEquals.notEqual(stampChunk, nextRightValue, retainStamps);
+                                        stampCompact.compact(nextRightValue, retainStamps);
+                                    }
+                                    LongCompactKernel.compact(insertedIndices, retainStamps);
+                                    stampCompact.compact(stampChunk, retainStamps);
+
+                                    restamped += ssaSsaStamp.processInsertion(leftSsa, stampChunk, insertedIndices,
+                                            nextRightValue, rowRedirection, modifiedBuilder, modifiedKeys,
+                                            endsWithLastValue, disallowExactMatch);
                                 }
                             }
                         }
