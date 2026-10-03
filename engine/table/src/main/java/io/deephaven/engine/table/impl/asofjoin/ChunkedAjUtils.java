@@ -19,8 +19,12 @@ import io.deephaven.engine.rowset.RowSetFactory;
 import io.deephaven.engine.rowset.WritableRowSet;
 import io.deephaven.engine.rowset.RowSetShiftData;
 import io.deephaven.engine.rowset.RowSequence;
+import io.deephaven.engine.table.impl.util.RowRedirection;
 import io.deephaven.engine.table.impl.util.SizedSafeCloseable;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
+import io.deephaven.base.verify.Assert;
+import io.deephaven.chunk.WritableLongChunk;
+import org.jetbrains.annotations.Nullable;
 
 public class ChunkedAjUtils {
     static void bothIncrementalLeftSsaShift(RowSetShiftData shiftData, SegmentedSortedArray leftSsa,
@@ -134,5 +138,91 @@ public class ChunkedAjUtils {
         final WritableRowSet relevantShiftedRows = relevantShiftKeys.build();
         relevantShiftedRows.remove(restampRemovals);
         return relevantShiftedRows;
+    }
+
+    /**
+     * Returns the current right row keys that may hold a right row whose result values differ from those of the row the
+     * same key held in the previous cycle: the added keys, every key in the destination of a shift, and, when the
+     * result's added columns were modified, the modified keys. A key outside this set holds the same right row as in
+     * the previous cycle, with the same values in every added column.
+     *
+     * @param added the right side's added rows
+     * @param modified the right side's modified rows
+     * @param columnsToAddModified whether any right column that the result adds was modified
+     * @param shifted the right side's shifts
+     * @return the right row keys whose row may have changed
+     */
+    public static WritableRowSet unstableRightKeys(RowSet added, RowSet modified, boolean columnsToAddModified,
+            RowSetShiftData shifted) {
+        final RowSetBuilderSequential shiftDestinations = RowSetFactory.builderSequential();
+        for (int ii = 0; ii < shifted.size(); ++ii) {
+            final long shiftDelta = shifted.getShiftDelta(ii);
+            shiftDestinations.appendRange(shifted.getBeginRange(ii) + shiftDelta,
+                    shifted.getEndRange(ii) + shiftDelta);
+        }
+        final WritableRowSet unstable = shiftDestinations.build();
+        unstable.insert(added);
+        if (columnsToAddModified) {
+            unstable.insert(modified);
+        }
+        return unstable;
+    }
+
+    /**
+     * Returns the rows of {@code currentRows} whose right row may differ from the right row that the corresponding row
+     * of {@code previousRows} was redirected to in the previous cycle. The two sequences correspond by position. A row
+     * is reported when its current and previous redirections differ, or when they are equal and the right row key is in
+     * {@code unstableRightKeys}.
+     *
+     * @param currentRows result rows in the current key space
+     * @param previousRows the same result rows, in the previous key space
+     * @param rowRedirection the result's row redirection, which tracks previous values
+     * @param unstableRightKeys the keys from {@link #unstableRightKeys}, or null when the right side did not change
+     * @param maxChunkSize the largest number of rows to read at once
+     * @param firstOnly whether to return as soon as one row is found
+     * @return the rows whose right row may have changed, at most one row when {@code firstOnly} is set
+     */
+    public static WritableRowSet changedRedirections(RowSequence currentRows, RowSequence previousRows,
+            RowRedirection rowRedirection, @Nullable RowSet unstableRightKeys, int maxChunkSize, boolean firstOnly) {
+        final long size = currentRows.size();
+        Assert.eq(previousRows.size(), "previousRows.size()", size, "currentRows.size()");
+        if (size == 0) {
+            return RowSetFactory.empty();
+        }
+        // a redirection outside [unstableFirst, unstableLast] is not unstable; NULL_ROW_KEY is below any row key
+        final boolean anyUnstable = unstableRightKeys != null && unstableRightKeys.isNonempty();
+        final long unstableFirst = anyUnstable ? unstableRightKeys.firstRowKey() : Long.MAX_VALUE;
+        final long unstableLast = anyUnstable ? unstableRightKeys.lastRowKey() : Long.MIN_VALUE;
+
+        final int chunkSize = (int) Math.min(maxChunkSize, size);
+        final RowSetBuilderSequential changedBuilder = RowSetFactory.builderSequential();
+        try (final ChunkSource.FillContext currentContext = rowRedirection.makeFillContext(chunkSize, null);
+                final ChunkSource.FillContext previousContext = rowRedirection.makeFillContext(chunkSize, null);
+                final WritableLongChunk<RowKeys> currentRedirections = WritableLongChunk.makeWritableChunk(chunkSize);
+                final WritableLongChunk<RowKeys> previousRedirections =
+                        WritableLongChunk.makeWritableChunk(chunkSize);
+                final WritableLongChunk<RowKeys> currentKeys = WritableLongChunk.makeWritableChunk(chunkSize);
+                final RowSequence.Iterator currentIt = currentRows.getRowSequenceIterator();
+                final RowSequence.Iterator previousIt = previousRows.getRowSequenceIterator()) {
+            while (currentIt.hasMore()) {
+                final RowSequence currentChunk = currentIt.getNextRowSequenceWithLength(chunkSize);
+                final RowSequence previousChunk = previousIt.getNextRowSequenceWithLength(chunkSize);
+                rowRedirection.fillChunk(currentContext, currentRedirections, currentChunk);
+                rowRedirection.fillPrevChunk(previousContext, previousRedirections, previousChunk);
+                currentChunk.fillRowKeyChunk(currentKeys);
+                for (int ii = 0; ii < currentKeys.size(); ++ii) {
+                    final long currentRedirection = currentRedirections.get(ii);
+                    if (currentRedirection != previousRedirections.get(ii)
+                            || (currentRedirection >= unstableFirst && currentRedirection <= unstableLast
+                                    && unstableRightKeys.find(currentRedirection) >= 0)) {
+                        changedBuilder.appendKey(currentKeys.get(ii));
+                        if (firstOnly) {
+                            return changedBuilder.build();
+                        }
+                    }
+                }
+            }
+        }
+        return changedBuilder.build();
     }
 }
