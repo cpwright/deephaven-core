@@ -381,7 +381,7 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
                                     leftRecorder.getShifted().unapply(restampedPrev);
                                 }
                                 rightRestamped = ChunkedAjUtils.changedRedirections(restamped, restampedPrev,
-                                        rowRedirection, replacedRightKeys, modifiedRightKeys, cycleRightChunkSize,
+                                        rowRedirection, replacedRightKeys, modifiedRightKeys, leftChunkSize,
                                         false, redirectionChanged, addedColumnsModified);
                             }
                             if (redirectionChanged.booleanValue()) {

@@ -987,7 +987,7 @@ public class AsOfJoinHelper {
                             downstream.modified = ChunkedAjUtils.changedRedirections(restamped, restamped,
                                     rowRedirection, replacedRightKeys,
                                     columnsToAddModified ? upstream.modified() : null,
-                                    cycleChunkSize, false, redirectionChanged, addedColumnsModified);
+                                    control.leftChunkSize(), false, redirectionChanged, addedColumnsModified);
                         }
                         if (redirectionChanged.booleanValue()) {
                             downstream.modifiedColumnSet().setAll(rightAddedColumns);
@@ -1567,8 +1567,9 @@ public class AsOfJoinHelper {
                                                     .replacedRightKeys(upstream.added(), upstream.shifted())) {
                                         downstream.modified = ChunkedAjUtils.changedRedirections(restamped,
                                                 restamped, rowRedirection, replacedRightKeys,
-                                                columnsToAddModified ? upstream.modified() : null, cycleChunkSize,
-                                                false, redirectionChanged, addedColumnsModified);
+                                                columnsToAddModified ? upstream.modified() : null,
+                                                control.leftChunkSize(), false, redirectionChanged,
+                                                addedColumnsModified);
                                     }
                                     if (redirectionChanged.booleanValue()) {
                                         downstream.modifiedColumnSet().setAll(allRightColumns);
