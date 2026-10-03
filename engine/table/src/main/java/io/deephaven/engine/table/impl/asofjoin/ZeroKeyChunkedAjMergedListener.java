@@ -26,6 +26,7 @@ import io.deephaven.engine.table.impl.util.*;
 import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.engine.table.impl.util.compact.LongCompactKernel;
 import io.deephaven.util.SafeCloseable;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -149,6 +150,12 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
         // left rows restamped this cycle and redirected to the same right row key as before are compared against the
         // right keys that may hold a changed row
         WritableRowSet rightRestamped = null;
+        // right rows whose added columns were modified; a row that stays redirected to one changes only in those
+        // columns
+        final RowSet modifiedRightKeys =
+                rightTicked && rightRecorder.getModifiedColumnSet().containsAny(rightColumnsToAdd)
+                        ? rightRecorder.getModified()
+                        : null;
 
         try (final ColumnSource.FillContext leftFillContext =
                 leftAdditionsOrRemovals ? leftStampSource.makeFillContext(cycleLeftChunkSize) : null;
@@ -159,10 +166,8 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
                 final LongSortKernel<Values, RowKeys> sortKernel = LongSortKernel.makeContext(stampChunkType, order,
                         Math.max(cycleLeftChunkSize, cycleRightChunkSize), true);
                 final SizedLongChunk<RowKeys> modifiedKeys = new SizedLongChunk<>();
-                final RowSet unstableRightKeys = rightTicked && (leftStampModified || rightStampModified)
-                        ? ChunkedAjUtils.unstableRightKeys(rightRecorder.getAdded(), rightRecorder.getModified(),
-                                rightRecorder.getModifiedColumnSet().containsAny(rightColumnsToAdd),
-                                rightRecorder.getShifted())
+                final RowSet replacedRightKeys = rightTicked && (leftStampModified || rightStampModified)
+                        ? ChunkedAjUtils.replacedRightKeys(rightRecorder.getAdded(), rightRecorder.getShifted())
                         : null) {
             final RowSetBuilderRandom modifiedBuilder = RowSetFactory.builderRandom();
             final RowSetBuilderRandom restampBuilder = RowSetFactory.builderRandom();
@@ -368,16 +373,24 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
                         // it started; every other restamped row is now redirected to a different right row
                         rightRestamped = restampBuilder.build();
                         if (rightStampModified) {
+                            final MutableBoolean redirectionChanged = new MutableBoolean();
+                            final MutableBoolean addedColumnsModified = new MutableBoolean();
                             try (final RowSet restamped = rightRestamped;
                                     final WritableRowSet restampedPrev = restamped.copy()) {
                                 if (leftTicked) {
                                     leftRecorder.getShifted().unapply(restampedPrev);
                                 }
                                 rightRestamped = ChunkedAjUtils.changedRedirections(restamped, restampedPrev,
-                                        rowRedirection, unstableRightKeys, cycleRightChunkSize, false);
+                                        rowRedirection, replacedRightKeys, modifiedRightKeys, cycleRightChunkSize,
+                                        false, redirectionChanged, addedColumnsModified);
                             }
-                        }
-                        if (rightRestamped.isNonempty()) {
+                            if (redirectionChanged.booleanValue()) {
+                                downstream.modifiedColumnSet().setAll(allRightColumns);
+                            } else if (addedColumnsModified.booleanValue()) {
+                                rightTransformer.transform(rightRecorder.getModifiedColumnSet(),
+                                        downstream.modifiedColumnSet());
+                            }
+                        } else if (rightRestamped.isNonempty()) {
                             downstream.modifiedColumnSet().setAll(allRightColumns);
                         }
 
@@ -446,11 +459,16 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
 
                 leftTransformer.transform(leftRecorder.getModifiedColumnSet(), downstream.modifiedColumnSet());
                 if (leftStampModified) {
-                    try (final RowSet changed = ChunkedAjUtils.changedRedirections(leftRecorder.getModified(),
-                            leftRecorder.getModifiedPreShift(), rowRedirection, unstableRightKeys, cycleLeftChunkSize,
-                            true)) {
-                        if (changed.isNonempty()) {
+                    final MutableBoolean redirectionChanged = new MutableBoolean();
+                    final MutableBoolean addedColumnsModified = new MutableBoolean();
+                    try (final RowSet changedRows = ChunkedAjUtils.changedRedirections(leftRecorder.getModified(),
+                            leftRecorder.getModifiedPreShift(), rowRedirection, replacedRightKeys, modifiedRightKeys,
+                            cycleLeftChunkSize, true, redirectionChanged, addedColumnsModified)) {
+                        if (redirectionChanged.booleanValue()) {
                             downstream.modifiedColumnSet().setAll(allRightColumns);
+                        } else if (addedColumnsModified.booleanValue()) {
+                            rightTransformer.transform(rightRecorder.getModifiedColumnSet(),
+                                    downstream.modifiedColumnSet());
                         }
                     }
                 }

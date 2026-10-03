@@ -24,6 +24,7 @@ import io.deephaven.engine.table.impl.util.SizedSafeCloseable;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.base.verify.Assert;
 import io.deephaven.chunk.WritableLongChunk;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.Nullable;
 
 public class ChunkedAjUtils {
@@ -141,58 +142,61 @@ public class ChunkedAjUtils {
     }
 
     /**
-     * Returns the current right row keys that may hold a right row whose result values differ from those of the row the
-     * same key held in the previous cycle: the added keys, every key in the destination of a shift, and, when the
-     * result's added columns were modified, the modified keys. A key outside this set holds the same right row as in
-     * the previous cycle, with the same values in every added column.
+     * Returns the current right row keys that may hold a different right row than the same key held in the previous
+     * cycle: the added keys and every key in the destination of a shift. Any other key holds the same right row as in
+     * the previous cycle.
      *
      * @param added the right side's added rows
-     * @param modified the right side's modified rows
-     * @param columnsToAddModified whether any right column that the result adds was modified
      * @param shifted the right side's shifts
-     * @return the right row keys whose row may have changed
+     * @return the right row keys whose row may have been replaced
      */
-    public static WritableRowSet unstableRightKeys(RowSet added, RowSet modified, boolean columnsToAddModified,
-            RowSetShiftData shifted) {
+    public static WritableRowSet replacedRightKeys(RowSet added, RowSetShiftData shifted) {
         final RowSetBuilderSequential shiftDestinations = RowSetFactory.builderSequential();
         for (int ii = 0; ii < shifted.size(); ++ii) {
             final long shiftDelta = shifted.getShiftDelta(ii);
             shiftDestinations.appendRange(shifted.getBeginRange(ii) + shiftDelta,
                     shifted.getEndRange(ii) + shiftDelta);
         }
-        final WritableRowSet unstable = shiftDestinations.build();
-        unstable.insert(added);
-        if (columnsToAddModified) {
-            unstable.insert(modified);
-        }
-        return unstable;
+        final WritableRowSet replaced = shiftDestinations.build();
+        replaced.insert(added);
+        return replaced;
     }
 
     /**
-     * Returns the rows of {@code currentRows} whose right row may differ from the right row that the corresponding row
-     * of {@code previousRows} was redirected to in the previous cycle. The two sequences correspond by position. A row
-     * is reported when its current and previous redirections differ, or when they are equal and the right row key is in
-     * {@code unstableRightKeys}.
+     * Returns the rows of {@code currentRows} whose right values may differ from those of the previous cycle. The two
+     * sequences correspond by position. A row whose current and previous redirections differ, or are equal but name a
+     * key in {@code replacedRightKeys}, may have a different value in every right column, and sets
+     * {@code redirectionChanged}. A row whose redirection is unchanged and names a key in {@code modifiedRightKeys}
+     * differs only in the right columns modified upstream, and sets {@code addedColumnsModified}.
      *
      * @param currentRows result rows in the current key space
      * @param previousRows the same result rows, in the previous key space
      * @param rowRedirection the result's row redirection, which tracks previous values
-     * @param unstableRightKeys the keys from {@link #unstableRightKeys}, or null when the right side did not change
+     * @param replacedRightKeys the keys from {@link #replacedRightKeys}, or null when the right side did not change
+     * @param modifiedRightKeys the right side's modified rows when an added column was modified, otherwise null
      * @param maxChunkSize the largest number of rows to read at once
-     * @param firstOnly whether to return as soon as one row is found
-     * @return the rows whose right row may have changed, at most one row when {@code firstOnly} is set
+     * @param firstOnly whether to return as soon as one row sets {@code redirectionChanged}
+     * @param redirectionChanged set when a reported row may differ in every right column
+     * @param addedColumnsModified set when a reported row differs only in the right columns modified upstream
+     * @return the rows whose right values may have changed; when {@code firstOnly} is set, only rows up to the first
+     *         that sets {@code redirectionChanged}
      */
     public static WritableRowSet changedRedirections(RowSequence currentRows, RowSequence previousRows,
-            RowRedirection rowRedirection, @Nullable RowSet unstableRightKeys, int maxChunkSize, boolean firstOnly) {
+            RowRedirection rowRedirection, @Nullable RowSet replacedRightKeys, @Nullable RowSet modifiedRightKeys,
+            int maxChunkSize, boolean firstOnly, MutableBoolean redirectionChanged,
+            MutableBoolean addedColumnsModified) {
         final long size = currentRows.size();
         Assert.eq(previousRows.size(), "previousRows.size()", size, "currentRows.size()");
         if (size == 0) {
             return RowSetFactory.empty();
         }
-        // a redirection outside [unstableFirst, unstableLast] is not unstable; NULL_ROW_KEY is below any row key
-        final boolean anyUnstable = unstableRightKeys != null && unstableRightKeys.isNonempty();
-        final long unstableFirst = anyUnstable ? unstableRightKeys.firstRowKey() : Long.MAX_VALUE;
-        final long unstableLast = anyUnstable ? unstableRightKeys.lastRowKey() : Long.MIN_VALUE;
+        // a key outside [first, last] of a set is not in it; NULL_ROW_KEY is below any row key
+        final boolean anyReplaced = replacedRightKeys != null && replacedRightKeys.isNonempty();
+        final long replacedFirst = anyReplaced ? replacedRightKeys.firstRowKey() : Long.MAX_VALUE;
+        final long replacedLast = anyReplaced ? replacedRightKeys.lastRowKey() : Long.MIN_VALUE;
+        final boolean anyModified = modifiedRightKeys != null && modifiedRightKeys.isNonempty();
+        final long modifiedFirst = anyModified ? modifiedRightKeys.firstRowKey() : Long.MAX_VALUE;
+        final long modifiedLast = anyModified ? modifiedRightKeys.lastRowKey() : Long.MIN_VALUE;
 
         final int chunkSize = (int) Math.min(maxChunkSize, size);
         final RowSetBuilderSequential changedBuilder = RowSetFactory.builderSequential();
@@ -213,12 +217,17 @@ public class ChunkedAjUtils {
                 for (int ii = 0; ii < currentKeys.size(); ++ii) {
                     final long currentRedirection = currentRedirections.get(ii);
                     if (currentRedirection != previousRedirections.get(ii)
-                            || (currentRedirection >= unstableFirst && currentRedirection <= unstableLast
-                                    && unstableRightKeys.find(currentRedirection) >= 0)) {
+                            || (currentRedirection >= replacedFirst && currentRedirection <= replacedLast
+                                    && replacedRightKeys.find(currentRedirection) >= 0)) {
                         changedBuilder.appendKey(currentKeys.get(ii));
+                        redirectionChanged.setTrue();
                         if (firstOnly) {
                             return changedBuilder.build();
                         }
+                    } else if (currentRedirection >= modifiedFirst && currentRedirection <= modifiedLast
+                            && modifiedRightKeys.find(currentRedirection) >= 0) {
+                        changedBuilder.appendKey(currentKeys.get(ii));
+                        addedColumnsModified.setTrue();
                     }
                 }
             }

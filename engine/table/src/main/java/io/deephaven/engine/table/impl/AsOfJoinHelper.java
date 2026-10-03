@@ -39,6 +39,7 @@ import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.engine.table.impl.util.compact.LongCompactKernel;
 import io.deephaven.util.SafeCloseable;
 import io.deephaven.util.SafeCloseableList;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -399,10 +400,11 @@ public class AsOfJoinHelper {
                     if (keysModified) {
                         // the right side is static, so a restamped row's right values change only with its
                         // redirection
-                        try (final RowSet changed = ChunkedAjUtils.changedRedirections(upstream.modified(),
-                                upstream.getModifiedPreShift(), rowRedirection, null, control.leftChunkSize(),
-                                true)) {
-                            if (changed.isNonempty()) {
+                        final MutableBoolean redirectionChanged = new MutableBoolean();
+                        try (final RowSet changedRows = ChunkedAjUtils.changedRedirections(upstream.modified(),
+                                upstream.getModifiedPreShift(), rowRedirection, null, null, control.leftChunkSize(),
+                                true, redirectionChanged, new MutableBoolean())) {
+                            if (redirectionChanged.booleanValue()) {
                                 downstream.modifiedColumnSet().setAll(allRightColumns);
                             }
                         }
@@ -977,14 +979,22 @@ public class AsOfJoinHelper {
                     // started; every other restamped row is now redirected to a different right row
                     downstream.modified = modifiedBuilder.build();
                     if (keysModified || stampModified) {
+                        final MutableBoolean redirectionChanged = new MutableBoolean();
+                        final MutableBoolean addedColumnsModified = new MutableBoolean();
                         try (final RowSet restamped = downstream.modified();
-                                final RowSet unstableRightKeys = ChunkedAjUtils.unstableRightKeys(upstream.added(),
-                                        upstream.modified(), columnsToAddModified, upstream.shifted())) {
+                                final RowSet replacedRightKeys =
+                                        ChunkedAjUtils.replacedRightKeys(upstream.added(), upstream.shifted())) {
                             downstream.modified = ChunkedAjUtils.changedRedirections(restamped, restamped,
-                                    rowRedirection, unstableRightKeys, cycleChunkSize, false);
+                                    rowRedirection, replacedRightKeys,
+                                    columnsToAddModified ? upstream.modified() : null,
+                                    cycleChunkSize, false, redirectionChanged, addedColumnsModified);
                         }
-                    }
-                    if (downstream.modified().isNonempty()) {
+                        if (redirectionChanged.booleanValue()) {
+                            downstream.modifiedColumnSet().setAll(rightAddedColumns);
+                        } else if (addedColumnsModified.booleanValue()) {
+                            rightTransformer.transform(upstream.modifiedColumnSet(), downstream.modifiedColumnSet());
+                        }
+                    } else if (downstream.modified().isNonempty()) {
                         downstream.modifiedColumnSet().setAll(rightAddedColumns);
                     }
 
@@ -1550,15 +1560,23 @@ public class AsOfJoinHelper {
                                 // row
                                 downstream.modified = modifiedBuilder.build();
                                 if (stampModified) {
+                                    final MutableBoolean redirectionChanged = new MutableBoolean();
+                                    final MutableBoolean addedColumnsModified = new MutableBoolean();
                                     try (final RowSet restamped = downstream.modified();
-                                            final RowSet unstableRightKeys = ChunkedAjUtils.unstableRightKeys(
-                                                    upstream.added(), upstream.modified(), columnsToAddModified,
-                                                    upstream.shifted())) {
+                                            final RowSet replacedRightKeys = ChunkedAjUtils
+                                                    .replacedRightKeys(upstream.added(), upstream.shifted())) {
                                         downstream.modified = ChunkedAjUtils.changedRedirections(restamped,
-                                                restamped, rowRedirection, unstableRightKeys, cycleChunkSize, false);
+                                                restamped, rowRedirection, replacedRightKeys,
+                                                columnsToAddModified ? upstream.modified() : null, cycleChunkSize,
+                                                false, redirectionChanged, addedColumnsModified);
                                     }
-                                }
-                                if (downstream.modified().isNonempty()) {
+                                    if (redirectionChanged.booleanValue()) {
+                                        downstream.modifiedColumnSet().setAll(allRightColumns);
+                                    } else if (addedColumnsModified.booleanValue()) {
+                                        rightTransformer.transform(upstream.modifiedColumnSet(),
+                                                downstream.modifiedColumnSet());
+                                    }
+                                } else if (downstream.modified().isNonempty()) {
                                     downstream.modifiedColumnSet().setAll(allRightColumns);
                                 }
 
@@ -1782,10 +1800,12 @@ public class AsOfJoinHelper {
                                         // the right side is static, so a restamped row's right values change only
                                         // with its redirection
                                         if (stampModified) {
-                                            try (final RowSet changed = ChunkedAjUtils.changedRedirections(
+                                            final MutableBoolean redirectionChanged = new MutableBoolean();
+                                            try (final RowSet changedRows = ChunkedAjUtils.changedRedirections(
                                                     upstream.modified(), upstream.getModifiedPreShift(),
-                                                    rowRedirection, null, control.leftChunkSize(), true)) {
-                                                if (changed.isNonempty()) {
+                                                    rowRedirection, null, null, control.leftChunkSize(), true,
+                                                    redirectionChanged, new MutableBoolean())) {
+                                                if (redirectionChanged.booleanValue()) {
                                                     downstream.modifiedColumnSet().setAll(allRightColumns);
                                                 }
                                             }
