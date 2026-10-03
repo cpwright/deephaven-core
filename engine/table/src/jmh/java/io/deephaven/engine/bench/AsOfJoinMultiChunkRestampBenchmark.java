@@ -104,7 +104,7 @@ public class AsOfJoinMultiChunkRestampBenchmark {
     @Param({"ASCENDING", "DESCENDING", "RANDOM"})
     public StampOrder stampOrder;
 
-    @Param({"3", "2147483647"})
+    @Param({"5", "2147483647"})
     public int restampBudgetFactor;
 
     @Param({"4000000"})
