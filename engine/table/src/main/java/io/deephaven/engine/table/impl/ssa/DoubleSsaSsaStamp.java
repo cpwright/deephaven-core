@@ -148,16 +148,16 @@ public class DoubleSsaSsaStamp implements SsaSsaStamp {
     }
 
     @Override
-    public void processInsertion(SegmentedSortedArray leftSsa, Chunk<? extends Values> rightStampChunk,
+    public int processInsertion(SegmentedSortedArray leftSsa, Chunk<? extends Values> rightStampChunk,
             LongChunk<RowKeys> rightKeys, Chunk<Values> nextRightValue, WritableRowRedirection rowRedirection,
             RowSetBuilderRandom modifiedBuilder, SizedLongChunk<RowKeys> modifiedKeys, boolean endsWithLastValue,
             boolean disallowExactMatch) {
-        processInsertion((DoubleSegmentedSortedArray) leftSsa, rightStampChunk.asDoubleChunk(), rightKeys,
+        return processInsertion((DoubleSegmentedSortedArray) leftSsa, rightStampChunk.asDoubleChunk(), rightKeys,
                 nextRightValue.asDoubleChunk(), rowRedirection, modifiedBuilder, modifiedKeys, endsWithLastValue,
                 disallowExactMatch);
     }
 
-    static private void processInsertion(DoubleSegmentedSortedArray leftSsa, DoubleChunk<? extends Values> rightStampChunk,
+    static private int processInsertion(DoubleSegmentedSortedArray leftSsa, DoubleChunk<? extends Values> rightStampChunk,
             LongChunk<RowKeys> rightKeys, DoubleChunk<Values> nextRightValue, WritableRowRedirection rowRedirection,
             RowSetBuilderRandom modifiedBuilder, SizedLongChunk<RowKeys> modifiedKeys, boolean endsWithLastValue,
             boolean disallowExactMatch) {
@@ -217,6 +217,7 @@ public class DoubleSsaSsaStamp implements SsaSsaStamp {
             modifiedKeys.get().sort();
             modifiedBuilder.addOrderedRowKeysChunk(WritableLongChunk.downcast(modifiedKeys.get()));
         }
+        return mks;
     }
 
     @Override

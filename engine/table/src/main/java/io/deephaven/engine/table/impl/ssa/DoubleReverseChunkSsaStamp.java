@@ -112,16 +112,16 @@ public class DoubleReverseChunkSsaStamp implements ChunkSsaStamp {
     }
 
     @Override
-    public void processInsertion(Chunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
+    public int processInsertion(Chunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
             Chunk<? extends Values> rightStampChunk, LongChunk<RowKeys> rightKeys, Chunk<Values> nextRightValue,
             WritableRowRedirection rowRedirection, RestampContext restampContext, RowSetBuilderRandom modifiedBuilder,
             boolean endsWithLastValue, boolean disallowExactMatch) {
-        processInsertion(leftStampValues.asDoubleChunk(), leftStampKeys, rightStampChunk.asDoubleChunk(), rightKeys,
+        return processInsertion(leftStampValues.asDoubleChunk(), leftStampKeys, rightStampChunk.asDoubleChunk(), rightKeys,
                 nextRightValue.asDoubleChunk(), rowRedirection, restampContext, modifiedBuilder, endsWithLastValue,
                 disallowExactMatch);
     }
 
-    private static void processInsertion(DoubleChunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
+    private static int processInsertion(DoubleChunk<Values> leftStampValues, LongChunk<RowKeys> leftStampKeys,
             DoubleChunk<? extends Values> rightStampChunk, LongChunk<RowKeys> rightKeys, DoubleChunk<Values> nextRightValue,
             WritableRowRedirection rowRedirection, RestampContext restampContext, RowSetBuilderRandom modifiedBuilder,
             boolean endsWithLastValue, boolean disallowExactMatch) {
@@ -134,6 +134,7 @@ public class DoubleReverseChunkSsaStamp implements ChunkSsaStamp {
         // in the nextRightValue chunk) should be re-stamped with our value
 
         int leftLowIdx = 0;
+        int restamped = 0;
 
         for (int ii = 0; ii < rightStampChunk.size(); ++ii) {
             final double rightStampValue = rightStampChunk.get(ii);
@@ -156,8 +157,10 @@ public class DoubleReverseChunkSsaStamp implements ChunkSsaStamp {
             }
             restampContext.restamp(rowRedirection, leftStampKeys, leftLowIdx, leftHighIdx, rightStampKey,
                     modifiedBuilder);
+            restamped += leftHighIdx - leftLowIdx;
             leftLowIdx = leftHighIdx;
         }
+        return restamped;
     }
 
     @Override
