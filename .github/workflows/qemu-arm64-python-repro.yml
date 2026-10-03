@@ -1,0 +1,48 @@
+name: QEMU arm64 Python Repro
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python-under-qemu:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        binfmt:
+          # The image deephaven-server-docker edge-ci.yml uses
+          - tonistiigi/binfmt:qemu-v7.0.0-28@sha256:66e11bea77a5ea9d6f0fe79b57cd2b189b5d15b93a2bdb925be22949232e4e55
+          - tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+    steps:
+      - name: Runner environment
+        run: |
+          echo "Runner image: ${ImageOS} ${ImageVersion}"
+          uname -a
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          image: ${{ matrix.binfmt }}
+
+      - name: Install and run python3.12 in arm64 ubuntu:24.04
+        run: |
+          failures=0
+          for ii in 1 2 3; do
+            echo "::group::Attempt ${ii}"
+            if docker run --rm --platform linux/arm64 ubuntu:24.04 bash -euxc '
+                uname -m
+                apt-get update
+                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.12-minimal python3.12-venv
+                python3.12 -m venv /tmp/venv
+                /tmp/venv/bin/python -c "import sys, hashlib; print(sys.version, hashlib.sha256(b\"x\" * 10000000).hexdigest())"
+              '; then
+              echo "Attempt ${ii}: pass"
+            else
+              echo "::error::Attempt ${ii}: exit status $?"
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "${failures} of 3 attempts failed"
+          test "${failures}" -eq 0
