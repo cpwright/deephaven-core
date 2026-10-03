@@ -6,6 +6,8 @@ package io.deephaven.engine.table.impl.ssa;
 import io.deephaven.chunk.LongChunk;
 import io.deephaven.chunk.WritableLongChunk;
 import io.deephaven.chunk.attributes.Values;
+import io.deephaven.engine.rowset.RowSequence;
+import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import org.junit.Test;
 
 import java.util.Comparator;
@@ -17,6 +19,8 @@ import static org.junit.Assert.assertEquals;
 /**
  * {@link SegmentedSortedArray#insertAndGetNextValue} reports, for each inserted stamp, the stamp that follows it in the
  * array after the insertion, and how many inserted stamps have one; only the last inserted stamp can lack a successor.
+ * {@link SegmentedSortedArray#findNextValues} reports the same for stamps already present, and
+ * {@link SegmentedSortedArray#findPriorRowKeys} reports the row key that precedes each absent stamp.
  */
 public class SegmentedSortedArrayNextValueTest {
     private static final int SEEDS = 20;
@@ -116,5 +120,110 @@ public class SegmentedSortedArrayNextValueTest {
             }
             assertEquals(contents.size(), ssa.size());
         }
+    }
+
+    @Test
+    public void testFindNextValuesAndPriorRowKeys() {
+        for (final boolean reverse : new boolean[] {false, true}) {
+            for (final int nodeSize : new int[] {2, 3, 8, 64}) {
+                for (int seed = 0; seed < SEEDS; ++seed) {
+                    checkFind(reverse, nodeSize, new Random(seed));
+                }
+            }
+        }
+    }
+
+    private static void checkFind(final boolean reverse, final int nodeSize, final Random random) {
+        final Comparator<Entry> order = Comparator.<Entry>comparingLong(entry -> reverse ? -entry.value : entry.value)
+                .thenComparingLong(entry -> entry.rowKey);
+        final SegmentedSortedArray ssa = reverse ? new LongReverseSegmentedSortedArray(nodeSize)
+                : new LongSegmentedSortedArray(nodeSize);
+        final TreeSet<Entry> contents = new TreeSet<>(order);
+        long nextRowKey = 0;
+
+        for (int step = 0; step < STEPS; ++step) {
+            final TreeSet<Entry> removed = new TreeSet<>(order);
+            if (!contents.isEmpty() && random.nextInt(3) == 0) {
+                final int removeOneIn = 1 + random.nextInt(4);
+                for (final Entry entry : contents) {
+                    if (random.nextInt(removeOneIn) == 0) {
+                        removed.add(entry);
+                    }
+                }
+                ssa.remove(valuesOf(removed), rowKeysOf(removed));
+                contents.removeAll(removed);
+            } else {
+                final TreeSet<Entry> batch = new TreeSet<>(order);
+                final int batchSize = 1 + random.nextInt(3 * nodeSize);
+                final int range = random.nextBoolean() ? 4 : 2000;
+                for (int ii = 0; ii < batchSize; ++ii) {
+                    // row keys are not ordered by value, so runs of equal stamps break ties by scattered row keys
+                    batch.add(new Entry(random.nextInt(range), nextRowKey++ * 7919 % 100_003));
+                }
+                ssa.insert(valuesOf(batch), rowKeysOf(batch));
+                contents.addAll(batch);
+            }
+            assertEquals(contents.size(), ssa.size());
+
+            // the next value of a sorted subset of the present entries
+            final TreeSet<Entry> present = new TreeSet<>(order);
+            final int keepOneIn = 1 + random.nextInt(3);
+            for (final Entry entry : contents) {
+                if (random.nextInt(keepOneIn) == 0) {
+                    present.add(entry);
+                }
+            }
+            try (final WritableLongChunk<Values> nextValues = WritableLongChunk.makeWritableChunk(present.size())) {
+                final int found = ssa.findNextValues(valuesOf(present), rowKeysOf(present), nextValues);
+                int expectedFound = 0;
+                for (final Entry entry : present) {
+                    final Entry successor = contents.higher(entry);
+                    if (successor == null) {
+                        break;
+                    }
+                    assertEquals("next value of stamp " + entry.value + " row " + entry.rowKey, successor.value,
+                            nextValues.get(expectedFound));
+                    ++expectedFound;
+                }
+                assertEquals(expectedFound, found);
+            }
+
+            // the prior row key of the entries just removed and of entries that were never present
+            final TreeSet<Entry> absent = new TreeSet<>(order);
+            absent.addAll(removed);
+            final int probes = random.nextInt(2 * nodeSize);
+            for (int ii = 0; ii < probes; ++ii) {
+                absent.add(new Entry(random.nextInt(2000) - 1000, 200_000 + random.nextInt(1000)));
+            }
+            try (final WritableLongChunk<RowKeys> priorRowKeys = WritableLongChunk.makeWritableChunk(absent.size())) {
+                ssa.findPriorRowKeys(valuesOf(absent), rowKeysOf(absent), priorRowKeys);
+                assertEquals(absent.size(), priorRowKeys.size());
+                int position = 0;
+                for (final Entry entry : absent) {
+                    final Entry predecessor = contents.lower(entry);
+                    assertEquals("prior row key of stamp " + entry.value + " row " + entry.rowKey,
+                            predecessor == null ? RowSequence.NULL_ROW_KEY : predecessor.rowKey,
+                            priorRowKeys.get(position++));
+                }
+            }
+        }
+    }
+
+    private static LongChunk<Values> valuesOf(final TreeSet<Entry> entries) {
+        final long[] values = new long[entries.size()];
+        int position = 0;
+        for (final Entry entry : entries) {
+            values[position++] = entry.value;
+        }
+        return LongChunk.chunkWrap(values);
+    }
+
+    private static LongChunk<RowKeys> rowKeysOf(final TreeSet<Entry> entries) {
+        final long[] rowKeys = new long[entries.size()];
+        int position = 0;
+        for (final Entry entry : entries) {
+            rowKeys[position++] = entry.rowKey;
+        }
+        return LongChunk.chunkWrap(rowKeys);
     }
 }

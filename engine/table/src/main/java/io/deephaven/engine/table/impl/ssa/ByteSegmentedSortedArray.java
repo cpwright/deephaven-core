@@ -951,6 +951,98 @@ public final class ByteSegmentedSortedArray implements SegmentedSortedArray {
         removeAndGetNextInternal(valuesToRemove, rowKeysToRemove, null);
     }
 
+    @Override
+    public <T extends Any> int findNextValues(Chunk<T> presentValues, LongChunk<? extends RowKeys> presentRowKeys,
+            WritableChunk<T> nextValue) {
+        final int findSize = presentValues.size();
+        if (findSize == 0) {
+            return 0;
+        }
+        Assert.gtZero(leafCount, "leafCount");
+        final ByteChunk<T> findChunk = presentValues.asByteChunk();
+        final WritableByteChunk<T> nextChunk = nextValue.asWritableByteChunk();
+
+        // the values are sorted, so each one is found at or after the leaf and position of its predecessor
+        int leaf = 0;
+        int position = 0;
+        byte[] values = leafCount == 1 ? directoryValues : leafValues[0];
+        long[] rowKeys = leafCount == 1 ? directoryRowKeys : leafRowKeys[0];
+        int valuesInLeaf = leafCount == 1 ? size : leafSizes[0];
+
+        for (int ii = 0; ii < findSize; ++ii) {
+            final byte value = findChunk.get(ii);
+            final long rowKey = presentRowKeys.get(ii);
+            if (leafCount > 1) {
+                final int valueLeaf = bound(directoryValues, directoryRowKeys, value, rowKey, leaf, leafCount - 1);
+                if (valueLeaf != leaf) {
+                    leaf = valueLeaf;
+                    position = 0;
+                    values = leafValues[leaf];
+                    rowKeys = leafRowKeys[leaf];
+                    valuesInLeaf = leafSizes[leaf];
+                }
+            }
+            final int valuePosition = bound(values, rowKeys, value, rowKey, position, valuesInLeaf);
+            Assert.lt(valuePosition, "valuePosition", valuesInLeaf, "valuesInLeaf");
+            Assert.eq(rowKeys[valuePosition], "rowKeys[valuePosition]", rowKey, "rowKey");
+            position = valuePosition + 1;
+
+            if (position < valuesInLeaf) {
+                nextChunk.set(ii, values[position]);
+            } else if (leaf < leafCount - 1) {
+                nextChunk.set(ii, leafValues[leaf + 1][0]);
+            } else {
+                // only the last value of this SSA has no next value, and it sorts after every other value
+                Assert.eq(ii, "ii", findSize - 1, "findSize - 1");
+                return findSize - 1;
+            }
+        }
+        return findSize;
+    }
+
+    @Override
+    public void findPriorRowKeys(Chunk<? extends Any> absentValues, LongChunk<? extends RowKeys> absentRowKeys,
+            WritableLongChunk<? extends RowKeys> priorRowKeys) {
+        final int findSize = absentValues.size();
+        priorRowKeys.setSize(findSize);
+        if (leafCount == 0) {
+            priorRowKeys.fillWithValue(0, findSize, RowSequence.NULL_ROW_KEY);
+            return;
+        }
+        final ByteChunk<? extends Any> findChunk = absentValues.asByteChunk();
+
+        // the values are sorted, so each one is found at or after the leaf and position of its predecessor
+        int leaf = 0;
+        int position = 0;
+        byte[] values = leafCount == 1 ? directoryValues : leafValues[0];
+        long[] rowKeys = leafCount == 1 ? directoryRowKeys : leafRowKeys[0];
+        int valuesInLeaf = leafCount == 1 ? size : leafSizes[0];
+
+        for (int ii = 0; ii < findSize; ++ii) {
+            final byte value = findChunk.get(ii);
+            final long rowKey = absentRowKeys.get(ii);
+            if (leafCount > 1) {
+                final int valueLeaf = bound(directoryValues, directoryRowKeys, value, rowKey, leaf, leafCount - 1);
+                if (valueLeaf != leaf) {
+                    leaf = valueLeaf;
+                    position = 0;
+                    values = leafValues[leaf];
+                    rowKeys = leafRowKeys[leaf];
+                    valuesInLeaf = leafSizes[leaf];
+                }
+            }
+            // the first value that sorts after the absent value, so the prior is the value before it
+            position = bound(values, rowKeys, value, rowKey, position, valuesInLeaf);
+            if (position > 0) {
+                priorRowKeys.set(ii, rowKeys[position - 1]);
+            } else if (leaf > 0) {
+                priorRowKeys.set(ii, leafRowKeys[leaf - 1][leafSizes[leaf - 1] - 1]);
+            } else {
+                priorRowKeys.set(ii, RowSequence.NULL_ROW_KEY);
+            }
+        }
+    }
+
     /**
      * Remove valuesToRemove from this SSA. The valuesToRemove to remove must be sorted.
      *

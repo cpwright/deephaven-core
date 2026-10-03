@@ -130,6 +130,38 @@ public interface SegmentedSortedArray extends LongSizedDataStructure {
     <T extends Any> int insertAndGetNextValue(Chunk<T> valuesToInsert, LongChunk<? extends RowKeys> indicesToInsert,
             WritableChunk<T> nextValue);
 
+    /**
+     * Fill nextValue with the value that follows each of the given values in this SSA. Every given value and row key
+     * must be present in this SSA, sorted with ties broken by the row key, which makes the result the next value that
+     * {@link #insertAndGetNextValue} reports for a value inserted into an SSA that already holds the values that follow
+     * it.
+     * <p>
+     * Only the last given value can lack a next value, which happens when it is the last value of this SSA; its
+     * position in nextValue is left unchanged.
+     *
+     * @param presentValues the values to look up, which must be present in this SSA
+     * @param presentRowKeys the corresponding row keys
+     * @param nextValue the output next values, parallel to presentValues
+     * @return the number of leading positions of nextValue that were filled, which is the size of presentValues, or one
+     *         less when the last value has no next value
+     */
+    <T extends Any> int findNextValues(Chunk<T> presentValues, LongChunk<? extends RowKeys> presentRowKeys,
+            WritableChunk<T> nextValue);
+
+    /**
+     * Fill priorRowKeys with the row key that precedes each of the given values in this SSA, or
+     * {@link io.deephaven.engine.rowset.RowSequence#NULL_ROW_KEY} when no value precedes it. No given value and row key
+     * may be present in this SSA, and they must be sorted with ties broken by the row key, which makes the result the
+     * prior that {@link #removeAndGetPrior} reports for a value removed from an SSA that holds only the values that
+     * survive it.
+     *
+     * @param absentValues the values to look up, which must not be present in this SSA
+     * @param absentRowKeys the corresponding row keys
+     * @param priorRowKeys the output prior row keys, parallel to absentValues
+     */
+    void findPriorRowKeys(Chunk<? extends Any> absentValues, LongChunk<? extends RowKeys> absentRowKeys,
+            WritableLongChunk<? extends RowKeys> priorRowKeys);
+
     void applyShift(Chunk<? extends Any> stampChunk, LongChunk<? extends RowKeys> keyChunk, long shiftDelta);
 
     void applyShiftReverse(Chunk<? extends Any> stampChunk, LongChunk<? extends RowKeys> keyChunk,
