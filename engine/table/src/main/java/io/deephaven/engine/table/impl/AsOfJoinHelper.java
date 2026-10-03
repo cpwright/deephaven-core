@@ -397,7 +397,15 @@ public class AsOfJoinHelper {
                             TableUpdateImpl.copy(upstream, result.getModifiedColumnSetForUpdates());
                     leftTransformer.clearAndTransform(upstream.modifiedColumnSet(), downstream.modifiedColumnSet());
                     if (keysModified) {
-                        downstream.modifiedColumnSet().setAll(allRightColumns);
+                        // the right side is static, so a restamped row's right values change only with its
+                        // redirection
+                        try (final RowSet changed = ChunkedAjUtils.changedRedirections(upstream.modified(),
+                                upstream.getModifiedPreShift(), rowRedirection, null, control.leftChunkSize(),
+                                true)) {
+                            if (changed.isNonempty()) {
+                                downstream.modifiedColumnSet().setAll(allRightColumns);
+                            }
+                        }
                     }
 
                     result.notifyListeners(downstream);
@@ -540,7 +548,7 @@ public class AsOfJoinHelper {
             return zeroKeyAjRightIncremental(control, leftTable, rightTable, columnsToAdd, stampPair, leftStampSource,
                     rightStampSource, order, disallowExactMatch, stampEqualsConsistent, rowRedirection);
         } else {
-            return zeroKeyAjRightStatic(leftTable, rightTable, columnsToAdd, stampPair, leftStampSource,
+            return zeroKeyAjRightStatic(control, leftTable, rightTable, columnsToAdd, stampPair, leftStampSource,
                     originalRightStampSource, rightStampSource, order, disallowExactMatch, stampEqualsConsistent,
                     rowRedirection);
         }
@@ -725,6 +733,7 @@ public class AsOfJoinHelper {
 
                 final boolean keysModified = upstream.modifiedColumnSet().containsAny(rightMatchColumns);
                 final boolean stampModified = upstream.modifiedColumnSet().containsAny(rightStampColumn);
+                final boolean columnsToAddModified = upstream.modifiedColumnSet().containsAny(rightColumnsToAdd);
 
                 final RowSetBuilderRandom modifiedBuilder = RowSetFactory.builderRandom();
 
@@ -964,11 +973,26 @@ public class AsOfJoinHelper {
                         }
                     }
 
+                    // a row restamped by the removal and re-insertion of a modified right row may end up where it
+                    // started; every other restamped row is now redirected to a different right row
+                    downstream.modified = modifiedBuilder.build();
+                    if (keysModified || stampModified) {
+                        try (final RowSet restamped = downstream.modified();
+                                final RowSet unstableRightKeys = ChunkedAjUtils.unstableRightKeys(upstream.added(),
+                                        upstream.modified(), columnsToAddModified, upstream.shifted())) {
+                            downstream.modified = ChunkedAjUtils.changedRedirections(restamped, restamped,
+                                    rowRedirection, unstableRightKeys, cycleChunkSize, false);
+                        }
+                    }
+                    if (downstream.modified().isNonempty()) {
+                        downstream.modifiedColumnSet().setAll(rightAddedColumns);
+                    }
+
                     // and then finally we handle the case where the keys and stamps were not modified, but we must
                     // identify the responsive modifications; only a modified column that the result adds changes a
                     // responsive row
-                    if (!keysModified && !stampModified && upstream.modified().isNonempty()
-                            && upstream.modifiedColumnSet().containsAny(rightColumnsToAdd)) {
+                    if (!keysModified && !stampModified && upstream.modified().isNonempty() && columnsToAddModified) {
+                        final RowSetBuilderRandom responsiveBuilder = RowSetFactory.builderRandom();
                         final int modifiedSlotCount = asOfJoinStateManager.gatherModifications(upstream.modified(),
                                 rightSources, slots, sequentialBuilders);
 
@@ -990,19 +1014,15 @@ public class AsOfJoinHelper {
                                     sortKernel.sort(rightKeyIndices, rightStampChunk);
 
                                     chunkSsaStamp.findModified(0, leftValuesChunk, leftKeyChunk, rowRedirection,
-                                            rightStampChunk, rightKeyIndices, modifiedBuilder, disallowExactMatch);
+                                            rightStampChunk, rightKeyIndices, responsiveBuilder, disallowExactMatch);
                                 }
                             }
                         }
 
+                        try (final RowSet responsive = responsiveBuilder.build()) {
+                            downstream.modified().writableCast().insert(responsive);
+                        }
                         rightTransformer.transform(upstream.modifiedColumnSet(), downstream.modifiedColumnSet());
-                    }
-
-                    downstream.modified = modifiedBuilder.build();
-
-                    final boolean processedAdditionsOrRemovals = removedSlotCount > 0 || addedSlotCount > 0;
-                    if (keysModified || stampModified || processedAdditionsOrRemovals) {
-                        downstream.modifiedColumnSet().setAll(rightAddedColumns);
                     }
                 }
 
@@ -1408,6 +1428,8 @@ public class AsOfJoinHelper {
                         downstream.modifiedColumnSet().clear();
 
                         final boolean stampModified = upstream.modifiedColumnSet().containsAny(rightStampColumn);
+                        final boolean columnsToAddModified =
+                                upstream.modifiedColumnSet().containsAny(rightColumnsToAdd);
 
                         final RowSetBuilderRandom modifiedBuilder = RowSetFactory.builderRandom();
 
@@ -1523,10 +1545,27 @@ public class AsOfJoinHelper {
                                     }
                                 }
 
+                                // a row restamped by the removal and re-insertion of a modified right row may end up
+                                // where it started; every other restamped row is now redirected to a different right
+                                // row
+                                downstream.modified = modifiedBuilder.build();
+                                if (stampModified) {
+                                    try (final RowSet restamped = downstream.modified();
+                                            final RowSet unstableRightKeys = ChunkedAjUtils.unstableRightKeys(
+                                                    upstream.added(), upstream.modified(), columnsToAddModified,
+                                                    upstream.shifted())) {
+                                        downstream.modified = ChunkedAjUtils.changedRedirections(restamped,
+                                                restamped, rowRedirection, unstableRightKeys, cycleChunkSize, false);
+                                    }
+                                }
+                                if (downstream.modified().isNonempty()) {
+                                    downstream.modifiedColumnSet().setAll(allRightColumns);
+                                }
+
                                 // if the stamp was not modified, then we need to figure out the responsive rows to mark
                                 // as modified; only a modified column that the result adds changes a responsive row
-                                if (!stampModified && upstream.modified().isNonempty()
-                                        && upstream.modifiedColumnSet().containsAny(rightColumnsToAdd)) {
+                                if (!stampModified && upstream.modified().isNonempty() && columnsToAddModified) {
+                                    final RowSetBuilderRandom responsiveBuilder = RowSetFactory.builderRandom();
                                     try (final RowSequence.Iterator modit =
                                             upstream.modified().getRowSequenceIterator();
                                             final WritableLongChunk<RowKeys> rightStampIndices =
@@ -1543,25 +1582,18 @@ public class AsOfJoinHelper {
 
                                             chunkSsaStamp.findModified(0, leftStampValues, leftStampKeys,
                                                     rowRedirection,
-                                                    rightStampChunk, rightStampIndices, modifiedBuilder,
+                                                    rightStampChunk, rightStampIndices, responsiveBuilder,
                                                     disallowExactMatch);
                                         }
                                     }
+                                    try (final RowSet responsive = responsiveBuilder.build()) {
+                                        downstream.modified().writableCast().insert(responsive);
+                                    }
+                                    rightTransformer.transform(upstream.modifiedColumnSet(),
+                                            downstream.modifiedColumnSet());
                                 }
                             }
                         }
-
-                        if (stampModified || upstream.added().isNonempty() || upstream.removed().isNonempty()) {
-                            // If we kept track of whether or not something actually changed, then we could skip
-                            // painting all
-                            // the right columns as modified. It is not clear whether it is worth the additional
-                            // complexity.
-                            downstream.modifiedColumnSet().setAll(allRightColumns);
-                        } else {
-                            rightTransformer.transform(upstream.modifiedColumnSet(), downstream.modifiedColumnSet());
-                        }
-
-                        downstream.modified = modifiedBuilder.build();
 
                         result.notifyListeners(downstream);
                     }
@@ -1656,7 +1688,8 @@ public class AsOfJoinHelper {
         }
     }
 
-    private static QueryTable zeroKeyAjRightStatic(QueryTable leftTable, Table rightTable, MatchPair[] columnsToAdd,
+    private static QueryTable zeroKeyAjRightStatic(JoinControl control, QueryTable leftTable, Table rightTable,
+            MatchPair[] columnsToAdd,
             MatchPair stampPair, ColumnSource<?> leftStampSource, ColumnSource<?> originalRightStampSource,
             ColumnSource<?> rightStampSource, SortingOrder order, boolean disallowExactMatch,
             boolean stampEqualsConsistent, final WritableRowRedirection rowRedirection) {
@@ -1746,8 +1779,16 @@ public class AsOfJoinHelper {
                                                         result.getModifiedColumnSetForUpdates());
                                         leftTransformer.clearAndTransform(upstream.modifiedColumnSet(),
                                                 downstream.modifiedColumnSet());
+                                        // the right side is static, so a restamped row's right values change only
+                                        // with its redirection
                                         if (stampModified) {
-                                            downstream.modifiedColumnSet().setAll(allRightColumns);
+                                            try (final RowSet changed = ChunkedAjUtils.changedRedirections(
+                                                    upstream.modified(), upstream.getModifiedPreShift(),
+                                                    rowRedirection, null, control.leftChunkSize(), true)) {
+                                                if (changed.isNonempty()) {
+                                                    downstream.modifiedColumnSet().setAll(allRightColumns);
+                                                }
+                                            }
                                         }
 
                                         result.notifyListeners(downstream);
