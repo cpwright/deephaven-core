@@ -23,11 +23,21 @@ import io.deephaven.engine.table.impl.util.RowRedirection;
 import io.deephaven.engine.table.impl.util.SizedSafeCloseable;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.base.verify.Assert;
+import io.deephaven.chunk.WritableByteChunk;
+import io.deephaven.chunk.WritableIntChunk;
 import io.deephaven.chunk.WritableLongChunk;
+import io.deephaven.chunk.attributes.Any;
+import io.deephaven.chunk.attributes.ChunkPositions;
+import io.deephaven.engine.table.impl.sort.timsort.LongIntTimsortKernel;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.Nullable;
 
 public class ChunkedAjUtils {
+    /** The kinds of change {@link #changedRedirections} records for each row of a chunk. */
+    private static final byte UNCHANGED = 0;
+    private static final byte REDIRECTION_CHANGED = 1;
+    private static final byte ADDED_COLUMNS_MODIFIED = 2;
+
     static void bothIncrementalLeftSsaShift(RowSetShiftData shiftData, SegmentedSortedArray leftSsa,
             RowSet restampRemovals, QueryTable table,
             int nodeSize, ColumnSource<?> stampSource) {
@@ -199,6 +209,7 @@ public class ChunkedAjUtils {
         final long modifiedLast = anyModified ? modifiedRightKeys.lastRowKey() : Long.MIN_VALUE;
 
         final int chunkSize = (int) Math.min(maxChunkSize, size);
+        final boolean anyCandidates = anyReplaced || anyModified;
         final RowSetBuilderSequential changedBuilder = RowSetFactory.builderSequential();
         try (final ChunkSource.FillContext currentContext = rowRedirection.makeFillContext(chunkSize, null);
                 final ChunkSource.FillContext previousContext = rowRedirection.makeFillContext(chunkSize, null);
@@ -206,6 +217,13 @@ public class ChunkedAjUtils {
                 final WritableLongChunk<RowKeys> previousRedirections =
                         WritableLongChunk.makeWritableChunk(chunkSize);
                 final WritableLongChunk<RowKeys> currentKeys = WritableLongChunk.makeWritableChunk(chunkSize);
+                final WritableByteChunk<Any> changeKinds = WritableByteChunk.makeWritableChunk(chunkSize);
+                final WritableLongChunk<RowKeys> candidateRedirections =
+                        anyCandidates ? WritableLongChunk.makeWritableChunk(chunkSize) : null;
+                final WritableIntChunk<ChunkPositions> candidatePositions =
+                        anyCandidates ? WritableIntChunk.makeWritableChunk(chunkSize) : null;
+                final LongIntTimsortKernel.LongIntSortKernelContext<RowKeys, ChunkPositions> candidateSortContext =
+                        anyCandidates ? LongIntTimsortKernel.createContext(chunkSize) : null;
                 final RowSequence.Iterator currentIt = currentRows.getRowSequenceIterator();
                 final RowSequence.Iterator previousIt = previousRows.getRowSequenceIterator()) {
             while (currentIt.hasMore()) {
@@ -214,18 +232,67 @@ public class ChunkedAjUtils {
                 rowRedirection.fillChunk(currentContext, currentRedirections, currentChunk);
                 rowRedirection.fillPrevChunk(previousContext, previousRedirections, previousChunk);
                 currentChunk.fillRowKeyChunk(currentKeys);
-                for (int ii = 0; ii < currentKeys.size(); ++ii) {
+                final int rowCount = currentKeys.size();
+                changeKinds.setSize(rowCount);
+
+                // a row whose redirection is unchanged and within the span of either set is a candidate for a
+                // membership check
+                if (anyCandidates) {
+                    candidateRedirections.setSize(0);
+                    candidatePositions.setSize(0);
+                }
+                for (int ii = 0; ii < rowCount; ++ii) {
                     final long currentRedirection = currentRedirections.get(ii);
-                    if (currentRedirection != previousRedirections.get(ii)
-                            || (currentRedirection >= replacedFirst && currentRedirection <= replacedLast
-                                    && replacedRightKeys.find(currentRedirection) >= 0)) {
+                    if (currentRedirection != previousRedirections.get(ii)) {
+                        changeKinds.set(ii, REDIRECTION_CHANGED);
+                        continue;
+                    }
+                    changeKinds.set(ii, UNCHANGED);
+                    if ((currentRedirection >= replacedFirst && currentRedirection <= replacedLast)
+                            || (currentRedirection >= modifiedFirst && currentRedirection <= modifiedLast)) {
+                        candidateRedirections.add(currentRedirection);
+                        candidatePositions.add(ii);
+                    }
+                }
+
+                // the candidates are checked in ascending redirection order, so that each set is searched with one
+                // forward pass of a search iterator per chunk
+                if (anyCandidates && candidateRedirections.size() > 0) {
+                    LongIntTimsortKernel.sort(candidateSortContext, candidatePositions, candidateRedirections);
+                    try (final RowSet.SearchIterator replacedIt =
+                            anyReplaced ? replacedRightKeys.searchIterator() : null;
+                            final RowSet.SearchIterator modifiedIt =
+                                    anyModified ? modifiedRightKeys.searchIterator() : null) {
+                        boolean replacedRemaining = anyReplaced;
+                        boolean modifiedRemaining = anyModified;
+                        for (int ci = 0; ci < candidateRedirections.size(); ++ci) {
+                            final long redirection = candidateRedirections.get(ci);
+                            if (replacedRemaining) {
+                                replacedRemaining = replacedIt.advance(redirection);
+                                if (replacedRemaining && replacedIt.currentValue() == redirection) {
+                                    changeKinds.set(candidatePositions.get(ci), REDIRECTION_CHANGED);
+                                    continue;
+                                }
+                            }
+                            if (modifiedRemaining) {
+                                modifiedRemaining = modifiedIt.advance(redirection);
+                                if (modifiedRemaining && modifiedIt.currentValue() == redirection) {
+                                    changeKinds.set(candidatePositions.get(ci), ADDED_COLUMNS_MODIFIED);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (int ii = 0; ii < rowCount; ++ii) {
+                    final byte changeKind = changeKinds.get(ii);
+                    if (changeKind == REDIRECTION_CHANGED) {
                         changedBuilder.appendKey(currentKeys.get(ii));
                         redirectionChanged.setTrue();
                         if (firstOnly) {
                             return changedBuilder.build();
                         }
-                    } else if (currentRedirection >= modifiedFirst && currentRedirection <= modifiedLast
-                            && modifiedRightKeys.find(currentRedirection) >= 0) {
+                    } else if (changeKind == ADDED_COLUMNS_MODIFIED) {
                         changedBuilder.appendKey(currentKeys.get(ii));
                         addedColumnsModified.setTrue();
                     }
