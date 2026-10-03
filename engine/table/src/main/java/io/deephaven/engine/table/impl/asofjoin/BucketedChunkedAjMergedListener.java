@@ -30,6 +30,7 @@ import io.deephaven.engine.table.impl.util.compact.CompactKernel;
 import io.deephaven.engine.table.impl.util.compact.LongCompactKernel;
 import io.deephaven.engine.rowset.chunkattributes.RowKeys;
 import io.deephaven.util.SafeCloseable;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableObject;
 
 import javax.annotation.OverridingMethodsMustInvokeSuper;
@@ -185,6 +186,12 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
         // left rows restamped this cycle and redirected to the same right row key as before are compared against the
         // right keys that may hold a changed row
         WritableRowSet rightRestamped = null;
+        // right rows whose added columns were modified; a row that stays redirected to one changes only in those
+        // columns
+        final RowSet modifiedRightKeys =
+                rightTicked && rightRecorder.getModifiedColumnSet().containsAny(rightColumnsToAdd)
+                        ? rightRecorder.getModified()
+                        : null;
 
         try (final ColumnSource.FillContext leftFillContext =
                 leftAdditionsOrRemovals ? leftStampSource.makeFillContext(cycleLeftChunkSize) : null;
@@ -197,12 +204,10 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                 final LongSortKernel<Values, RowKeys> sortKernel = LongSortKernel.makeContext(stampChunkType, order,
                         Math.max(cycleLeftChunkSize, cycleRightChunkSize), true);
                 final SizedLongChunk<RowKeys> modifiedKeys = new SizedLongChunk<>();
-                final RowSet unstableRightKeys =
+                final RowSet replacedRightKeys =
                         rightTicked && (leftKeysModified || leftStampModified || rightKeysModified
                                 || rightStampModified)
-                                        ? ChunkedAjUtils.unstableRightKeys(rightRecorder.getAdded(),
-                                                rightRecorder.getModified(),
-                                                rightRecorder.getModifiedColumnSet().containsAny(rightColumnsToAdd),
+                                        ? ChunkedAjUtils.replacedRightKeys(rightRecorder.getAdded(),
                                                 rightRecorder.getShifted())
                                         : null) {
 
@@ -678,16 +683,24 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                     // started; every other restamped row is now redirected to a different right row
                     rightRestamped = restampBuilder.build();
                     if (rightKeysModified || rightStampModified) {
+                        final MutableBoolean redirectionChanged = new MutableBoolean();
+                        final MutableBoolean addedColumnsModified = new MutableBoolean();
                         try (final RowSet restamped = rightRestamped;
                                 final WritableRowSet restampedPrev = restamped.copy()) {
                             if (leftTicked) {
                                 leftRecorder.getShifted().unapply(restampedPrev);
                             }
                             rightRestamped = ChunkedAjUtils.changedRedirections(restamped, restampedPrev,
-                                    rowRedirection, unstableRightKeys, cycleRightChunkSize, false);
+                                    rowRedirection, replacedRightKeys, modifiedRightKeys, cycleRightChunkSize, false,
+                                    redirectionChanged, addedColumnsModified);
                         }
-                    }
-                    if (rightRestamped.isNonempty()) {
+                        if (redirectionChanged.booleanValue()) {
+                            downstream.modifiedColumnSet().setAll(allRightColumns);
+                        } else if (addedColumnsModified.booleanValue()) {
+                            rightTransformer.transform(rightRecorder.getModifiedColumnSet(),
+                                    downstream.modifiedColumnSet());
+                        }
+                    } else if (rightRestamped.isNonempty()) {
                         downstream.modifiedColumnSet().setAll(allRightColumns);
                     }
 
@@ -854,11 +867,16 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
 
                 leftTransformer.transform(leftRecorder.getModifiedColumnSet(), downstream.modifiedColumnSet());
                 if (leftKeysModified || leftStampModified) {
-                    try (final RowSet changed = ChunkedAjUtils.changedRedirections(leftRecorder.getModified(),
-                            leftRecorder.getModifiedPreShift(), rowRedirection, unstableRightKeys, cycleLeftChunkSize,
-                            true)) {
-                        if (changed.isNonempty()) {
+                    final MutableBoolean redirectionChanged = new MutableBoolean();
+                    final MutableBoolean addedColumnsModified = new MutableBoolean();
+                    try (final RowSet changedRows = ChunkedAjUtils.changedRedirections(leftRecorder.getModified(),
+                            leftRecorder.getModifiedPreShift(), rowRedirection, replacedRightKeys, modifiedRightKeys,
+                            cycleLeftChunkSize, true, redirectionChanged, addedColumnsModified)) {
+                        if (redirectionChanged.booleanValue()) {
                             downstream.modifiedColumnSet().setAll(allRightColumns);
+                        } else if (addedColumnsModified.booleanValue()) {
+                            rightTransformer.transform(rightRecorder.getModifiedColumnSet(),
+                                    downstream.modifiedColumnSet());
                         }
                     }
                 }
@@ -874,7 +892,9 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
         // can be released
         asOfJoinStateManager.releaseEmptyBuckets();
 
-        try (final RowSet modifiedByRightStamps = modifiedBuilder.build();
+        try (
+
+                final RowSet modifiedByRightStamps = modifiedBuilder.build();
                 final RowSet restamped = rightRestamped) {
             final WritableRowSet modified = leftRecorder.getModified().union(modifiedByRightStamps);
             if (restamped != null) {
