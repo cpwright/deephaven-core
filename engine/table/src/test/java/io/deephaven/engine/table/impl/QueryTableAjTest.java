@@ -1653,7 +1653,8 @@ public class QueryTableAjTest {
 
             @Override
             public int leftChunkSize() {
-                return leftSsaNodeSize();
+                // a static left side has no left SSA, but its result rows are still read in chunks
+                return leftNodeSize > 0 ? leftNodeSize : super.leftChunkSize();
             }
         };
     }

@@ -691,7 +691,7 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                                 leftRecorder.getShifted().unapply(restampedPrev);
                             }
                             rightRestamped = ChunkedAjUtils.changedRedirections(restamped, restampedPrev,
-                                    rowRedirection, replacedRightKeys, modifiedRightKeys, cycleRightChunkSize, false,
+                                    rowRedirection, replacedRightKeys, modifiedRightKeys, leftChunkSize, false,
                                     redirectionChanged, addedColumnsModified);
                         }
                         if (redirectionChanged.booleanValue()) {
