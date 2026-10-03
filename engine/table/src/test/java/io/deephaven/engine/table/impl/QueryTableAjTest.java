@@ -1653,7 +1653,8 @@ public class QueryTableAjTest {
 
             @Override
             public int leftChunkSize() {
-                return leftSsaNodeSize();
+                // a static left side has no left SSA, but its result rows are still read in chunks
+                return leftNodeSize > 0 ? leftNodeSize : super.leftChunkSize();
             }
         };
     }
@@ -1737,6 +1738,63 @@ public class QueryTableAjTest {
                 System.out.println("Right Table:" + rightTable.size());
                 TableTools.showWithRowSet(rightTable, 100);
             }
+            joinIncrement.step(leftSize, rightSize, leftTable, rightTable, leftColumnInfo, rightColumnInfo, en, random);
+        }
+    }
+
+    /**
+     * Random updates over few buckets and a narrow stamp range, so that many key and stamp modifications leave a row's
+     * match unchanged, for each combination of ticking sides. Both sides name the stamp column alike, so the right
+     * stamp is an added column only when requested. The validator checks every update's modified rows and columns
+     * against the values that actually changed.
+     */
+    @Test
+    public void testAjRandomNarrowStampRange() {
+        for (int seed = 0; seed < 4; ++seed) {
+            for (final JoinIncrement joinIncrement : new JoinIncrement[] {base.leftStepShift, base.rightStepShift,
+                    base.leftRightStepShift, base.leftRightConcurrentStepShift}) {
+                try (final SafeCloseable ignored = LivenessScopeStack.open(new LivenessScope(true), true)) {
+                    testAjRandomNarrowStampRange(joinIncrement, seed);
+                }
+            }
+        }
+    }
+
+    private void testAjRandomNarrowStampRange(final JoinIncrement joinIncrement, final int seed) {
+        final Random random = new Random(seed);
+        final int leftSize = 50;
+        final int rightSize = 30;
+        final boolean leftRefreshing = joinIncrement != base.rightStepShift;
+        final boolean rightRefreshing = joinIncrement != base.leftStepShift;
+
+        final ColumnInfo<?, ?>[] leftColumnInfo;
+        final QueryTable leftTable = getTable(leftRefreshing, leftSize, random,
+                leftColumnInfo = initColumnInfos(new String[] {"Bucket", "Stamp", "LeftSentinel"},
+                        new SetGenerator<>("Alpha", "Bravo", "Charlie"),
+                        new IntGenerator(0, 20),
+                        new IntGenerator(10_000_000, 10_010_000)));
+        final ColumnInfo<?, ?>[] rightColumnInfo;
+        final QueryTable rightTable = getTable(rightRefreshing, rightSize, random,
+                rightColumnInfo = initColumnInfos(new String[] {"Bucket", "Stamp", "RightSentinel"},
+                        new SetGenerator<>("Alpha", "Bravo", "Delta"),
+                        new IntGenerator(0, 20),
+                        new IntGenerator(20_000_000, 20_010_000)));
+
+        final List<EvalNuggetInterface> nuggets = new ArrayList<>();
+        for (final String keys : new String[] {"", "Bucket,"}) {
+            for (final String stamp : new String[] {"Stamp>=Stamp", "Stamp>Stamp", "Stamp<=Stamp",
+                    "Stamp<Stamp"}) {
+                final boolean reverse = stamp.contains("<");
+                for (final String columnsToAdd : new String[] {"RightSentinel", "RightSentinel,RightStamp=Stamp"}) {
+                    nuggets.add(EvalNugget.from(() -> reverse
+                            ? leftTable.raj(rightTable, keys + stamp, columnsToAdd)
+                            : leftTable.aj(rightTable, keys + stamp, columnsToAdd)));
+                }
+            }
+        }
+        final EvalNuggetInterface[] en = nuggets.toArray(new EvalNuggetInterface[0]);
+
+        for (int step = 0; step < 20; step++) {
             joinIncrement.step(leftSize, rightSize, leftTable, rightTable, leftColumnInfo, rightColumnInfo, en, random);
         }
     }
@@ -2735,6 +2793,217 @@ public class QueryTableAjTest {
         Asserts.assertEquals(new int[] {NULL_INT, 10, 10}, ColumnVectors.ofInt(result, "Sentinel").toArray());
         assertEquals(1, listener.getCount());
         assertEquals(i(1, 2), listener.getUpdate().modified());
+        result.removeUpdateListener(listener);
+    }
+
+    /**
+     * An update reports a left row as modified because of a right change, and reports the added right columns as
+     * modified, only when the right row a left row is redirected to actually changed. Left rows modified on the left
+     * side are always modified, with the added right columns reported only when one of them is redirected to a
+     * different right row. Both sides name the stamp column alike, so the right stamp is not an added column. Covers aj
+     * and raj, with and without exact match columns, and each combination of ticking sides.
+     */
+    @Test
+    public void testModifiedColumnSetReflectsChangedRedirections() {
+        for (final boolean leftRefreshing : new boolean[] {false, true}) {
+            for (final boolean rightRefreshing : new boolean[] {false, true}) {
+                if (!leftRefreshing && !rightRefreshing) {
+                    continue;
+                }
+                for (final boolean bucketed : new boolean[] {false, true}) {
+                    for (final boolean reverse : new boolean[] {false, true}) {
+                        checkModifiedColumnSetReflectsChangedRedirections(leftRefreshing, rightRefreshing, bucketed,
+                                reverse);
+                    }
+                }
+            }
+        }
+    }
+
+    private void checkModifiedColumnSetReflectsChangedRedirections(final boolean leftRefreshing,
+            final boolean rightRefreshing, final boolean bucketed, final boolean reverse) {
+        final String description = "leftRefreshing=" + leftRefreshing + ", rightRefreshing=" + rightRefreshing
+                + ", bucketed=" + bucketed + ", reverse=" + reverse;
+        // left row 3 has a key with no right rows, so in a bucketed join it is never matched
+        final TrackingRowSet leftRows = i(0, 1, 2, 3).toTracking();
+        final ColumnHolder<?>[] leftColumns = {col("Key", "A", "A", "A", "B"), intCol("Stamp", 10, 20, 30, 20),
+                intCol("LeftOther", 0, 0, 0, 0)};
+        final QueryTable left = leftRefreshing ? testRefreshingTable(leftRows, leftColumns)
+                : testTable(leftRows, leftColumns);
+        // aj matches left stamps 10, 20 and 30 to right rows 0, 1 and 2; raj matches them to right rows 1, 2 and 3
+        final TrackingRowSet rightRows = i(0, 1, 2, 3).toTracking();
+        final ColumnHolder<?>[] rightColumns = {col("Key", "A", "A", "A", "A"), intCol("Stamp", 5, 15, 25, 35),
+                intCol("Sentinel", 100, 101, 102, 103), intCol("Other", 200, 201, 202, 203)};
+        final QueryTable right = rightRefreshing ? testRefreshingTable(rightRows, rightColumns)
+                : testTable(rightRows, rightColumns);
+
+        final String match = (bucketed ? "Key," : "") + "Stamp";
+        final QueryTable result = (QueryTable) (reverse ? left.raj(right, match, "Sentinel,Other")
+                : left.aj(right, match, "Sentinel,Other"));
+        final SimpleListener listener = new SimpleListener(result);
+        result.addUpdateListener(listener);
+        final ModifiedColumnSet sentinel = result.newModifiedColumnSet("Sentinel");
+        final ModifiedColumnSet allRight = result.newModifiedColumnSet("Sentinel", "Other");
+        final ControlledUpdateGraph updateGraph = ExecutionContext.getContext().getUpdateGraph().cast();
+
+        final Runnable checkValues = () -> {
+            final Table expected = reverse ? left.silent().raj(right.silent(), match, "Sentinel,Other")
+                    : left.silent().aj(right.silent(), match, "Sentinel,Other");
+            assertTableEquals(description, expected, result);
+        };
+
+        if (leftRefreshing) {
+            // a left stamp modification that keeps the match reports only the left stamp
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(1), col("Key", "A"), intCol("Stamp", reverse ? 24 : 16),
+                        intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(1), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+            });
+            checkValues.run();
+            assertEquals(description, 1, listener.getCount());
+            assertEquals(description, i(1), listener.getUpdate().modified());
+            assertEquals(description, result.newModifiedColumnSet("Stamp"),
+                    listener.getUpdate().modifiedColumnSet());
+
+            // an unmatched left row whose key changes to another key without right rows reports only the key
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(3), col("Key", "C"), intCol("Stamp", 20), intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(3), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Key")));
+            });
+            checkValues.run();
+            assertEquals(description, i(3), listener.getUpdate().modified());
+            assertEquals(description, result.newModifiedColumnSet("Key"), listener.getUpdate().modifiedColumnSet());
+
+            // a left stamp modification that changes the match reports the right columns too
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(1), col("Key", "A"), intCol("Stamp", reverse ? 26 : 14),
+                        intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(1), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+            });
+            checkValues.run();
+            assertEquals(description, i(1), listener.getUpdate().modified());
+            assertEquals(description, result.newModifiedColumnSet("Stamp", "Sentinel", "Other"),
+                    listener.getUpdate().modifiedColumnSet());
+        }
+
+        if (rightRefreshing) {
+            // a right row beyond every left stamp is no left row's match
+            final int farStamp = reverse ? 1 : 1000;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(right, i(10), col("Key", "A"), intCol("Stamp", farStamp), intCol("Sentinel", 110),
+                        intCol("Other", 210));
+                right.notifyListeners(i(10), i(), i());
+            });
+            checkValues.run();
+            // an update that changes nothing is not delivered
+            assertEquals(description, 0, listener.getCount());
+
+            // a right stamp modification that keeps every match changes no row
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(right, i(2), col("Key", "A"), intCol("Stamp", reverse ? 24 : 23),
+                        intCol("Sentinel", 102), intCol("Other", 202));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(2), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Stamp")));
+            });
+            checkValues.run();
+            // an update that changes nothing is not delivered
+            assertEquals(description, 0, listener.getCount());
+
+            // a right stamp modification combined with a modification of the added column changes the rows that match
+            // the modified right row, which for aj is the match of left row 2 and for raj the match of left row 0
+            final long modifiedRightRow = reverse ? 1 : 2;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(right, i(modifiedRightRow), col("Key", "A"), intCol("Stamp", reverse ? 14 : 25),
+                        intCol("Sentinel", 112), intCol("Other", reverse ? 201 : 202));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(modifiedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Stamp", "Sentinel")));
+            });
+            checkValues.run();
+            assertTrue(description, listener.getUpdate().modified().containsRange(reverse ? 0 : 2, reverse ? 0 : 2));
+            assertEquals(description, sentinel, listener.getUpdate().modifiedColumnSet());
+
+            // the same modification in a cycle that also changes a match reports every right column
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(right, i(modifiedRightRow), col("Key", "A"), intCol("Stamp", reverse ? 14 : 25),
+                        intCol("Sentinel", 113), intCol("Other", reverse ? 201 : 202));
+                addToTable(right, i(12), col("Key", "A"), intCol("Stamp", reverse ? 11 : 29),
+                        intCol("Sentinel", 114), intCol("Other", 212));
+                right.notifyListeners(new TableUpdateImpl(i(12), i(), i(modifiedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Stamp", "Sentinel")));
+            });
+            checkValues.run();
+            assertEquals(description, allRight, listener.getUpdate().modifiedColumnSet());
+
+            // removing the far right row changes no row
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                removeRows(right, i(10));
+                right.notifyListeners(i(), i(10), i());
+            });
+            checkValues.run();
+            // an update that changes nothing is not delivered
+            assertEquals(description, 0, listener.getCount());
+
+            // a new right row becomes the match of left row 2 for aj and of left row 0 for raj
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(right, i(11), col("Key", "A"), intCol("Stamp", reverse ? 10 : 30),
+                        intCol("Sentinel", 111), intCol("Other", 211));
+                right.notifyListeners(i(11), i(), i());
+            });
+            checkValues.run();
+            assertTrue(description, listener.getUpdate().modified().containsRange(reverse ? 0 : 2, reverse ? 0 : 2));
+            assertEquals(description, allRight, listener.getUpdate().modifiedColumnSet());
+        }
+
+        if (leftRefreshing && rightRefreshing) {
+            // a left stamp modification that keeps the match, in the same cycle as a right row that matches nothing
+            final int farStamp = reverse ? 2 : 2000;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(0), col("Key", "A"), intCol("Stamp", reverse ? 9 : 11),
+                        intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(0), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+                addToTable(right, i(20), col("Key", "A"), intCol("Stamp", farStamp), intCol("Sentinel", 120),
+                        intCol("Other", 220));
+                right.notifyListeners(i(20), i(), i());
+            });
+            checkValues.run();
+            assertEquals(description, i(0), listener.getUpdate().modified());
+            assertEquals(description, result.newModifiedColumnSet("Stamp"),
+                    listener.getUpdate().modifiedColumnSet());
+
+            // a left stamp modification that keeps the match, in the same cycle as a stamp and Sentinel modification of
+            // the matched right row that keeps every match, reports the left stamp and Sentinel only
+            final long matchedRightRow = reverse ? 11 : 0;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(0), col("Key", "A"), intCol("Stamp", reverse ? 8 : 10), intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(0), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+                addToTable(right, i(matchedRightRow), col("Key", "A"), intCol("Stamp", reverse ? 9 : 6),
+                        intCol("Sentinel", 130), intCol("Other", reverse ? 211 : 200));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(matchedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Stamp", "Sentinel")));
+            });
+            checkValues.run();
+            assertTrue(description, listener.getUpdate().modified().containsRange(0, 0));
+            assertEquals(description, result.newModifiedColumnSet("Stamp", "Sentinel"),
+                    listener.getUpdate().modifiedColumnSet());
+        }
+
+        listener.reset();
         result.removeUpdateListener(listener);
     }
 
