@@ -120,6 +120,7 @@ public abstract class QueryTableTestBase extends RefreshingTableTestCase {
                 GenerateTableUpdates.generateShiftAwareTableUpdates(GenerateTableUpdates.DEFAULT_PROFILE, rightSize,
                         random, rightTable, rightColumnInfo);
             });
+            TstUtils.validate(toString(), en);
         }
 
         @Override
