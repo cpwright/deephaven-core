@@ -187,7 +187,7 @@ final class MethodPattern {
 
     private static void bindTypeArguments(final Class<?> type, final Map<TypeVariable<?>, Type> bindings,
             final Set<Class<?>> visited) {
-        if (type == null || !visited.add(type)) {
+        if (!visited.add(type)) {
             return;
         }
         final List<Type> genericSupertypes = new ArrayList<>(Arrays.asList(type.getGenericInterfaces()));
@@ -203,7 +203,8 @@ final class MethodPattern {
                     bindings.putIfAbsent(variables[vi], typeArguments[vi]);
                 }
                 bindTypeArguments((Class<?>) parameterized.getRawType(), bindings, visited);
-            } else if (supertype instanceof Class) {
+            } else {
+                // a generic supertype is either a ParameterizedType or a Class
                 bindTypeArguments((Class<?>) supertype, bindings, visited);
             }
         }
@@ -289,7 +290,7 @@ final class MethodPattern {
 
         final StringBuilder regex = new StringBuilder();
         int start = 0;
-        while (start < element.length()) {
+        while (true) {
             final int dot = element.indexOf('.', start);
             final int end = dot < 0 ? element.length() : dot;
             final String segment = element.substring(start, end);

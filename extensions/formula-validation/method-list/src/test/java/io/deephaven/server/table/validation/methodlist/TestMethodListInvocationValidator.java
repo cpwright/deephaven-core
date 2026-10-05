@@ -73,6 +73,8 @@ public class TestMethodListInvocationValidator {
         assertPermitted("java.lang.String *(int, ..)", String.class.getMethod("substring", int.class));
         assertNotPermitted("java.lang.String *(int, ..)", String.class.getMethod("indexOf", String.class, int.class));
         assertPermitted("java.lang.String *(.., int)", String.class.getMethod("indexOf", String.class, int.class));
+        assertNotPermitted("java.lang.String *(.., int)", String.class.getMethod("indexOf", String.class));
+        assertNotPermitted("java.lang.String *(.., int)", String.class.getMethod("length"));
         assertPermitted("java.util.Arrays toString(int[])", Arrays.class.getMethod("toString", int[].class));
         assertNotPermitted("java.util.Arrays toString(int[])", Arrays.class.getMethod("toString", long[].class));
         assertPermitted("java.util.Arrays deepToString(java.lang.Object[])",
@@ -94,6 +96,9 @@ public class TestMethodListInvocationValidator {
         assertPermitted("java.lang.String valueOf(Object)", String.class.getMethod("valueOf", Object.class));
         assertPermitted("String length()", String.class.getMethod("length"));
         assertNotPermitted("Collections emptyMap()", Collections.class.getMethod("emptyMap"));
+        // an unqualified name with a wildcard is not taken to be in java.lang, so it matches only the unnamed package
+        assertNotPermitted("java.lang.String valueOf(Obj*)", String.class.getMethod("valueOf", Object.class));
+        assertNotPermitted("Str* length()", String.class.getMethod("length"));
         assertNotPermitted("java.util.Collections unmodifiableMap(Map)",
                 Collections.class.getMethod("unmodifiableMap", Map.class));
         assertPermitted("java.util.Collections unmodifiableMap(java.util.Map)",
@@ -168,6 +173,21 @@ public class TestMethodListInvocationValidator {
         assertPermitted("*..* *(..)", Integer.class.getConstructor(int.class));
         assertNotPermitted("java.lang.String value*(..)", String.class.getConstructor(char[].class));
         assertNotPermitted("java.lang.String <constructor>(..)", String.class.getMethod("valueOf", char[].class));
+    }
+
+    @Test
+    public void testClassWithoutCanonicalName() throws NoSuchMethodException {
+        class Local {
+            public int value() {
+                return 1;
+            }
+        }
+        Assert.assertNull(Local.class.getCanonicalName());
+        final Method value = Local.class.getMethod("value");
+        assertPermitted(Local.class.getName() + " value()", value);
+        assertPermitted(getClass().getName() + "$*Local value()", value);
+        assertNotPermitted(getClass().getName() + "$*Other value()", value);
+        assertPermitted("java.lang.Object toString()", Local.class.getMethod("toString"));
     }
 
     @Test
