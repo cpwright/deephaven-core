@@ -343,6 +343,14 @@ public class TestMethodListInvocationValidator {
         final String root = Root.class.getName();
         assertPermitted(root + " accept(..)", RawRootSub.class.getMethod("accept", Object.class));
         assertNotPermitted(root + " accept(..)", RawRootSub.class.getMethod("accept", Number.class));
+        // an inner class of a generic class, referred to without type arguments, is raw too
+        assertPermitted(sink + " accept(..)", RawSinkInnerSub.class.getMethod("accept", Object.class));
+        assertNotPermitted(sink + " accept(..)", RawSinkInnerSub.class.getMethod("accept", Number.class));
+        assertNotPermitted(root + " accept(java.lang.Object)", RawRootInnerSub.class.getMethod("accept", String.class));
+        assertPermitted(root + " accept(java.lang.Object)", LongRootInnerSub.class.getMethod("accept", String.class));
+        // but a static nested class of a generic class is not
+        assertPermitted(root + " accept(java.lang.Object)",
+                StaticNestedSub.class.getMethod("accept", String.class));
         // while a parameterized supertype binds them
         assertPermitted(root + " accept(..)", LongRootSub.class.getMethod("accept", Long.class));
         assertNotPermitted(root + " accept(..)", LongRootSub.class.getMethod("accept", Number.class));
@@ -602,6 +610,52 @@ public class TestMethodListInvocationValidator {
         public void accept(final Long value) {}
 
         public void accept(final Number value) {}
+    }
+
+    public static class GenericOuter<T extends Number> {
+        public abstract class SinkInner implements Sink<T> {
+        }
+
+        public class RootInner extends Root<String> {
+        }
+
+        public static class StaticNested extends Root<String> {
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static class RawSinkInnerSub extends GenericOuter.SinkInner {
+        public RawSinkInnerSub(final GenericOuter outer) {
+            outer.super();
+        }
+
+        @Override
+        public void accept(final Object value) {}
+
+        public void accept(final Number value) {}
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static class RawRootInnerSub extends GenericOuter.RootInner {
+        public RawRootInnerSub(final GenericOuter outer) {
+            outer.super();
+        }
+
+        public void accept(final String value) {}
+    }
+
+    public static class LongRootInnerSub extends GenericOuter<Long>.RootInner {
+        public LongRootInnerSub(final GenericOuter<Long> outer) {
+            outer.super();
+        }
+
+        @Override
+        public void accept(final String value) {}
+    }
+
+    public static class StaticNestedSub extends GenericOuter.StaticNested {
+        @Override
+        public void accept(final String value) {}
     }
 
     public static class ProtectedBase {

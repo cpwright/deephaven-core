@@ -254,7 +254,7 @@ final class MethodPattern {
             } else {
                 // a generic supertype is either a ParameterizedType or a Class, which is raw if the class is generic
                 supertypeClass = (Class<?>) supertype;
-                supertypeRaw = supertypeClass.getTypeParameters().length > 0;
+                supertypeRaw = isGeneric(supertypeClass);
             }
             final Map<TypeVariable<?>, Class<?>> result =
                     supertypeBindings(target, supertypeClass, supertypeContext, supertypeRaw, visited);
@@ -263,6 +263,20 @@ final class MethodPattern {
             }
         }
         return null;
+    }
+
+    /**
+     * Is {@code type} generic, so that a reference to it without type arguments is raw? An inner class is generic when
+     * a class enclosing it, up to the first static class, declares type parameters.
+     */
+    private static boolean isGeneric(final Class<?> type) {
+        for (Class<?> enclosing = type; enclosing != null; enclosing =
+                Modifier.isStatic(enclosing.getModifiers()) ? null : enclosing.getEnclosingClass()) {
+            if (enclosing.getTypeParameters().length > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
