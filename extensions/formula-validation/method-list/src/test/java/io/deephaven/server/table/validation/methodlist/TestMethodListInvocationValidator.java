@@ -147,6 +147,13 @@ public class TestMethodListInvocationValidator {
         assertPermitted("java.lang.Object hashCode()", Integer.class.getMethod("hashCode"));
         assertPermitted("java.lang.Object equals(java.lang.Object)", String.class.getMethod("equals", Object.class));
         assertPermitted("java.lang.Object getClass()", Integer.class.getMethod("getClass"));
+        // an interface that declares a method of Object overrides it, though Object is not among its generic supertypes
+        final Method comparatorEquals = java.util.Comparator.class.getMethod("equals", Object.class);
+        Assert.assertEquals(java.util.Comparator.class, comparatorEquals.getDeclaringClass());
+        assertPermitted("java.lang.Object equals(java.lang.Object)", comparatorEquals);
+        final Method charSequenceToString = CharSequence.class.getMethod("toString");
+        Assert.assertEquals(CharSequence.class, charSequenceToString.getDeclaringClass());
+        assertPermitted("java.lang.Object toString()", charSequenceToString);
         // static methods do not override
         assertNotPermitted("java.lang.Object hashCode()", Integer.class.getMethod("hashCode", int.class));
         assertNotPermitted("java.lang.Object toString(..)", Integer.class.getMethod("toString", int.class));
@@ -323,6 +330,22 @@ public class TestMethodListInvocationValidator {
         assertPermitted(inner + " accept(..)", accept);
         assertPermitted(inner + " accept(java.lang.Object)", accept);
         assertNotPermitted(inner + " accept(..)", InnerSub.class.getMethod("accept", Integer.class));
+
+        // an inner class's superclass binds the type variables of its supertypes, whatever the owner type binds
+        final String shadow = Shadow.class.getName();
+        assertPermitted(shadow + " accept(..)", ShadowLeaf.class.getMethod("accept", String.class));
+        assertNotPermitted(shadow + " accept(..)", ShadowLeaf.class.getMethod("accept", Integer.class));
+
+        // the supertypes of a raw type are erased, so a type variable erases to the bound in its own declaration
+        final String sink = Sink.class.getName();
+        assertPermitted(sink + " accept(..)", RawSinkSub.class.getMethod("accept", Object.class));
+        assertNotPermitted(sink + " accept(..)", RawSinkSub.class.getMethod("accept", Number.class));
+        final String root = Root.class.getName();
+        assertPermitted(root + " accept(..)", RawRootSub.class.getMethod("accept", Object.class));
+        assertNotPermitted(root + " accept(..)", RawRootSub.class.getMethod("accept", Number.class));
+        // while a parameterized supertype binds them
+        assertPermitted(root + " accept(..)", LongRootSub.class.getMethod("accept", Long.class));
+        assertNotPermitted(root + " accept(..)", LongRootSub.class.getMethod("accept", Number.class));
     }
 
     @Test
@@ -524,6 +547,61 @@ public class TestMethodListInvocationValidator {
         public void accept(final String value) {}
 
         public void accept(final Integer value) {}
+    }
+
+    public static class Shadow<T> {
+        public void accept(final T value) {}
+
+        public class Inner extends Shadow<String> {
+        }
+    }
+
+    public static class ShadowLeaf extends Shadow<Integer>.Inner {
+        public ShadowLeaf(final Shadow<Integer> outer) {
+            outer.super();
+        }
+
+        @Override
+        public void accept(final String value) {}
+
+        public void accept(final Integer value) {}
+    }
+
+    public interface Sink<T> {
+        void accept(T value);
+    }
+
+    public abstract static class NumberSink<T extends Number> implements Sink<T> {
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static class RawSinkSub extends NumberSink {
+        @Override
+        public void accept(final Object value) {}
+
+        public void accept(final Number value) {}
+    }
+
+    public static class Root<T> {
+        public void accept(final T value) {}
+    }
+
+    public static class NumberRoot<S extends Number> extends Root<S> {
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static class RawRootSub extends NumberRoot {
+        @Override
+        public void accept(final Object value) {}
+
+        public void accept(final Number value) {}
+    }
+
+    public static class LongRootSub extends NumberRoot<Long> {
+        @Override
+        public void accept(final Long value) {}
+
+        public void accept(final Number value) {}
     }
 
     public static class ProtectedBase {

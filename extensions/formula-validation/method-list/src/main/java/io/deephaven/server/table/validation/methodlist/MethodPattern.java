@@ -142,7 +142,7 @@ final class MethodPattern {
 
     /**
      * Is {@code candidate}, declared by a supertype of {@code method}'s declaring class, overridden by {@code method}?
-     * Type variables in the candidate's parameters are resolved through the generic supertypes of the overriding class,
+     * Type variables in the candidate's parameters are resolved along the inheritance path from the overriding class,
      * so that {@code Integer.compareTo(Integer)} overrides {@code Comparable.compareTo(T)}.
      */
     private static boolean isOverriddenBy(final Method candidate, final Method method) {
@@ -159,8 +159,10 @@ final class MethodPattern {
             // override declared there
             return false;
         }
-        final Map<TypeVariable<?>, Type> bindings = new HashMap<>();
-        bindTypeArguments(method.getDeclaringClass(), bindings, new HashSet<>());
+        // the implicit Object supertype of an interface is not among its generic supertypes, and binds nothing
+        final Map<TypeVariable<?>, Class<?>> found = supertypeBindings(candidate.getDeclaringClass(),
+                method.getDeclaringClass(), Map.of(), false, new HashSet<>());
+        final Map<TypeVariable<?>, Class<?>> bindings = found == null ? Map.of() : found;
         if (!Arrays.equals(candidate.getParameterTypes(), method.getParameterTypes())) {
             final Type[] candidateParameters = candidate.getGenericParameterTypes();
             final Class<?>[] methodParameters = method.getParameterTypes();
@@ -203,43 +205,73 @@ final class MethodPattern {
                 && first.getPackageName().equals(second.getPackageName());
     }
 
-    private static void bindTypeArguments(final Class<?> type, final Map<TypeVariable<?>, Type> bindings,
-            final Set<Class<?>> visited) {
+    /**
+     * Find the erased type arguments of {@code target} as a supertype of {@code type}, following the generic supertypes
+     * of each class on the way so that every class is resolved in its own context.
+     *
+     * @param target the supertype whose type variables to bind
+     * @param type the class to search from
+     * @param context the erasures of the type variables of {@code type}, and of its enclosing classes
+     * @param raw whether {@code type} is used as a raw type, in which case its supertypes are erased
+     * @param visited the classes already searched
+     * @return the erasures of the type variables of {@code target} and its enclosing classes, empty when it is reached
+     *         through a raw type, or null when {@code target} is not a generic supertype of {@code type}
+     */
+    private static Map<TypeVariable<?>, Class<?>> supertypeBindings(final Class<?> target, final Class<?> type,
+            final Map<TypeVariable<?>, Class<?>> context, final boolean raw, final Set<Class<?>> visited) {
+        if (type == target) {
+            return context;
+        }
         if (!visited.add(type)) {
-            return;
+            return null;
         }
         final List<Type> genericSupertypes = new ArrayList<>(Arrays.asList(type.getGenericInterfaces()));
         if (type.getGenericSuperclass() != null) {
             genericSupertypes.add(type.getGenericSuperclass());
         }
         for (final Type supertype : genericSupertypes) {
+            final Class<?> supertypeClass;
+            final Map<TypeVariable<?>, Class<?>> supertypeContext = new HashMap<>();
+            final boolean supertypeRaw;
             if (supertype instanceof ParameterizedType) {
                 final ParameterizedType parameterized = (ParameterizedType) supertype;
-                // the owner of an inner class, as in Outer<String>.Inner, binds the type variables of Outer
-                Type owner = parameterized;
-                while (owner instanceof ParameterizedType) {
-                    final ParameterizedType ownerType = (ParameterizedType) owner;
-                    final TypeVariable<?>[] variables = ((Class<?>) ownerType.getRawType()).getTypeParameters();
-                    final Type[] typeArguments = ownerType.getActualTypeArguments();
-                    for (int vi = 0; vi < variables.length; ++vi) {
-                        bindings.putIfAbsent(variables[vi], typeArguments[vi]);
+                supertypeClass = (Class<?>) parameterized.getRawType();
+                // the supertype of a raw type is the erasure of its declared supertype, so it is raw too
+                supertypeRaw = raw;
+                if (!raw) {
+                    // the owner of an inner class, as in Outer<String>.Inner, binds the type variables of Outer
+                    Type owner = parameterized;
+                    while (owner instanceof ParameterizedType) {
+                        final ParameterizedType ownerType = (ParameterizedType) owner;
+                        final TypeVariable<?>[] variables = ((Class<?>) ownerType.getRawType()).getTypeParameters();
+                        final Type[] typeArguments = ownerType.getActualTypeArguments();
+                        for (int vi = 0; vi < variables.length; ++vi) {
+                            supertypeContext.put(variables[vi], erase(typeArguments[vi], context));
+                        }
+                        owner = ownerType.getOwnerType();
                     }
-                    owner = ownerType.getOwnerType();
                 }
-                bindTypeArguments((Class<?>) parameterized.getRawType(), bindings, visited);
             } else {
-                // a generic supertype is either a ParameterizedType or a Class
-                bindTypeArguments((Class<?>) supertype, bindings, visited);
+                // a generic supertype is either a ParameterizedType or a Class, which is raw if the class is generic
+                supertypeClass = (Class<?>) supertype;
+                supertypeRaw = supertypeClass.getTypeParameters().length > 0;
+            }
+            final Map<TypeVariable<?>, Class<?>> result =
+                    supertypeBindings(target, supertypeClass, supertypeContext, supertypeRaw, visited);
+            if (result != null) {
+                return result;
             }
         }
+        return null;
     }
 
     /**
-     * Erase a parameter or return type of a candidate method, resolving class type variables through {@code bindings}.
+     * Erase a type, using {@code bindings} for the erasures of type variables bound by the inheritance path and the
+     * erasure of its leftmost bound for any other type variable.
      *
      * @return the erasure, or null for a type that a parameter or return type cannot have, so that it matches nothing
      */
-    private static Class<?> erase(final Type type, final Map<TypeVariable<?>, Type> bindings) {
+    private static Class<?> erase(final Type type, final Map<TypeVariable<?>, Class<?>> bindings) {
         if (type instanceof Class) {
             return (Class<?>) type;
         }
@@ -251,9 +283,9 @@ final class MethodPattern {
             return component == null ? null : Array.newInstance(component, 0).getClass();
         }
         if (type instanceof TypeVariable) {
-            final Type bound = bindings.get(type);
-            if (bound != null && bound != type) {
-                return erase(bound, bindings);
+            if (bindings.containsKey(type)) {
+                // null for a type argument that cannot be erased, which matches nothing
+                return bindings.get(type);
             }
             return erase(((TypeVariable<?>) type).getBounds()[0], bindings);
         }
