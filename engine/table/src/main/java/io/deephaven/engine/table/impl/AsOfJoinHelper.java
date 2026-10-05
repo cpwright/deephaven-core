@@ -1025,9 +1025,12 @@ public class AsOfJoinHelper {
                             }
 
                             try (final RowSet responsive = responsiveBuilder.build()) {
-                                downstream.modified().writableCast().insert(responsive);
+                                if (responsive.isNonempty()) {
+                                    downstream.modified().writableCast().insert(responsive);
+                                    rightTransformer.transform(upstream.modifiedColumnSet(),
+                                            downstream.modifiedColumnSet());
+                                }
                             }
-                            rightTransformer.transform(upstream.modifiedColumnSet(), downstream.modifiedColumnSet());
                         }
                     }
 
@@ -1606,10 +1609,12 @@ public class AsOfJoinHelper {
                                         }
                                     }
                                     try (final RowSet responsive = responsiveBuilder.build()) {
-                                        downstream.modified().writableCast().insert(responsive);
+                                        if (responsive.isNonempty()) {
+                                            downstream.modified().writableCast().insert(responsive);
+                                            rightTransformer.transform(upstream.modifiedColumnSet(),
+                                                    downstream.modifiedColumnSet());
+                                        }
                                     }
-                                    rightTransformer.transform(upstream.modifiedColumnSet(),
-                                            downstream.modifiedColumnSet());
                                 }
                             }
                         }

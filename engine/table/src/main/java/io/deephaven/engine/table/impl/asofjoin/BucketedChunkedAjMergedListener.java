@@ -753,10 +753,6 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
                         }
                     }
                 }
-
-                if (!rightStampModified && !rightKeysModified) {
-                    rightTransformer.transform(rightRecorder.getModifiedColumnSet(), downstream.modifiedColumnSet());
-                }
             }
 
             if (leftTicked) {
@@ -892,10 +888,12 @@ public class BucketedChunkedAjMergedListener extends MergedListener {
         // can be released
         asOfJoinStateManager.releaseEmptyBuckets();
 
-        try (
-
-                final RowSet modifiedByRightStamps = modifiedBuilder.build();
+        try (final RowSet modifiedByRightStamps = modifiedBuilder.build();
                 final RowSet restamped = rightRestamped) {
+            // the rows responsive to right modifications reflect the modified right columns that the result adds
+            if (modifiedByRightStamps.isNonempty()) {
+                rightTransformer.transform(rightRecorder.getModifiedColumnSet(), downstream.modifiedColumnSet());
+            }
             final WritableRowSet modified = leftRecorder.getModified().union(modifiedByRightStamps);
             if (restamped != null) {
                 modified.insert(restamped);

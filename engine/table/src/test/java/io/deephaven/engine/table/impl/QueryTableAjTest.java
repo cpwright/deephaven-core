@@ -2913,6 +2913,62 @@ public class QueryTableAjTest {
             assertTrue(description, listener.getUpdate().modified().containsRange(0, 0));
             assertEquals(description, result.newModifiedColumnSet("Stamp", "Sentinel"),
                     listener.getUpdate().modifiedColumnSet());
+
+            // a left stamp modification that keeps the match, in the same cycle as a Sentinel modification of a right
+            // row that matches nothing, reports only the left stamp
+            final long unmatchedRightRow = 20;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(0), col("Key", "A"), intCol("Stamp", reverse ? 7 : 11), intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(0), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+                addToTable(right, i(unmatchedRightRow), col("Key", "A"), intCol("Stamp", farStamp),
+                        intCol("Sentinel", 121), intCol("Other", 220));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(unmatchedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Sentinel")));
+            });
+            checkValues.run();
+            assertEquals(description, i(0), listener.getUpdate().modified());
+            assertEquals(description, result.newModifiedColumnSet("Stamp"),
+                    listener.getUpdate().modifiedColumnSet());
+
+            // a left stamp modification that keeps the match, in the same cycle as a Sentinel modification of the
+            // right row it matches, reports the left stamp and Sentinel
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(0), col("Key", "A"), intCol("Stamp", reverse ? 8 : 10), intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(0), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+                addToTable(right, i(matchedRightRow), col("Key", "A"), intCol("Stamp", reverse ? 9 : 6),
+                        intCol("Sentinel", 131), intCol("Other", reverse ? 211 : 200));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(matchedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Sentinel")));
+            });
+            checkValues.run();
+            assertTrue(description, listener.getUpdate().modified().containsRange(0, 0));
+            assertEquals(description, result.newModifiedColumnSet("Stamp", "Sentinel"),
+                    listener.getUpdate().modifiedColumnSet());
+
+            // a left stamp modification that keeps the match, in the same cycle as a Sentinel modification of the
+            // right row that an unmodified left row matches, which for aj is left row 2 and for raj left row 1,
+            // reports the left stamp and Sentinel
+            final long otherMatchedRightRow = reverse ? 3 : 11;
+            final long otherLeftRow = reverse ? 1 : 2;
+            listener.reset();
+            updateGraph.runWithinUnitTestCycle(() -> {
+                addToTable(left, i(0), col("Key", "A"), intCol("Stamp", reverse ? 7 : 11), intCol("LeftOther", 0));
+                left.notifyListeners(new TableUpdateImpl(i(), i(), i(0), RowSetShiftData.EMPTY,
+                        left.newModifiedColumnSet("Stamp")));
+                addToTable(right, i(otherMatchedRightRow), col("Key", "A"), intCol("Stamp", reverse ? 35 : 30),
+                        intCol("Sentinel", 132), intCol("Other", reverse ? 203 : 211));
+                right.notifyListeners(new TableUpdateImpl(i(), i(), i(otherMatchedRightRow), RowSetShiftData.EMPTY,
+                        right.newModifiedColumnSet("Sentinel")));
+            });
+            checkValues.run();
+            assertTrue(description, listener.getUpdate().modified().containsRange(0, 0));
+            assertTrue(description, listener.getUpdate().modified().containsRange(otherLeftRow, otherLeftRow));
+            assertEquals(description, result.newModifiedColumnSet("Stamp", "Sentinel"),
+                    listener.getUpdate().modifiedColumnSet());
         }
 
         listener.reset();

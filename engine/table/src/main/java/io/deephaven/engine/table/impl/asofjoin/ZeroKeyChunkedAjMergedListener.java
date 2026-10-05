@@ -411,11 +411,6 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
                             }
                         }
                     }
-
-                    if (!rightStampModified) {
-                        rightTransformer.transform(rightRecorder.getModifiedColumnSet(),
-                                downstream.modifiedColumnSet());
-                    }
                 }
             }
 
@@ -480,6 +475,10 @@ public class ZeroKeyChunkedAjMergedListener extends MergedListener {
 
             try (final RowSet modifiedByRightStamps = modifiedBuilder.build();
                     final RowSet restamped = rightRestamped) {
+                // the rows responsive to right modifications reflect the modified right columns that the result adds
+                if (modifiedByRightStamps.isNonempty()) {
+                    rightTransformer.transform(rightRecorder.getModifiedColumnSet(), downstream.modifiedColumnSet());
+                }
                 final WritableRowSet modified = leftRecorder.getModified().union(modifiedByRightStamps);
                 if (restamped != null) {
                     modified.insert(restamped);
