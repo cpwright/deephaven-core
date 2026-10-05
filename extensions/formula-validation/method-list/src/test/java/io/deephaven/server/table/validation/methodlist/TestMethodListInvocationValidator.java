@@ -4,8 +4,10 @@
 package io.deephaven.server.table.validation.methodlist;
 
 import io.deephaven.UncheckedDeephavenException;
+import io.deephaven.server.table.validation.methodlist.other.OtherPackageNonWideningSub;
 import io.deephaven.server.table.validation.methodlist.other.OtherPackageProtectedSub;
 import io.deephaven.server.table.validation.methodlist.other.OtherPackageSub;
+import io.deephaven.server.table.validation.methodlist.other.OtherPackageTransitiveSub;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -79,6 +81,14 @@ public class TestMethodListInvocationValidator {
         assertNotPermitted("java.util.Arrays toString(int[])", Arrays.class.getMethod("toString", long[].class));
         assertPermitted("java.util.Arrays deepToString(java.lang.Object[])",
                 Arrays.class.getMethod("deepToString", Object[].class));
+        // a wildcard within a name does not match an array type
+        final Method join = String.class.getMethod("join", CharSequence.class, CharSequence[].class);
+        assertNotPermitted("java.lang.String join(java.lang.*, java.lang.*)", join);
+        assertPermitted("java.lang.String join(java.lang.*, java.lang.*[])", join);
+        assertPermitted("java.lang.String join(java.lang.*, *)", join);
+        final Method deepToString = Arrays.class.getMethod("deepToString", Object[].class);
+        assertNotPermitted("java.util.Arrays deepToString(java.lang.*)", deepToString);
+        assertPermitted("java.util.Arrays deepToString(java.lang.*[])", deepToString);
     }
 
     @Test
@@ -88,6 +98,22 @@ public class TestMethodListInvocationValidator {
         assertPermitted("java.lang.String format(java.lang.String, java.lang.Object...)", format);
         assertPermitted("java.util.Arrays asList(Object[])", Arrays.class.getMethod("asList", Object[].class));
         assertPermitted("java.util.Arrays asList(Object...)", Arrays.class.getMethod("asList", Object[].class));
+
+        // the variable arity parameter must still match its element type and position
+        assertNotPermitted("java.lang.String format(java.lang.String, java.lang.String...)", format);
+        assertNotPermitted("java.lang.String format(java.lang.String, int...)", format);
+        assertNotPermitted("java.lang.String format(java.lang.Object...)", format);
+        assertNotPermitted("java.lang.String format(java.lang.String...)", format);
+        assertNotPermitted("java.util.Arrays asList(int...)", Arrays.class.getMethod("asList", Object[].class));
+        // a variable arity pattern matches only an array parameter, not the element type or a missing parameter
+        assertNotPermitted("java.lang.String format(java.lang.String, java.lang.Object)", format);
+        assertNotPermitted("java.lang.String format(java.lang.String)", format);
+        assertNotPermitted("java.lang.String valueOf(java.lang.Object...)",
+                String.class.getMethod("valueOf", Object.class));
+        assertNotPermitted("java.lang.String join(java.lang.CharSequence, java.lang.CharSequence...)",
+                String.class.getMethod("join", CharSequence.class, Iterable.class));
+        assertPermitted("java.lang.String join(java.lang.CharSequence, java.lang.CharSequence...)",
+                String.class.getMethod("join", CharSequence.class, CharSequence[].class));
     }
 
     @Test
@@ -177,17 +203,43 @@ public class TestMethodListInvocationValidator {
 
     @Test
     public void testClassWithoutCanonicalName() throws NoSuchMethodException {
+        final Class<?> local = localClass();
+        Assert.assertNull(local.getCanonicalName());
+        final Method value = local.getMethod("value");
+        assertPermitted(local.getName() + " value()", value);
+        assertPermitted(getClass().getName() + "$*Local value()", value);
+        assertNotPermitted(getClass().getName() + "$*Other value()", value);
+        assertPermitted("java.lang.Object toString()", local.getMethod("toString"));
+
+        // nor do arrays of a local class have a canonical name
+        final Class<?> localArray = local.arrayType();
+        Assert.assertNull(localArray.getCanonicalName());
+        final Method accept = local.getMethod("accept", localArray);
+        assertPermitted("*..* accept(*)", accept);
+        assertPermitted("*..* accept(*[])", accept);
+        assertPermitted("*..* accept(" + local.getName() + "[])", accept);
+        assertNotPermitted("*..* accept(" + local.getName() + ")", accept);
+        assertNotPermitted("*..* accept(java.lang.Object[])", accept);
+        final Constructor<?> constructor = local.getConstructor(localArray);
+        assertPermitted("*..* <constructor>(*)", constructor);
+        assertPermitted("*..* <constructor>(" + local.getName() + "[])", constructor);
+        assertNotPermitted("*..* <constructor>(" + local.getName() + ")", constructor);
+    }
+
+    /**
+     * A local class declared in a static method, so that its constructors take no enclosing instance.
+     */
+    private static Class<?> localClass() {
         class Local {
+            public Local(final Local[] values) {}
+
             public int value() {
                 return 1;
             }
+
+            public void accept(final Local[] values) {}
         }
-        Assert.assertNull(Local.class.getCanonicalName());
-        final Method value = Local.class.getMethod("value");
-        assertPermitted(Local.class.getName() + " value()", value);
-        assertPermitted(getClass().getName() + "$*Local value()", value);
-        assertNotPermitted(getClass().getName() + "$*Other value()", value);
-        assertPermitted("java.lang.Object toString()", Local.class.getMethod("toString"));
+        return Local.class;
     }
 
     @Test
@@ -212,6 +264,13 @@ public class TestMethodListInvocationValidator {
 
         // a method of the same name in another package does not override a package-private method
         assertNotPermitted(pattern, OtherPackageSub.class.getDeclaredMethod("packagePrivate"));
+
+        // an override in another package of a public override in the base's package overrides the base too
+        assertPermitted(pattern, OtherPackageTransitiveSub.class.getDeclaredMethod("packagePrivate"));
+        // but not when the override in the base's package is itself package-private
+        assertNotPermitted(pattern, OtherPackageNonWideningSub.class.getDeclaredMethod("packagePrivate"));
+        assertNotPermitted(PackagePrivateSub.class.getName() + " packagePrivate()",
+                OtherPackageNonWideningSub.class.getDeclaredMethod("packagePrivate"));
 
         // the same package name in another class loader is a different runtime package, so there is no override
         for (final Class<?> sub : List.of(PackagePrivateSub.class, PackagePrivatePublicSub.class)) {
@@ -257,6 +316,13 @@ public class TestMethodListInvocationValidator {
         assertPermitted(base + " typeVariable(java.lang.Object, java.util.List)", leafTypeVariable);
         assertPermitted(base + " array(java.lang.Object[])", Leaf.class.getMethod("array", Long[].class));
         assertNotPermitted(base + " typeVariable(..)", Leaf.class.getMethod("typeVariable", Integer.class, List.class));
+
+        // a type variable of the generic class that encloses an inner class, bound by the subclass's supertype
+        final String inner = Outer.Inner.class.getName();
+        final Method accept = InnerSub.class.getMethod("accept", String.class);
+        assertPermitted(inner + " accept(..)", accept);
+        assertPermitted(inner + " accept(java.lang.Object)", accept);
+        assertNotPermitted(inner + " accept(..)", InnerSub.class.getMethod("accept", Integer.class));
     }
 
     @Test
@@ -441,6 +507,23 @@ public class TestMethodListInvocationValidator {
         public int compareTo(final BridgeBase other) {
             return 1;
         }
+    }
+
+    public static class Outer<T> {
+        public class Inner {
+            public void accept(final T value) {}
+        }
+    }
+
+    public static class InnerSub extends Outer<String>.Inner {
+        public InnerSub(final Outer<String> outer) {
+            outer.super();
+        }
+
+        @Override
+        public void accept(final String value) {}
+
+        public void accept(final Integer value) {}
     }
 
     public static class ProtectedBase {

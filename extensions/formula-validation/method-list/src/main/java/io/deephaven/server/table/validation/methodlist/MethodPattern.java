@@ -153,8 +153,10 @@ final class MethodPattern {
             return false;
         }
         if (!Modifier.isPublic(modifiers) && !Modifier.isProtected(modifiers)
-                && !samePackage(candidate.getDeclaringClass(), method.getDeclaringClass())) {
-            // a package-private method is only overridden within its own runtime package
+                && !samePackage(candidate.getDeclaringClass(), method.getDeclaringClass())
+                && !overriddenThroughSuperclass(candidate, method)) {
+            // a package-private method is only overridden within its own runtime package, or transitively through an
+            // override declared there
             return false;
         }
         final Map<TypeVariable<?>, Type> bindings = new HashMap<>();
@@ -180,6 +182,22 @@ final class MethodPattern {
         return candidateReturn.isAssignableFrom(methodReturn);
     }
 
+    /**
+     * Does {@code method} override {@code candidate} through a method declared by a class between them, such as a
+     * public override in the candidate's package of a package-private candidate?
+     */
+    private static boolean overriddenThroughSuperclass(final Method candidate, final Method method) {
+        for (Class<?> type = method.getDeclaringClass().getSuperclass(); type != null
+                && type != candidate.getDeclaringClass(); type = type.getSuperclass()) {
+            for (final Method intermediate : type.getDeclaredMethods()) {
+                if (isOverriddenBy(candidate, intermediate) && isOverriddenBy(intermediate, method)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean samePackage(final Class<?> first, final Class<?> second) {
         return first.getClassLoader() == second.getClassLoader()
                 && first.getPackageName().equals(second.getPackageName());
@@ -197,10 +215,16 @@ final class MethodPattern {
         for (final Type supertype : genericSupertypes) {
             if (supertype instanceof ParameterizedType) {
                 final ParameterizedType parameterized = (ParameterizedType) supertype;
-                final TypeVariable<?>[] variables = ((Class<?>) parameterized.getRawType()).getTypeParameters();
-                final Type[] typeArguments = parameterized.getActualTypeArguments();
-                for (int vi = 0; vi < variables.length; ++vi) {
-                    bindings.putIfAbsent(variables[vi], typeArguments[vi]);
+                // the owner of an inner class, as in Outer<String>.Inner, binds the type variables of Outer
+                Type owner = parameterized;
+                while (owner instanceof ParameterizedType) {
+                    final ParameterizedType ownerType = (ParameterizedType) owner;
+                    final TypeVariable<?>[] variables = ((Class<?>) ownerType.getRawType()).getTypeParameters();
+                    final Type[] typeArguments = ownerType.getActualTypeArguments();
+                    for (int vi = 0; vi < variables.length; ++vi) {
+                        bindings.putIfAbsent(variables[vi], typeArguments[vi]);
+                    }
+                    owner = ownerType.getOwnerType();
                 }
                 bindTypeArguments((Class<?>) parameterized.getRawType(), bindings, visited);
             } else {
@@ -264,8 +288,9 @@ final class MethodPattern {
         if (canonicalName != null && pattern.matcher(canonicalName).matches()) {
             return true;
         }
-        // local and anonymous classes have no canonical name; "$" in a pattern also matches a nested class
-        return !type.isArray() && pattern.matcher(type.getName()).matches();
+        // local and anonymous classes, and arrays of them, have no canonical name; "$" in a pattern also matches a
+        // nested class
+        return pattern.matcher(type.getTypeName()).matches();
     }
 
     /**
@@ -297,7 +322,8 @@ final class MethodPattern {
             if (!IDENTIFIER_PATTERN.matcher(segment).matches()) {
                 throw new IllegalArgumentException("Invalid type pattern: '" + text + "'");
             }
-            regex.append(globToRegex(segment, "[^.]*"));
+            // a wildcard within a name does not match the brackets of an array type
+            regex.append(globToRegex(segment, "[^.\\[\\]]*"));
             if (dot < 0) {
                 break;
             }
