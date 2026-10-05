@@ -4,6 +4,7 @@
 package io.deephaven.server.table.validation.methodlist;
 
 import io.deephaven.UncheckedDeephavenException;
+import io.deephaven.server.table.validation.methodlist.other.OtherPackageProtectedSub;
 import io.deephaven.server.table.validation.methodlist.other.OtherPackageSub;
 import org.junit.Assert;
 import org.junit.Test;
@@ -201,6 +202,73 @@ public class TestMethodListInvocationValidator {
         }
     }
 
+    @Test
+    public void testGenericErasure() throws NoSuchMethodException {
+        final String base = GenericBase.class.getName();
+
+        // a type variable bound by the implementing class, beside a parameterized parameter type
+        final Method integerTypeVariable =
+                IntegerImpl.class.getMethod("typeVariable", Integer.class, List.class);
+        assertPermitted(base + " typeVariable(..)", integerTypeVariable);
+        assertPermitted(base + " typeVariable(java.lang.Object, java.util.List)", integerTypeVariable);
+        assertPermitted(base + " typeVariable(java.lang.Integer, java.util.List)", integerTypeVariable);
+        // an overload whose parameter does not erase to the bound type argument does not override
+        assertNotPermitted(base + " typeVariable(..)",
+                IntegerImpl.class.getMethod("typeVariable", String.class, List.class));
+
+        // a generic array parameter
+        final Method integerArray = IntegerImpl.class.getMethod("array", Integer[].class);
+        assertPermitted(base + " array(java.lang.Object[])", integerArray);
+        assertPermitted(base + " array(java.lang.Integer[])", integerArray);
+        assertNotPermitted(base + " array(..)", IntegerImpl.class.getMethod("array", String[].class));
+
+        // a method type variable, which no class binds, erases to its bound
+        final Method integerMethodVariable =
+                IntegerImpl.class.getMethod("methodVariable", Integer.class, Number.class);
+        assertPermitted(base + " methodVariable(java.lang.Object, java.lang.Number)", integerMethodVariable);
+        assertPermitted(base + " methodVariable(java.lang.Integer, java.lang.Number)", integerMethodVariable);
+
+        // a type argument that is itself parameterized
+        assertPermitted(base + " typeVariable(..)", ListImpl.class.getMethod("typeVariable", List.class, List.class));
+        assertPermitted(base + " array(java.lang.Object[])", ListImpl.class.getMethod("array", List[].class));
+
+        // a type variable bound to the type variable of an intermediate class, which the subclass binds
+        final Method leafTypeVariable = Leaf.class.getMethod("typeVariable", Long.class, List.class);
+        assertPermitted(base + " typeVariable(java.lang.Object, java.util.List)", leafTypeVariable);
+        assertPermitted(base + " array(java.lang.Object[])", Leaf.class.getMethod("array", Long[].class));
+        assertNotPermitted(base + " typeVariable(..)", Leaf.class.getMethod("typeVariable", Integer.class, List.class));
+    }
+
+    @Test
+    public void testCandidatesThatCannotBeOverridden() throws NoSuchMethodException {
+        final String base = CandidateBase.class.getName();
+        // a private method in the supertype is not overridden, whatever the subclass's method's access
+        assertNotPermitted(base + " hidden()", CandidateSub.class.getMethod("hidden"));
+        // a private method is not matched through its supertypes either
+        assertNotPermitted(base + " secret()", CandidateSub.class.getDeclaredMethod("secret"));
+        assertPermitted(CandidateSub.class.getName() + " secret()", CandidateSub.class.getDeclaredMethod("secret"));
+        // a static method in the supertype is not overridden
+        assertNotPermitted(base + " shared(..)", CandidateSub.class.getMethod("shared", long.class));
+        // a method with the same name and a different number of parameters does not override
+        assertNotPermitted(base + " count(..)", CandidateSub.class.getMethod("count"));
+        assertPermitted(base + " count(..)", CandidateSub.class.getMethod("count", int.class));
+
+        // the supertype's compiler-generated bridge method does not make an override match a pattern for it
+        final String bridgeBase = BridgeBase.class.getName();
+        final Method compareTo = BridgeSub.class.getMethod("compareTo", BridgeBase.class);
+        assertNotPermitted(bridgeBase + " compareTo(java.lang.Object)", compareTo);
+        assertPermitted(bridgeBase + " compareTo(" + bridgeBase + ")", compareTo);
+    }
+
+    @Test
+    public void testProtectedOverrides() throws NoSuchMethodException {
+        final String pattern = ProtectedBase.class.getName() + " prot()";
+        // unlike a package-private method, a protected method is overridden from another package
+        assertPermitted(pattern, OtherPackageProtectedSub.class.getMethod("prot"));
+        assertPermitted(pattern, OtherPackageProtectedSub.class.getDeclaredMethod("prot"));
+        assertNotPermitted(pattern, OtherPackageProtectedSub.class.getMethod("unrelated"));
+    }
+
     private Class<?> loadInChildLoader(final Class<?> type) throws ClassNotFoundException {
         return new ClassLoader(getClass().getClassLoader()) {
             @Override
@@ -243,5 +311,116 @@ public class TestMethodListInvocationValidator {
             return validator.permitMethod((Method) executable);
         }
         return validator.permitConstructor((Constructor<?>) executable);
+    }
+
+    public interface GenericBase<T> {
+        void typeVariable(T value, List<String> list);
+
+        void array(T[] values);
+
+        <U extends Number> void methodVariable(T value, U number);
+    }
+
+    public static class IntegerImpl implements GenericBase<Integer> {
+        @Override
+        public void typeVariable(final Integer value, final List<String> list) {}
+
+        public void typeVariable(final String value, final List<String> list) {}
+
+        @Override
+        public void array(final Integer[] values) {}
+
+        public void array(final String[] values) {}
+
+        @Override
+        public <U extends Number> void methodVariable(final Integer value, final U number) {}
+    }
+
+    public static class ListImpl implements GenericBase<List<Integer>> {
+        @Override
+        public void typeVariable(final List<Integer> value, final List<String> list) {}
+
+        @Override
+        public void array(final List<Integer>[] values) {}
+
+        @Override
+        public <U extends Number> void methodVariable(final List<Integer> value, final U number) {}
+    }
+
+    public abstract static class Middle<E extends Number> implements GenericBase<E> {
+    }
+
+    public static class Leaf extends Middle<Long> {
+        @Override
+        public void typeVariable(final Long value, final List<String> list) {}
+
+        public void typeVariable(final Integer value, final List<String> list) {}
+
+        @Override
+        public void array(final Long[] values) {}
+
+        @Override
+        public <U extends Number> void methodVariable(final Long value, final U number) {}
+    }
+
+    public static class CandidateBase {
+        private int hidden() {
+            return 1;
+        }
+
+        private int secret() {
+            return 1;
+        }
+
+        public static int shared(final int value) {
+            return value;
+        }
+
+        public int count(final int value) {
+            return value;
+        }
+    }
+
+    public static class CandidateSub extends CandidateBase {
+        public int hidden() {
+            return 2;
+        }
+
+        private int secret() {
+            return 2;
+        }
+
+        public int shared(final long value) {
+            return 2;
+        }
+
+        public int count() {
+            return 2;
+        }
+
+        @Override
+        public int count(final int value) {
+            return 2;
+        }
+    }
+
+    public static class BridgeBase implements Comparable<BridgeBase> {
+        @Override
+        public int compareTo(final BridgeBase other) {
+            return 0;
+        }
+    }
+
+    public static class BridgeSub extends BridgeBase {
+        @Override
+        public int compareTo(final BridgeBase other) {
+            return 1;
+        }
+    }
+
+    public static class ProtectedBase {
+        protected int prot() {
+            return 1;
+        }
     }
 }
