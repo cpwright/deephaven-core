@@ -291,7 +291,12 @@ public class TestMethodListInvocationValidator {
     public void testInvalidPatterns() {
         for (final String invalid : List.of("", "java.lang.String", "java.lang.String length", "length()",
                 "java.lang.String length(", "java.lang.String len-gth()", "java.lang.String length(int,)",
-                "java.lang.String length(java.lang.Object..., int)", "* toString()")) {
+                "java.lang.String length(java.lang.Object..., int)", "* toString()",
+                // malformed type patterns, in the declaring class and in the argument list
+                ".java.lang.String length()", "java.lang.String. length()", "java...String length()",
+                "java.lang.Str-ing length()", "java.lang.String valueOf(java.lang.Ob#ject)",
+                "java.lang.String valueOf(java..lang...Object)", "java.lang.String valueOf(.Object)",
+                "java.lang.String valueOf([])")) {
             Assert.assertThrows(invalid, UncheckedDeephavenException.class,
                     () -> new MethodListInvocationValidator(List.of(invalid)));
         }
