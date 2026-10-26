@@ -78,6 +78,13 @@ public class ChunkedOperatorAggregationHelper {
      */
     public static double COLLAPSE_FREE_FRACTION = Configuration.getInstance()
             .getDoubleWithDefault("ChunkedOperatorAggregationHelper.collapseFreeFraction", 1.0);
+    /**
+     * Temporary, for benchmarking: a refreshing aggregation that does not reclaim states uses the state manager that
+     * supports tombstones anyway, but never tombstones a state, so that its cost can be compared with the plain state
+     * manager's.
+     */
+    public static boolean TOMBSTONE_MANAGER_WITHOUT_RECLAIMING = Configuration.getInstance()
+            .getBooleanWithDefault("ChunkedOperatorAggregationHelper.tombstoneManagerWithoutReclaiming", false);
 
     /**
      * Take the next output position for a new state. Output positions are never reused, so an aggregation that creates
@@ -310,12 +317,12 @@ public class ChunkedOperatorAggregationHelper {
             final IncrementalOperatorAggregationStateManager incrementalStateManager =
                     (IncrementalOperatorAggregationStateManager) stateManager;
             incrementalStateManager.startTrackingPrevValues();
-            if (incrementalStateManager.canReclaim()) {
+            if (reclaimStates) {
                 // a reclaiming aggregation has no initial groups, so its result holds every position it assigned
                 Assert.assertion(resultRowSet.isFlat(), "resultRowSet.isFlat()");
                 Assert.eq(resultRowSet.size(), "resultRowSet.size()", outputPosition.get(), "outputPosition.get()");
             }
-            final OutputPositionBlockTracker blockTracker = incrementalStateManager.canReclaim()
+            final OutputPositionBlockTracker blockTracker = reclaimStates
                     ? new OutputPositionBlockTracker(outputPosition.get(), reclaimMode.collapseFreeFraction())
                     : null;
 
@@ -418,7 +425,7 @@ public class ChunkedOperatorAggregationHelper {
             final boolean reclaimStates) {
         final OperatorAggregationStateManager stateManager;
         if (input.isRefreshing()) {
-            if (reclaimStates) {
+            if (reclaimStates || TOMBSTONE_MANAGER_WITHOUT_RECLAIMING) {
                 stateManager = TypedHasherFactory.make(
                         IncrementalChunkedOperatorAggregationStateManagerOpenAddressedBaseWithTombstones.class,
                         reinterpretedKeySources,

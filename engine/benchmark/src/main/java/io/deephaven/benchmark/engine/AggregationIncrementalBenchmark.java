@@ -39,9 +39,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Measures update cycles of a keyed {@code sumBy} over a refreshing table under each way of reclaiming the states of
- * removed keys ({@code reclaim}): keeping every state ({@code none}), releasing whole blocks of empty states
- * ({@code blocks}), or also collapsing runs of blocks that are at least a given fraction free ({@code collapse0.75} and
- * {@code collapse0.5}). Each iteration reports the positions assigned, the retained heap, and its longest cycle.
+ * removed keys ({@code reclaim}): keeping every state ({@code none}), keeping every state in the state manager that
+ * supports tombstones ({@code tsnone}, temporary), releasing whole blocks of empty states ({@code blocks}), or also
+ * collapsing runs of blocks that are at least a given fraction free ({@code collapse0.75} and {@code collapse0.5}).
+ * Each iteration reports the positions assigned, the retained heap, and its longest cycle.
  *
  * <p>
  * Each measured iteration is a batch of {@link #CYCLES} update cycles against a freshly built aggregation, so the
@@ -82,10 +83,10 @@ public class AggregationIncrementalBenchmark {
     private static final String COLLAPSE_PREFIX = "collapse";
 
     /**
-     * How states of removed keys are reclaimed: {@code none}, {@code blocks}, or {@code collapse} followed by the
-     * fraction free at which blocks are collapsed when releasing blocks.
+     * How states of removed keys are reclaimed: {@code none}, {@code tsnone}, {@code blocks}, or {@code collapse}
+     * followed by the fraction free at which blocks are collapsed when releasing blocks.
      */
-    @Param({"none", "blocks", "collapse0.75", "collapse0.5"})
+    @Param({"none", "tsnone", "blocks", "collapse0.75", "collapse0.5"})
     private String reclaim;
 
     /** The initial size for {@link #addOnly()}, and the constant size for the other benchmarks. */

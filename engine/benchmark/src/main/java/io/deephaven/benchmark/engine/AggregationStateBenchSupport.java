@@ -15,8 +15,9 @@ final class AggregationStateBenchSupport {
     private AggregationStateBenchSupport() {}
 
     /**
-     * Select how refreshing aggregations reclaim the states of removed keys: {@code none} keeps every state, and
-     * {@code blocks} releases whole blocks of empty states in place.
+     * Select how refreshing aggregations reclaim the states of removed keys: {@code none} keeps every state,
+     * {@code tsnone} also keeps every state but in the state manager that supports tombstones (temporary, to compare it
+     * with {@code none}), and {@code blocks} releases whole blocks of empty states in place.
      *
      * @param reclaim the reclaim mode
      */
@@ -24,9 +25,15 @@ final class AggregationStateBenchSupport {
         switch (reclaim) {
             case "none":
                 ChunkedOperatorAggregationHelper.RECLAIM_STATES = false;
+                ChunkedOperatorAggregationHelper.TOMBSTONE_MANAGER_WITHOUT_RECLAIMING = false;
+                break;
+            case "tsnone":
+                ChunkedOperatorAggregationHelper.RECLAIM_STATES = false;
+                ChunkedOperatorAggregationHelper.TOMBSTONE_MANAGER_WITHOUT_RECLAIMING = true;
                 break;
             case "blocks":
                 ChunkedOperatorAggregationHelper.RECLAIM_STATES = true;
+                ChunkedOperatorAggregationHelper.TOMBSTONE_MANAGER_WITHOUT_RECLAIMING = false;
                 break;
             default:
                 throw new IllegalArgumentException("Unknown reclaim mode " + reclaim);
